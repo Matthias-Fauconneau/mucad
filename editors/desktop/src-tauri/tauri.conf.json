@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "µcad",
+  "productName": "mucad",
   "mainBinaryName": "mucad-desktop",
   "identifier": "org.mucad.desktop",
   "build": {
