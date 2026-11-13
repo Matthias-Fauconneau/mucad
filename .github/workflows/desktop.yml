@@ -3,8 +3,9 @@
 
 # Builds the installers of the µcad desktop app (editors/desktop) for Linux, Windows and macOS.
 #
-# - A tag `v*`, e.g. `v0.6.4`, whose version must be the one of the workspace, creates a draft
-#   release with the installers, which is published by hand after a review.
+# - A tag `v*` of the version of the workspace, e.g. `v0.6.4`, or of a release candidate of it,
+#   e.g. `v0.6.4-rc.1`, creates a draft release with the installers, which is published by hand
+#   after a review. A release candidate is a pre-release.
 # - Run by hand (Actions → Desktop app → Run workflow), the installers are only uploaded as
 #   artifacts of the run, e.g. to test the workflow on a branch.
 #
@@ -40,11 +41,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # A release candidate of the version is valid too, e.g. `v0.6.4-rc.1` of `0.6.4`, its
+      # installers have the version of the workspace.
       - name: Check that the tag is the version of the workspace
         run: |
           version=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['version'])")
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::The tag $GITHUB_REF_NAME is not the version v$version of Cargo.toml"
+          if [[ "$GITHUB_REF_NAME" != "v$version" && "$GITHUB_REF_NAME" != "v$version"-* ]]; then
+            echo "::error::The tag $GITHUB_REF_NAME is neither the version v$version of Cargo.toml nor a release candidate of it, e.g. v$version-rc.1"
             exit 1
           fi
 
