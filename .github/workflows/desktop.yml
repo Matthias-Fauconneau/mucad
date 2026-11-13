@@ -7,6 +7,9 @@
 #   release with the installers, which is published by hand after a review.
 # - Run by hand (Actions → Desktop app → Run workflow), the installers are only uploaded as
 #   artifacts of the run, e.g. to test the workflow on a branch.
+#
+# The jobs only run on GitHub: Forgejo Actions, e.g. on Codeberg, also reads this folder, but has
+# neither macOS and Windows runners nor the API of GitHub releases.
 
 name: Desktop app
 
@@ -30,7 +33,7 @@ jobs:
   # The draft release, created once, before the builds upload their installers into it.
   release:
     name: Draft release
-    if: github.ref_type == 'tag'
+    if: github.server_url == 'https://github.com' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     outputs:
       id: ${{ steps.release.outputs.id }}
@@ -62,7 +65,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: release
     # Also without a release, when the workflow is run by hand.
-    if: ${{ !failure() && !cancelled() }}
+    if: ${{ github.server_url == 'https://github.com' && !failure() && !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
