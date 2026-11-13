@@ -8,59 +8,6 @@
         <title>µcad web viewer</title>
     </head>
     <body>
-        <mucad-navbar>
-            <span class="dropdown" slot="actions">
-                <button id="share" title="Export the model, or share the code as link or QR code">Share ▾</button>
-                <div id="share-panel" class="dropdown-panel" hidden>
-                    <button id="export" disabled><div id="export-btn-caption">Export</div> <kbd class="shortcut-key">E</kbd></button>
-                    <button id="copy-link" title="Copy a link with the code to the clipboard">Copy link</button>
-                    <label class="toggle" title="Share the code without comments, e.g. if it is too long for a link">
-                        <input type="checkbox" id="strip-comments" />
-                        Strip comments
-                    </label>
-                    <p id="share-error" hidden></p>
-                    <canvas id="qr-canvas"></canvas>
-                    <button id="qr-download">Download QR code as PNG</button>
-                </div>
-            </span>
-
-            <a
-                slot="links"
-                href="https://rust.services"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn-link"
-            >
-                <span class="made-by">Proudly made by</span>
-                <span class="rustservices-icon"></span>
-            </a>
-            <a
-                slot="links"
-                href="https://codeberg.org/mucad/mucad/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn-link btn-bright"
-            >
-                Report a bug
-            </a>
-            <a
-                slot="links"
-                href="https://codeberg.org/mucad/mucad"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn-link"
-            >
-                <span class="codeberg-icon"></span>
-                <span class="menu-label">Codeberg</span>
-            </a>
-        </mucad-navbar>
-        <main id="dock"></main>
-        <!-- The panel contents, which are moved into the dock. -->
-        <div hidden>
-            <mucad-editor id="editor" class="panel"></mucad-editor>
-            <mucad-viewer id="view" class="panel"></mucad-viewer>
-            <pre id="diagnostics" class="panel"></pre>
-        </div>
         <script type="module" src="/src/main.ts"></script>
     </body>
 </html>

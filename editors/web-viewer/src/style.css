@@ -1,71 +1,10 @@
 /* Copyright © 2026 The µcad authors <info@mucad.org> */
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 
-/* The layout of the web viewer: the navigation bar above the dock, the share menu and links. */
+/* The app fills the page. */
 
 html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--primary);
-  color: var(--bright);
-  font-family: system-ui, sans-serif;
-}
-
-body {
-  display: flex;
-  flex-direction: column;
-}
-
-#dock {
-  flex: 1;
-  min-height: 0;
-}
-
-.panel {
-  width: 100%;
-  height: 100%;
-}
-
-#diagnostics {
-  margin: 0;
-  padding: 0.5rem 1rem;
-  overflow: auto;
-  color: var(--brighter);
-  font-size: 0.8rem;
-}
-
-#diagnostics.error {
-  color: var(--complementary);
-}
-
-#share-error {
-  max-width: 16rem;
-  margin: 0;
-  color: var(--complementary);
-}
-
-#qr-canvas {
-  width: 16rem;
-  height: 16rem;
-  image-rendering: pixelated;
-}
-
-.codeberg-icon,
-.rustservices-icon {
-  display: inline-block;
-  width: 32px;
-  height: 32px;
-  background-color: var(--signal);
-  flex-shrink: 0;
-}
-
-.codeberg-icon {
-  -webkit-mask: url("./assets/codeberg.svg") no-repeat center / contain;
-  mask: url("./assets/codeberg.svg") no-repeat center / contain;
-}
-
-.rustservices-icon {
-  -webkit-mask: url("./assets/rust_services.svg") no-repeat center / contain;
-  mask: url("./assets/rust_services.svg") no-repeat center / contain;
 }
