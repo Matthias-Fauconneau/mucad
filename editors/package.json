@@ -4,6 +4,7 @@
   "description": "The npm workspace of the µcad web components, the web viewer and the desktop app",
   "license": "AGPL-3.0-or-later",
   "workspaces": [
+    "desktop",
     "web-components",
     "web-viewer"
   ],

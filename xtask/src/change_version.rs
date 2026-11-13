@@ -31,11 +31,16 @@ const MU_TOMLS: &[&str] = &[
 /// The entry of the WebAssembly package in the lock file has the version of its build, which
 /// `npm install` takes from `crates/wasm/pkg`.
 const NPM_FILES: &[(&str, &[&str])] = &[
+    ("editors/desktop/package.json", &[""]),
     ("editors/web-components/package.json", &[""]),
     ("editors/web-viewer/package.json", &[""]),
     (
         "editors/package-lock.json",
-        &[r#""web-components": {"#, r#""web-viewer": {"#],
+        &[
+            r#""desktop": {"#,
+            r#""web-components": {"#,
+            r#""web-viewer": {"#,
+        ],
     ),
 ];
 
