@@ -3,9 +3,12 @@
 
 import {
   Dock,
+  Documents,
   Viewer,
   errorMessage,
+  share,
   wasmCompiler,
+  webPlatform,
   addCompileShortcut,
   addCompletion,
   addLiteralStepping,
@@ -49,16 +52,16 @@ const dock = new Dock(element("dock"), [
   { id: "diagnostics", title: "Diagnostics", element: diagnostics },
 ], "view");
 
+const platform = webPlatform;
 const compiler = await wasmCompiler();
 const session = compiler.session();
 const viewer = new Viewer(element("view"));
+const documents = new Documents(platform, examples);
 
 /** The model type of the last successful compilation, which decides the export format. */
 let modelType: string | undefined;
 
-/** The key of the auto-update setting in the local storage of the browser. */
-const AUTO_UPDATE_KEY = "mucad.autoUpdate";
-autoUpdate.checked = localStorage.getItem(AUTO_UPDATE_KEY) !== "false";
+autoUpdate.checked = platform.setting("autoUpdate") !== "false";
 
 /** The pending compilation after an edit. */
 let timer: number | undefined;
@@ -103,49 +106,11 @@ async function format() {
   }
 }
 
-/** A document: an example, the code of a shared link or an own document of the user. */
-interface OpenDocument {
-  /** Whether it is an example, shared code or an own document, which can be renamed. */
-  kind: "example" | "shared" | "own";
-  /** The name in the list of documents. */
-  name: string;
-  /** The name in the preamble of a shared link, e.g. of the example. */
-  sharedName?: string;
-  /** The code when it was last saved. */
-  saved: string;
-  /** The code in the editor, also when another document is shown. */
-  code: string;
-}
-
-/**
- * The documents by their keys, which are kept for this session: the index of an example,
- * `SHARED_CODE` or `own-1`, `own-2`… of own documents.
- */
-const docs = new Map<string, OpenDocument>();
-
-/** The key of the shown document. */
-let shownDocument: string | undefined;
-
-/** The number of own documents, which have been created, for their keys. */
-let ownDocuments = 0;
-
-/** Add the example `key` to the documents, if it is not there yet, and return the document. */
-function docOf(key: string): OpenDocument {
-  let doc = docs.get(key);
-  if (!doc) {
-    const code = examples[Number(key)]?.code ?? "";
-    const name = examples[Number(key)]?.name ?? key;
-    doc = { kind: "example", name, sharedName: name, saved: code, code };
-    docs.set(key, doc);
-  }
-  return doc;
-}
-
 /** Show the document `key` in the editor with its unsaved changes. */
 function showDocument(key: string) {
-  shownDocument = key;
-  documentName.value = docOf(key).name;
-  editor.setValue(docOf(key).code);
+  const document = documents.show(key);
+  documentName.value = document.name;
+  editor.setValue(document.code);
 }
 
 /** Show the document `key` from the list, compile it at once and look at the whole model. */
@@ -155,121 +120,43 @@ function openDocument(key: string) {
   viewer.resetCamera();
 }
 
+/** Show an error of storing the own documents in the browser. */
+function showStoreError(error: unknown) {
+  showError(`Cannot store the documents in the browser: ${errorMessage(error)}`);
+}
+
 /**
  * Apply the name in the name field to the shown document: an own document is renamed, an
- * example or shared code is copied into a new own document with the name and the unsaved
- * changes, the example keeps its saved code.
- *
- * The name is made unique, e.g. `gear (2)`, an empty name is not applied.
+ * example or shared code is copied into a new own document, see `Documents::rename`.
  */
-function renameDocument() {
-  if (shownDocument === undefined) return;
-  const doc = docOf(shownDocument);
-  const name = documentName.value.trim();
-  if (!name || name === doc.name) {
-    documentName.value = doc.name;
-    return;
+async function renameDocument() {
+  try {
+    await documents.rename(documentName.value);
+  } catch (error) {
+    showStoreError(error);
   }
-  if (doc.kind === "own") {
-    doc.name = doc.sharedName = uniqueName(name, doc);
-    documentName.value = doc.name;
-  } else {
-    copyDocument(name);
-  }
-  storeDocuments();
-  updateModified();
-}
-
-/** `name` or, if another document than `doc` has it, a unique name like `gear (2)`. */
-function uniqueName(name: string, doc?: OpenDocument): string {
-  const names = new Set([...docs.values()].filter((other) => other !== doc).map((d) => d.name));
-  let unique = name;
-  for (let number = 2; names.has(unique); number++) unique = `${name} (${number})`;
-  return unique;
-}
-
-/**
- * Copy the shown example or shared code into a new own document with `name` and show it.
- *
- * The own document has the unsaved changes, the example or shared code keeps its saved code,
- * because only own documents can be changed.
- */
-function copyDocument(name: string): OpenDocument {
-  const source = docOf(shownDocument!);
-  const unique = uniqueName(name);
-  const key = `own-${++ownDocuments}`;
-  const doc: OpenDocument = {
-    kind: "own",
-    name: unique,
-    sharedName: unique,
-    saved: source.saved,
-    code: editor.getValue(),
-  };
-  docs.set(key, doc);
-  source.code = source.saved;
-  shownDocument = key;
-  documentName.value = unique;
-  return doc;
+  documentName.value = documents.shownDocument?.name ?? "";
 }
 
 /** Delete the own document `key` after a confirmation, the first example is shown instead. */
-function deleteDocument(key: string) {
-  const doc = docOf(key);
-  if (!confirm(`Delete "${doc.name}"? It cannot be restored.`)) return;
-  docs.delete(key);
-  storeDocuments();
-  if (key === shownDocument) openDocument("0");
-  updateModified();
-}
-
-/** The local storage key of the own documents. */
-const DOCUMENTS_KEY = "mucad.documents";
-
-/** An own document in the local storage: its name and its saved code, no unsaved changes. */
-interface StoredDocument {
-  name: string;
-  code: string;
-}
-
-/**
- * Store the saved code of the own documents in the local storage of the browser, e.g. after
- * saving, renaming or deleting one.
- *
- * The browser is asked once to keep the storage, also when it runs out of space.
- */
-function storeDocuments() {
-  const own: StoredDocument[] = [...docs.values()]
-    .filter((doc) => doc.kind === "own")
-    .map((doc) => ({ name: doc.name, code: doc.saved }));
+async function deleteDocument(key: string) {
+  const document = documents.get(key);
+  if (!(await platform.confirm(`Delete "${document.name}"? It cannot be restored.`))) return;
+  const shown = key === documents.shown;
   try {
-    localStorage.setItem(DOCUMENTS_KEY, JSON.stringify(own));
-    if (own.length) navigator.storage?.persist?.();
+    await documents.delete(key);
   } catch (error) {
-    showError(`Cannot store the documents in the browser: ${error}`);
+    showStoreError(error);
   }
-}
-
-/** Restore the own documents from the local storage of the browser. */
-function restoreDocuments() {
-  try {
-    const stored: StoredDocument[] = JSON.parse(localStorage.getItem(DOCUMENTS_KEY) ?? "[]");
-    for (const { name, code } of stored) {
-      const doc: OpenDocument = { kind: "own", name, sharedName: name, saved: code, code };
-      docs.set(`own-${++ownDocuments}`, doc);
-    }
-  } catch (error) {
-    showError(`Cannot restore the documents of the browser: ${error}`);
-  }
+  if (shown) openDocument("0");
 }
 
 /** Show the documents in groups: own documents, shared code and examples. */
 function renderDocumentList() {
-  const keys = (kind: OpenDocument["kind"]) =>
-    [...docs].filter(([, doc]) => doc.kind === kind).map(([key]) => key);
   const groups: [string, string[]][] = [
-    ["Own documents", keys("own")],
-    ["Shared code", keys("shared")],
-    ["Examples", examples.map((_, index) => String(index))],
+    ["Own documents", documents.keys("own")],
+    ["Shared code", documents.keys("shared")],
+    ["Examples", documents.keys("example")],
   ];
   documentList.replaceChildren();
   for (const [title, group] of groups) {
@@ -279,13 +166,13 @@ function renderDocumentList() {
     heading.textContent = title;
     documentList.append(heading);
     for (const key of group) {
-      const doc = docOf(key);
+      const doc = documents.get(key);
       const row = document.createElement("div");
       row.className = "document-row";
       const button = document.createElement("button");
       button.setAttribute("role", "option");
-      button.setAttribute("aria-selected", String(key === shownDocument));
-      button.textContent = doc.code === doc.saved ? doc.name : `${doc.name} ●`;
+      button.setAttribute("aria-selected", String(key === documents.shown));
+      button.textContent = documents.isModified(doc) ? `${doc.name} ●` : doc.name;
       button.addEventListener("click", () => {
         showDocumentList(false);
         openDocument(key);
@@ -299,7 +186,7 @@ function renderDocumentList() {
         remove.addEventListener("click", (event) => {
           // The list stays open, also when it is rendered again.
           event.stopPropagation();
-          deleteDocument(key);
+          void deleteDocument(key);
         });
         row.append(remove);
       }
@@ -317,8 +204,8 @@ function showDocumentList(open: boolean) {
 
 /** Show the modified flag of the shown document, and of each one in an open list. */
 function updateModified() {
-  const doc = shownDocument === undefined ? undefined : docs.get(shownDocument);
-  const modified = !!doc && doc.code !== doc.saved;
+  const doc = documents.shownDocument;
+  const modified = !!doc && documents.isModified(doc);
   saveButton.classList.toggle("btn-bright", modified);
   documentsElement.classList.toggle("modified", modified);
   if (!documentList.hidden) renderDocumentList();
@@ -326,71 +213,39 @@ function updateModified() {
 
 /**
  * Save the shown document in the browser, which formats and compiles it and shows its link in
- * the URL.
+ * the URL. An example or shared code is copied into an own document.
  */
 async function save() {
   await format();
-  if (shownDocument !== undefined) {
-    let doc = docOf(shownDocument);
-    // An example or shared code cannot be changed, it is copied into an own document, e.g.
-    // `brick` for `brick.mu`.
-    if (doc.kind !== "own") {
-      doc = copyDocument((doc.sharedName ?? "Untitled").replace(/\.mu$/, ""));
-    }
-    doc.saved = doc.code = editor.getValue();
-    storeDocuments();
+  try {
+    await documents.save(editor.getValue());
+  } catch (error) {
+    showStoreError(error);
   }
-  updateModified();
+  documentName.value = documents.shownDocument?.name ?? "";
   compileNow();
   void updateUrl();
 }
 
-/** The key of the code of a shared link. */
-const SHARED_CODE = "shared";
-
-/**
- * The code and the name in the preamble of a shared link in the URL: in the fragment, e.g.
- * `#wrUBQUQABENpcmNsZShyID0gMTBtbSk7CgM`, or as query parameter `?code=`. Without a shared
- * link, there is neither code nor error.
- */
+/** The code and the name of a shared link in the URL, without one neither code nor error. */
 async function sharedLink(): Promise<{ code?: string; name?: string; error?: string }> {
-  const link =
-    location.hash.length > 1
-      ? location.hash
-      : new URLSearchParams(location.search).has("code")
-        ? location.search
-        : undefined;
+  const link = share.linkInUrl(new URL(location.href));
   if (link === undefined) return {};
   try {
-    const { code, preamble } = await compiler.decodeLink(link);
-    const { name } = preamble;
-    return { code, name: typeof name === "string" ? name : undefined };
+    return await share.decodeLink(compiler, link);
   } catch (error) {
     return { error: errorMessage(error) };
   }
 }
 
 /**
- * Show the code of a shared link formatted under its `name`, e.g. `brick.mu (shared)`, compile
- * it and look at the whole model.
+ * Show the code of a shared link formatted under its `name`, e.g. `brick.mu (shared)`, or the
+ * own document with its name and code, compile it and look at the whole model.
  */
 async function showSharedCode(code: string, name?: string) {
   const formatted = await compiler.format(code);
   code = formatted.success && formatted.formatted ? formatted.code : code;
-  // The link of a saved own document, e.g. in the URL after a reload, shows the document.
-  const own = [...docs].find(
-    ([, doc]) => doc.kind === "own" && doc.sharedName === name && doc.saved === code,
-  );
-  if (own) {
-    openDocument(own[0]);
-    return;
-  }
-  // Another shared link replaces the shared code, also its unsaved changes.
-  const label = name === undefined ? "Shared code" : `${name} (shared)`;
-  docs.set(SHARED_CODE, { kind: "shared", name: label, sharedName: name, saved: code, code });
-  showDocument(SHARED_CODE);
-  compileNow();
-  viewer.resetCamera();
+  openDocument(documents.addShared(code, name));
 }
 
 /** Show an error, e.g. of a shared link, in front of the diagnostics of the shown code. */
@@ -404,9 +259,7 @@ function showLinkError(error: string) {
   showError(`Cannot open the shared link: ${error}`);
 }
 
-/** The key of the strip comments setting in the local storage of the browser. */
-const STRIP_COMMENTS_KEY = "mucad.stripComments";
-stripComments.checked = localStorage.getItem(STRIP_COMMENTS_KEY) === "true";
+stripComments.checked = platform.setting("stripComments") === "true";
 
 /** Show an error in the share menu, or no error. */
 function showShareError(error?: string) {
@@ -421,8 +274,8 @@ function showShareError(error?: string) {
  * Fails, e.g. for code, which is too long for a link.
  */
 function encodeLink(strip: boolean): Promise<string> {
-  const name = shownDocument === undefined ? undefined : docOf(shownDocument).sharedName;
-  return compiler.encodeLink(editor.getValue(), name === undefined ? {} : { name }, strip);
+  const name = documents.shownDocument?.sharedName;
+  return compiler.encodeLink(editor.getValue(), share.preamble(name), strip);
 }
 
 /**
@@ -458,16 +311,13 @@ async function copyLink() {
   const link = await shareLink();
   if (link === undefined) return;
   try {
-    await navigator.clipboard.writeText(link);
+    await platform.copyText(link);
     copyLinkButton.textContent = "Copied";
     setTimeout(() => (copyLinkButton.textContent = "Copy link"), 1500);
   } catch (error) {
     showShareError(`Cannot copy the link: ${error}`);
   }
 }
-
-/** The number of modules of the quiet zone around a QR code. */
-const QR_QUIET_ZONE = 4;
 
 /** The number of the latest update of the share menu, earlier updates are not shown. */
 let shareMenuUpdates = 0;
@@ -487,21 +337,7 @@ async function drawQrCode(update: number): Promise<boolean | undefined> {
     return false;
   }
   if (update !== shareMenuUpdates) return undefined;
-  const width = Math.sqrt(modules.length);
-  const size = width + 2 * QR_QUIET_ZONE;
-  // At least 512 pixels for a sharp PNG.
-  const scale = Math.max(2, Math.ceil(512 / size));
-  qrCanvas.width = qrCanvas.height = size * scale;
-  const context = qrCanvas.getContext("2d")!;
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, qrCanvas.width, qrCanvas.height);
-  context.fillStyle = "#000000";
-  modules.forEach((dark, index) => {
-    if (!dark) return;
-    const x = (index % width) + QR_QUIET_ZONE;
-    const y = Math.floor(index / width) + QR_QUIET_ZONE;
-    context.fillRect(x * scale, y * scale, scale, scale);
-  });
+  share.drawQrCode(qrCanvas, modules);
   return true;
 }
 
@@ -531,24 +367,10 @@ function showMenu(open: boolean) {
   menuButton.setAttribute("aria-expanded", String(open));
 }
 
-/** The name of the shown document, e.g. for downloads. */
-function modelName(): string {
-  return (shownDocument === undefined ? undefined : docs.get(shownDocument)?.sharedName) ?? "model";
-}
-
-/** Download `blob` as file `name`. */
-function download(blob: Blob, name: string) {
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = name;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
 /** Download the QR code as PNG. */
 function downloadQrCode() {
   qrCanvas.toBlob((blob) => {
-    if (blob) download(blob, `${modelName()}-qr.png`);
+    if (blob) void platform.saveFile(`${documents.modelName}-qr.png`, blob);
   }, "image/png");
 }
 
@@ -558,7 +380,8 @@ async function exportModel() {
     modelType === "2d" ? (["svg", "image/svg+xml"] as const) : (["stl", "model/stl"] as const);
   try {
     const data = await session.export(format);
-    download(new Blob([data as BlobPart], { type }), `${modelName()}.${format}`);
+    const blob = new Blob([data as BlobPart], { type });
+    await platform.saveFile(`${documents.modelName}.${format}`, blob);
   } catch (error) {
     showError(`Cannot export the model: ${errorMessage(error)}`);
   }
@@ -604,8 +427,7 @@ document.addEventListener('keydown', (e) => {
 
 // Compile after each change with auto-update, otherwise with the compile button.
 const editor = createEditor(element("editor"), (code) => {
-  if (shownDocument !== undefined) docOf(shownDocument).code = code;
-  updateModified();
+  documents.setCode(code);
   clearTimeout(timer);
   if (autoUpdate.checked) {
     timer = window.setTimeout(() => compile(code), COMPILE_DELAY_MS);
@@ -642,10 +464,10 @@ if (versionTag) {
 // Its unsaved changes are kept, when another document is shown.
 documentListButton.addEventListener("click", () => showDocumentList(documentList.hidden));
 // A new name is applied with Enter or by leaving the name field, Escape restores the name.
-documentName.addEventListener("change", renameDocument);
+documentName.addEventListener("change", () => void renameDocument());
 documentName.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && shownDocument !== undefined) {
-    documentName.value = docOf(shownDocument).name;
+  if (event.key === "Escape" && documents.shownDocument) {
+    documentName.value = documents.shownDocument.name;
   }
   if (event.key === "Enter" || event.key === "Escape") documentName.blur();
 });
@@ -657,7 +479,7 @@ shareButton.addEventListener("click", toggleShareMenu);
 copyLinkButton.addEventListener("click", copyLink);
 qrDownloadButton.addEventListener("click", downloadQrCode);
 stripComments.addEventListener("change", () => {
-  localStorage.setItem(STRIP_COMMENTS_KEY, String(stripComments.checked));
+  platform.setSetting("stripComments", String(stripComments.checked));
   // The shown QR code is of the link with the new setting.
   void updateShareMenu();
 });
@@ -676,7 +498,7 @@ document.addEventListener("click", (event) => {
   if (!menu.contains(target) && !menuButton.contains(target)) showMenu(false);
 });
 autoUpdate.addEventListener("change", () => {
-  localStorage.setItem(AUTO_UPDATE_KEY, String(autoUpdate.checked));
+  platform.setSetting("autoUpdate", String(autoUpdate.checked));
   // Changes made without auto-update are compiled, when it is switched on.
   if (autoUpdate.checked && compileButton.classList.contains("btn-bright")) {
     compileNow();
@@ -685,7 +507,12 @@ autoUpdate.addEventListener("change", () => {
 
 // The own documents of the browser, the code of a shared link, otherwise the first example or
 // the one given by the URL, e.g. `?example=1`.
-restoreDocuments();
+documents.addEventListener("change", updateModified);
+try {
+  await documents.restore();
+} catch (error) {
+  showError(`Cannot restore the documents of the browser: ${errorMessage(error)}`);
+}
 const shared = await sharedLink();
 if (shared.code !== undefined) {
   await showSharedCode(shared.code, shared.name);
@@ -705,6 +532,4 @@ window.addEventListener("hashchange", async () => {
 
 // Unsaved changes are not stored, the browser asks before they are lost by a reload or by
 // closing the page.
-window.addEventListener("beforeunload", (event) => {
-  if ([...docs.values()].some((doc) => doc.code !== doc.saved)) event.preventDefault();
-});
+platform.confirmClose(() => documents.hasUnsavedChanges());

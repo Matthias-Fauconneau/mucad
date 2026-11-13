@@ -10,5 +10,8 @@ export * from "./compiler/types";
 export { wasmCompiler } from "./compiler/wasm";
 export * from "./dock";
 export * from "./editor";
+export * from "./platform";
+export * from "./services/documents";
+export * as share from "./services/share";
 export * from "./theme";
 export * from "./viewer";
