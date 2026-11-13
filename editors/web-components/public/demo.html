@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- Copyright © 2026 The µcad authors <info@mucad.org> -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>µcad viewer demo</title>
+        <style>
+            body {
+                max-width: 50rem;
+                margin: 2rem auto;
+                padding: 0 1rem;
+                font-family: system-ui, sans-serif;
+                line-height: 1.5;
+            }
+
+            mucad-viewer {
+                height: 20rem;
+                margin: 1rem 0 2rem;
+            }
+
+            pre {
+                padding: 0.5rem;
+                background: #eee;
+                overflow: auto;
+            }
+        </style>
+        <!-- The bundle, next to its directory `assets` with the binary of the compiler. -->
+        <script type="module" src="mucad-viewer.js"></script>
+    </head>
+    <body>
+        <h1>µcad viewer demo</h1>
+        <p>
+            <code>&lt;mucad-viewer&gt;</code> shows µcad models in a page, e.g. in the documentation.
+            Each viewer compiles its code, when it is scrolled to.
+        </p>
+        <pre>&lt;script type="module" src="mucad-viewer.js"&gt;&lt;/script&gt;</pre>
+
+        <h2>Code in the element</h2>
+        <pre>&lt;mucad-viewer&gt;std::geo3d::Torus([1..5] * 10mm, minor_radius = 3mm);&lt;/mucad-viewer&gt;</pre>
+        <mucad-viewer>std::geo3d::Torus([1..5] * 10mm, minor_radius = 3mm);</mucad-viewer>
+
+        <h2>Code in a file</h2>
+        <pre>&lt;mucad-viewer src="heart.mu"&gt;&lt;/mucad-viewer&gt;</pre>
+        <mucad-viewer src="heart.mu"></mucad-viewer>
+
+        <h2>Code in a shared link of the web viewer</h2>
+        <pre>&lt;mucad-viewer link="wrUBQUQABENpcmNsZShyID0gMTBtbSk7CgM"&gt;&lt;/mucad-viewer&gt;</pre>
+        <mucad-viewer link="wrUBQUQABENpcmNsZShyID0gMTBtbSk7CgM"></mucad-viewer>
+
+        <h2>Errors</h2>
+        <pre>&lt;mucad-viewer&gt;std::geo3d::Cube(size = 10);&lt;/mucad-viewer&gt;</pre>
+        <mucad-viewer>std::geo3d::Cube(size = 10);</mucad-viewer>
+    </body>
+</html>

@@ -9,6 +9,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "check": "tsc --noEmit"
   },
   "dependencies": {

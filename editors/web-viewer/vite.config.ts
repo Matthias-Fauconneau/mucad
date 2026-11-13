@@ -14,6 +14,22 @@ export default defineConfig({
     // Only the UMD build of dockview-core includes its stylesheet.
     alias: [{ find: /^dockview-core$/, replacement: "dockview-core/dist/dockview-core.js" }],
   },
+  build: {
+    // The libraries are in their own chunks, which stay cached, when the app changes. Monaco
+    // alone is about 3 MB.
+    chunkSizeWarningLimit: 3500,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "monaco", test: /node_modules[\\/]monaco-editor/ },
+            { name: "three", test: /node_modules[\\/]three/ },
+            { name: "dockview", test: /node_modules[\\/]dockview-core/ },
+          ],
+        },
+      },
+    },
+  },
   // The WebAssembly package loads its binary relative to its JavaScript module.
   optimizeDeps: { exclude: ["mucad-wasm"] },
 });
