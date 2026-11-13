@@ -4,18 +4,13 @@
 import {
   Dock,
   Documents,
-  Viewer,
+  type MucadEditor,
+  type MucadNavbar,
+  type MucadViewer,
   errorMessage,
   share,
   wasmCompiler,
   webPlatform,
-  addCompileShortcut,
-  addCompletion,
-  addLiteralStepping,
-  addSaveShortcut,
-  createEditor,
-  replaceCode,
-  setDiagnostics,
 } from "mucad-web-components";
 import { examples } from "./examples";
 import "./style.css";
@@ -24,18 +19,12 @@ import "./style.css";
 const COMPILE_DELAY_MS = 500;
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const documentsElement = element<HTMLSpanElement>("documents");
-const documentName = element<HTMLInputElement>("document-name");
-const documentListButton = element<HTMLButtonElement>("document-list-button");
-const documentList = element<HTMLDivElement>("document-list");
-const status = element<HTMLSpanElement>("status");
+const navbar = document.querySelector("mucad-navbar") as MucadNavbar;
+const editor = element<MucadEditor>("editor");
+const viewer = element<MucadViewer>("view");
+const diagnostics = element<HTMLPreElement>("diagnostics");
 const exportButton = element<HTMLButtonElement>("export");
 const exportButtonCaption = element<HTMLDivElement>("export-btn-caption");
-const saveButton = element<HTMLButtonElement>("save");
-const formatButton = element<HTMLButtonElement>("format");
-const compileButton = element<HTMLButtonElement>("compile");
-const autoUpdate = element<HTMLInputElement>("auto-update");
-const diagnostics = element<HTMLPreElement>("diagnostics");
 const shareButton = element<HTMLButtonElement>("share");
 const sharePanel = element<HTMLDivElement>("share-panel");
 const shareError = element<HTMLParagraphElement>("share-error");
@@ -43,74 +32,65 @@ const copyLinkButton = element<HTMLButtonElement>("copy-link");
 const qrCanvas = element<HTMLCanvasElement>("qr-canvas");
 const qrDownloadButton = element<HTMLButtonElement>("qr-download");
 const stripComments = element<HTMLInputElement>("strip-comments");
-const menu = element<HTMLDivElement>("menu");
-const menuButton = element<HTMLButtonElement>("menu-button");
 
-const dock = new Dock(element("dock"), [
-  { id: "editor", title: "Code", element: element("editor") },
-  { id: "view", title: "View", element: element("view") },
-  { id: "diagnostics", title: "Diagnostics", element: diagnostics },
-], "view");
+new Dock(
+  element("dock"),
+  [
+    { id: "editor", title: "Code", element: editor },
+    { id: "view", title: "View", element: viewer },
+    { id: "diagnostics", title: "Diagnostics", element: diagnostics },
+  ],
+  "view",
+);
 
 const platform = webPlatform;
 const compiler = await wasmCompiler();
 const session = compiler.session();
-const viewer = new Viewer(element("view"));
 const documents = new Documents(platform, examples);
+editor.connect(compiler, session);
+navbar.documents = documents;
+navbar.version = compiler.version;
+navbar.autoUpdate = platform.setting("autoUpdate") !== "false";
 
 /** The model type of the last successful compilation, which decides the export format. */
 let modelType: string | undefined;
 
-autoUpdate.checked = platform.setting("autoUpdate") !== "false";
-
 /** The pending compilation after an edit. */
 let timer: number | undefined;
 
-/** Mark that the code has changed since it was compiled, e.g. to compile it with the button. */
-function setModified(modified: boolean) {
-  compileButton.classList.toggle("btn-bright", modified);
+/** Whether the code has changed since it was compiled, e.g. to compile it with the button. */
+let compileModified = false;
+
+function setCompileModified(modified: boolean) {
+  compileModified = modified;
+  navbar.compileModified = modified;
 }
 
 /** Compile the code of the editor at once, instead of a pending compilation. */
 function compileNow() {
   clearTimeout(timer);
-  compile(editor.getValue());
+  void compile(editor.value);
 }
 
 /** Compile `code` and show its model, diagnostics and status, unless it is outdated. */
 async function compile(code: string) {
-  setModified(false);
+  setCompileModified(false);
   const result = await session.build(code);
   if (!result) return;
   diagnostics.textContent = result.report;
-  setDiagnostics(editor, result.diagnostics);
+  editor.setDiagnostics(result.diagnostics);
   diagnostics.classList.toggle("error", !result.success);
   viewer.show(result.geometry);
   modelType = result.geometry.kind === "none" ? undefined : result.geometry.kind;
 
-  status.textContent = modelType ? `${modelType.toUpperCase()} model` : "Errors";
-  status.classList.toggle("error", !modelType);
+  navbar.setStatus(modelType ? `${modelType.toUpperCase()} model` : "Errors", !modelType);
   exportButton.disabled = modelType !== "3d" && modelType !== "2d";
   exportButtonCaption.textContent = modelType === "2d" ? "Export SVG" : "Export STL";
 }
 
-/** Format the code of the editor, unless it is changed meanwhile. */
-async function format() {
-  const model = editor.getModel();
-  if (!model) return;
-  const version = model.getVersionId();
-  const formatted = await compiler.format(model.getValue());
-  if (model.getVersionId() !== version) return;
-  if (formatted.success && formatted.formatted) {
-    replaceCode(editor, formatted.code);
-  }
-}
-
 /** Show the document `key` in the editor with its unsaved changes. */
 function showDocument(key: string) {
-  const document = documents.show(key);
-  documentName.value = document.name;
-  editor.setValue(document.code);
+  editor.value = documents.show(key).code;
 }
 
 /** Show the document `key` from the list, compile it at once and look at the whole model. */
@@ -126,16 +106,16 @@ function showStoreError(error: unknown) {
 }
 
 /**
- * Apply the name in the name field to the shown document: an own document is renamed, an
- * example or shared code is copied into a new own document, see `Documents::rename`.
+ * Rename the shown document: an own document is renamed, an example or shared code is copied
+ * into a new own document, see `Documents::rename`.
  */
-async function renameDocument() {
+async function renameDocument(name: string) {
   try {
-    await documents.rename(documentName.value);
+    await documents.rename(name);
   } catch (error) {
     showStoreError(error);
   }
-  documentName.value = documents.shownDocument?.name ?? "";
+  navbar.refresh();
 }
 
 /** Delete the own document `key` after a confirmation, the first example is shown instead. */
@@ -151,78 +131,17 @@ async function deleteDocument(key: string) {
   if (shown) openDocument("0");
 }
 
-/** Show the documents in groups: own documents, shared code and examples. */
-function renderDocumentList() {
-  const groups: [string, string[]][] = [
-    ["Own documents", documents.keys("own")],
-    ["Shared code", documents.keys("shared")],
-    ["Examples", documents.keys("example")],
-  ];
-  documentList.replaceChildren();
-  for (const [title, group] of groups) {
-    if (!group.length) continue;
-    const heading = document.createElement("p");
-    heading.className = "document-group";
-    heading.textContent = title;
-    documentList.append(heading);
-    for (const key of group) {
-      const doc = documents.get(key);
-      const row = document.createElement("div");
-      row.className = "document-row";
-      const button = document.createElement("button");
-      button.setAttribute("role", "option");
-      button.setAttribute("aria-selected", String(key === documents.shown));
-      button.textContent = documents.isModified(doc) ? `${doc.name} ●` : doc.name;
-      button.addEventListener("click", () => {
-        showDocumentList(false);
-        openDocument(key);
-      });
-      row.append(button);
-      if (doc.kind === "own") {
-        const remove = document.createElement("button");
-        remove.className = "document-delete";
-        remove.title = `Delete ${doc.name}`;
-        remove.textContent = "✕";
-        remove.addEventListener("click", (event) => {
-          // The list stays open, also when it is rendered again.
-          event.stopPropagation();
-          void deleteDocument(key);
-        });
-        row.append(remove);
-      }
-      documentList.append(row);
-    }
-  }
-}
-
-/** Show or hide the list of documents. */
-function showDocumentList(open: boolean) {
-  if (open) renderDocumentList();
-  documentList.hidden = !open;
-  documentListButton.setAttribute("aria-expanded", String(open));
-}
-
-/** Show the modified flag of the shown document, and of each one in an open list. */
-function updateModified() {
-  const doc = documents.shownDocument;
-  const modified = !!doc && documents.isModified(doc);
-  saveButton.classList.toggle("btn-bright", modified);
-  documentsElement.classList.toggle("modified", modified);
-  if (!documentList.hidden) renderDocumentList();
-}
-
 /**
  * Save the shown document in the browser, which formats and compiles it and shows its link in
  * the URL. An example or shared code is copied into an own document.
  */
 async function save() {
-  await format();
+  await editor.format();
   try {
-    await documents.save(editor.getValue());
+    await documents.save(editor.value);
   } catch (error) {
     showStoreError(error);
   }
-  documentName.value = documents.shownDocument?.name ?? "";
   compileNow();
   void updateUrl();
 }
@@ -275,7 +194,7 @@ function showShareError(error?: string) {
  */
 function encodeLink(strip: boolean): Promise<string> {
   const name = documents.shownDocument?.sharedName;
-  return compiler.encodeLink(editor.getValue(), share.preamble(name), strip);
+  return compiler.encodeLink(editor.value, share.preamble(name), strip);
 }
 
 /**
@@ -315,7 +234,7 @@ async function copyLink() {
     copyLinkButton.textContent = "Copied";
     setTimeout(() => (copyLinkButton.textContent = "Copy link"), 1500);
   } catch (error) {
-    showShareError(`Cannot copy the link: ${error}`);
+    showShareError(`Cannot copy the link: ${errorMessage(error)}`);
   }
 }
 
@@ -361,12 +280,6 @@ function toggleShareMenu() {
   if (!sharePanel.hidden) void updateShareMenu();
 }
 
-/** Show or hide the menu of actions and links on phones. */
-function showMenu(open: boolean) {
-  menu.classList.toggle("open", open);
-  menuButton.setAttribute("aria-expanded", String(open));
-}
-
 /** Download the QR code as PNG. */
 function downloadQrCode() {
   qrCanvas.toBlob((blob) => {
@@ -387,127 +300,87 @@ async function exportModel() {
   }
 }
 
-// Detect if the user is on macOS
-const isMac = /macintosh|mac os x/i.test(navigator.userAgent);
-const modifierSymbol = isMac ? '⌘' : 'Ctrl+';
-
-// Update all shortcut displays dynamically
-document.querySelectorAll('.shortcut-key').forEach((el) => {
-    el.textContent = modifierSymbol + el.textContent;
-});
-
-document.addEventListener('keydown', (e) => {
-    const isCtrlOrCmd = e.ctrlKey || e.metaKey;
-    if (!isCtrlOrCmd) return;
-
-    // Ctrl+E or Cmd+E -> Export
-    if (e.key.toLowerCase() === 'e') {
-      e.preventDefault();
+// The shortcuts outside of the editor, which has its own ones for saving and compiling.
+document.addEventListener("keydown", (event) => {
+  if (!event.ctrlKey && !event.metaKey) return;
+  switch (event.key.toLowerCase()) {
+    case "e":
+      event.preventDefault();
       if (!exportButton.disabled) void exportModel();
-    }
-
-    // Ctrl+S or Cmd+S -> Save
-    if (e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        void save();
-    }
-
-    // Ctrl+Enter or Cmd+Enter -> Compile
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        compileNow();
-    }
-
-    // Ctrl+F or Cmd+F -> Format
-    if (e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        void format();
-    }
+      break;
+    case "s":
+      event.preventDefault();
+      void save();
+      break;
+    case "enter":
+      event.preventDefault();
+      compileNow();
+      break;
+    case "f":
+      event.preventDefault();
+      void editor.format();
+      break;
+  }
 });
 
 // Compile after each change with auto-update, otherwise with the compile button.
-const editor = createEditor(element("editor"), (code) => {
+editor.addEventListener("code-change", (event) => {
+  const { code } = (event as CustomEvent<{ code: string }>).detail;
   documents.setCode(code);
   clearTimeout(timer);
-  if (autoUpdate.checked) {
-    timer = window.setTimeout(() => compile(code), COMPILE_DELAY_MS);
+  if (navbar.autoUpdate) {
+    timer = window.setTimeout(() => void compile(code), COMPILE_DELAY_MS);
   } else {
-    setModified(true);
+    setCompileModified(true);
   }
   // An open share menu shows the link of the changed code.
   if (!sharePanel.hidden) void updateShareMenu();
 });
-addCompileShortcut(editor, compileNow);
-addSaveShortcut(editor, save);
-// Literals are stepped with Alt+↑/↓ by the digit at the cursor, a step is compiled at once with
-// auto-update.
-addLiteralStepping(
-  editor,
-  (code, lineNo, column) => compiler.literalAt(code, lineNo, column),
-  (literal, cursor, factor) => compiler.stepLiteral(literal, cursor, factor),
-  () => {
-    if (autoUpdate.checked) compileNow();
-  },
-);
-// Names are completed with the symbols of the last compilation of the editor.
-addCompletion((code, lineNo, column) => session.complete(code, lineNo, column));
-
-// Set version tag
-const version = compiler.version;
-const versionTag = document.getElementById('version-tag');
-
-if (versionTag) {
-    versionTag.textContent = "v" + version;
-}
+editor.addEventListener("save", () => void save());
+editor.addEventListener("compile", compileNow);
+// A stepped literal is compiled at once with auto-update.
+editor.addEventListener("literal-step", () => {
+  if (navbar.autoUpdate) compileNow();
+});
 
 // A document is compiled at once, also without auto-update, and shown as a whole.
 // Its unsaved changes are kept, when another document is shown.
-documentListButton.addEventListener("click", () => showDocumentList(documentList.hidden));
-// A new name is applied with Enter or by leaving the name field, Escape restores the name.
-documentName.addEventListener("change", () => void renameDocument());
-documentName.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && documents.shownDocument) {
-    documentName.value = documents.shownDocument.name;
-  }
-  if (event.key === "Enter" || event.key === "Escape") documentName.blur();
+const detail = <T>(event: Event) => (event as CustomEvent<T>).detail;
+navbar.addEventListener("open-document", (event) => {
+  openDocument(detail<{ key: string }>(event).key);
 });
+navbar.addEventListener("rename-document", (event) => {
+  void renameDocument(detail<{ name: string }>(event).name);
+});
+navbar.addEventListener("delete-document", (event) => {
+  void deleteDocument(detail<{ key: string }>(event).key);
+});
+navbar.addEventListener("save", () => void save());
+navbar.addEventListener("compile", compileNow);
+navbar.addEventListener("format", () => void editor.format());
+navbar.addEventListener("auto-update", () => {
+  platform.setSetting("autoUpdate", String(navbar.autoUpdate));
+  // Changes made without auto-update are compiled, when it is switched on.
+  if (navbar.autoUpdate && compileModified) compileNow();
+});
+
 exportButton.addEventListener("click", () => void exportModel());
-saveButton.addEventListener("click", () => void save());
-formatButton.addEventListener("click", () => void format());
-compileButton.addEventListener("click", compileNow);
 shareButton.addEventListener("click", toggleShareMenu);
-copyLinkButton.addEventListener("click", copyLink);
+copyLinkButton.addEventListener("click", () => void copyLink());
 qrDownloadButton.addEventListener("click", downloadQrCode);
 stripComments.addEventListener("change", () => {
   platform.setSetting("stripComments", String(stripComments.checked));
   // The shown QR code is of the link with the new setting.
   void updateShareMenu();
 });
-menuButton.addEventListener("click", () => showMenu(!menu.classList.contains("open")));
-// The menu is hidden after an action or link, but not after switching auto-update.
-menu.addEventListener("click", (event) => {
-  if ((event.target as Element).closest("button, a")) showMenu(false);
-});
-// The list of documents, the share menu and the menu are hidden by a click outside of them.
+// The share menu is hidden by a click outside of it.
 document.addEventListener("click", (event) => {
   const target = event.target as Node;
-  if (!documentList.contains(target) && !documentListButton.contains(target)) {
-    showDocumentList(false);
-  }
   if (!sharePanel.contains(target) && !shareButton.contains(target)) sharePanel.hidden = true;
-  if (!menu.contains(target) && !menuButton.contains(target)) showMenu(false);
-});
-autoUpdate.addEventListener("change", () => {
-  platform.setSetting("autoUpdate", String(autoUpdate.checked));
-  // Changes made without auto-update are compiled, when it is switched on.
-  if (autoUpdate.checked && compileButton.classList.contains("btn-bright")) {
-    compileNow();
-  }
 });
 
 // The own documents of the browser, the code of a shared link, otherwise the first example or
 // the one given by the URL, e.g. `?example=1`.
-documents.addEventListener("change", updateModified);
 try {
   await documents.restore();
 } catch (error) {

@@ -13,6 +13,10 @@ import type {
   SteppedLiteral,
 } from "./compiler/types";
 import { theme } from "./theme";
+import "./editor.css";
+
+/** A Monaco editor of µcad code. */
+export type CodeEditor = monaco.editor.IStandaloneCodeEditor;
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 
@@ -91,15 +95,11 @@ function defineTheme() {
   });
 }
 
-/** Create a µcad code editor in `element`, `onChange` is called after each edit. */
 /** The owner of the markers of the compiler. */
 const MARKER_OWNER = "mucad";
 
 /** Show diagnostics of the compiler as markers in the code, e.g. squiggles below errors. */
-export function setDiagnostics(
-  editor: monaco.editor.IStandaloneCodeEditor,
-  diagnostics: Diagnostic[],
-) {
+export function setDiagnostics(editor: CodeEditor, diagnostics: Diagnostic[]) {
   const model = editor.getModel();
   if (!model) return;
   monaco.editor.setModelMarkers(model, MARKER_OWNER, diagnostics.map(marker));
@@ -127,9 +127,17 @@ function marker(diagnostic: Diagnostic): monaco.editor.IMarkerData {
   };
 }
 
-export function createEditor(element: HTMLElement, onChange: (code: string) => void) {
-  registerLanguage();
-  defineTheme();
+/** Whether the language, the theme and the completion are registered, which is done once. */
+let registered = false;
+
+/** Create a µcad code editor in `element`, `onChange` is called after each edit. */
+export function createEditor(element: HTMLElement, onChange: (code: string) => void): CodeEditor {
+  if (!registered) {
+    registerLanguage();
+    defineTheme();
+    registerCompletion();
+    registered = true;
+  }
   const editor = monaco.editor.create(element, {
     language: LANGUAGE,
     theme: LANGUAGE,
@@ -138,10 +146,10 @@ export function createEditor(element: HTMLElement, onChange: (code: string) => v
     // Suggestions and their documentation may overlap other panels, outside of the dock,
     // which clips its panels. The class gives them the colors of the theme.
     fixedOverflowWidgets: true,
-    overflowWidgetsDomNode: Object.assign(document.body.appendChild(document.createElement("div")), {
-      id: "editor-widgets",
-      className: "monaco-editor",
-    }),
+    overflowWidgetsDomNode: Object.assign(
+      document.body.appendChild(document.createElement("div")),
+      { className: "monaco-editor mucad-editor-widgets" },
+    ),
     fontSize: 14,
     tabSize: 4,
   });
@@ -153,10 +161,7 @@ export function createEditor(element: HTMLElement, onChange: (code: string) => v
  * Run `compile` with Ctrl+Enter (Cmd+Enter on macOS), also when the editor has the focus,
  * where Monaco would insert a line otherwise.
  */
-export function addCompileShortcut(
-  editor: monaco.editor.IStandaloneCodeEditor,
-  compile: () => void,
-) {
+export function addCompileShortcut(editor: CodeEditor, compile: () => void) {
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, compile);
 }
 
@@ -164,7 +169,7 @@ export function addCompileShortcut(
  * Run `save` with Ctrl+S (Cmd+S on macOS), also when the editor has the focus, instead of
  * saving the page by the browser.
  */
-export function addSaveShortcut(editor: monaco.editor.IStandaloneCodeEditor, save: () => void) {
+export function addSaveShortcut(editor: CodeEditor, save: () => void) {
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, save);
 }
 
@@ -172,7 +177,7 @@ export function addSaveShortcut(editor: monaco.editor.IStandaloneCodeEditor, sav
  * Replace the code of the editor as one edit, which can be undone, unlike `setValue`.
  * The cursor stays at its line and column, as far as they still exist.
  */
-export function replaceCode(editor: monaco.editor.IStandaloneCodeEditor, code: string) {
+export function replaceCode(editor: CodeEditor, code: string) {
   const model = editor.getModel();
   if (!model) return;
   const position = editor.getPosition();
@@ -194,13 +199,23 @@ const COMPLETION_KINDS: Record<string, monaco.languages.CompletionItemKind> = {
   const: monaco.languages.CompletionItemKind.Constant,
 };
 
+/** The symbols at a line and column (from 1, in UTF-16 code units) of code, e.g. of a session. */
+type Complete = (code: string, lineNo: number, column: number) => Promise<Completion[]>;
+
+/** The completions of the code of the editors by their models. */
+const completions = new WeakMap<monaco.editor.ITextModel, Complete>();
+
 /**
- * Complete names with the symbols of `complete` at a line and column (from 1, in UTF-16 code
- * units), e.g. after `::`, and with keywords and types, unless the name is after `::`.
+ * Complete names in the code of `editor` with the symbols of `complete`, e.g. after `::`, and
+ * with keywords and types, unless the name is after `::`.
  */
-export function addCompletion(
-  complete: (code: string, lineNo: number, column: number) => Promise<Completion[]>,
-) {
+export function addCompletion(editor: CodeEditor, complete: Complete) {
+  const model = editor.getModel();
+  if (model) completions.set(model, complete);
+}
+
+/** Register the completion of all editors, which finds the completion of each editor. */
+function registerCompletion() {
   monaco.languages.registerCompletionItemProvider(LANGUAGE, {
     // Paths are completed after `::`, like by the language server.
     triggerCharacters: [":", "."],
@@ -212,7 +227,10 @@ export function addCompletion(
         position.lineNumber,
         word.endColumn,
       );
-      const symbols = await complete(model.getValue(), position.lineNumber, position.column);
+      const complete = completions.get(model);
+      const symbols = complete
+        ? await complete(model.getValue(), position.lineNumber, position.column)
+        : [];
       const suggestions: monaco.languages.CompletionItem[] = symbols.map((symbol) => ({
         label: symbol.name,
         kind: COMPLETION_KINDS[symbol.kind] ?? monaco.languages.CompletionItemKind.Variable,
@@ -257,7 +275,7 @@ const LITERAL_STEPS: [number, number][] = [
  * after each step, e.g. to compile the code.
  */
 export function addLiteralStepping(
-  editor: monaco.editor.IStandaloneCodeEditor,
+  editor: CodeEditor,
   literalAt: (code: string, lineNo: number, column: number) => Promise<LiteralRange | undefined>,
   stepLiteral: (
     literal: string,
