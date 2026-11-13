@@ -1,0 +1,133 @@
+# Copyright © 2026 The µcad authors <info@mucad.org>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Builds the installers of the µcad desktop app (editors/desktop) for Linux, Windows and macOS.
+#
+# - A tag `v*`, e.g. `v0.6.4`, whose version must be the one of the workspace, creates a draft
+#   release with the installers, which is published by hand after a review.
+# - Run by hand (Actions → Desktop app → Run workflow), the installers are only uploaded as
+#   artifacts of the run, e.g. to test the workflow on a branch.
+
+name: Desktop app
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A release is not canceled by a later push.
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The draft release, created once, before the builds upload their installers into it.
+  release:
+    name: Draft release
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check that the tag is the version of the workspace
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['version'])")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME is not the version v$version of Cargo.toml"
+            exit 1
+          fi
+
+      - name: Create the draft release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=$([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease || true)
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag $prerelease \
+            --title "µcad $GITHUB_REF_NAME" \
+            --notes "The installers of the µcad desktop app. The changes are listed at https://codeberg.org/mucad/mucad/releases/tag/$GITHUB_REF_NAME."
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\" and .draft) | .id" | head -1)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: release
+    # Also without a release, when the workflow is run by hand.
+    if: ${{ !failure() && !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest supported Ubuntu, so the AppImage and the packages run on older systems.
+          - name: Linux
+            runner: ubuntu-22.04
+            targets: wasm32-unknown-unknown
+            args: ""
+          - name: Windows
+            runner: windows-latest
+            targets: wasm32-unknown-unknown
+            args: ""
+          # One universal app for Apple Silicon and Intel Macs.
+          - name: macOS
+            runner: macos-latest
+            targets: wasm32-unknown-unknown,aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the system dependencies of Tauri
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      # The channel of rust-toolchain.toml with the targets of the compiler in WebAssembly and of
+      # the app.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: editors/package-lock.json
+
+      # The WebAssembly package is a dependency of the web components, so it is built before
+      # the npm packages are installed.
+      - name: Build the compiler in WebAssembly
+        working-directory: editors
+        run: npm run wasm
+
+      - name: Install the npm packages
+        working-directory: editors
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          projectPath: editors/desktop
+          # The CLI of the npm workspace, without npm, which would take `--target` as its own.
+          tauriScript: node ../node_modules/@tauri-apps/cli/tauri.js
+          args: ${{ matrix.args }}
+          releaseId: ${{ needs.release.outputs.id }}
+          uploadWorkflowArtifacts: true
