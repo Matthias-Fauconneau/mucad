@@ -12,7 +12,7 @@ use mucad_lang_resolve::{
         self, ConstantValue, Function, FunctionExpression, FunctionStatement, Parameter, function,
     },
 };
-use mucad_lang_types::{ArgumentValueList, Type, Value, argument_value};
+use mucad_lang_types::{ArgumentValueList, Type, Value, argument_value, list};
 use mucad_macros::parameter_list;
 
 fn scope(a: impl Iterator<Item = FunctionStatement>) -> function::Scope {
@@ -47,6 +47,70 @@ fn return_a() {
         .into()]);
 
     assert_eval(&f, [argument_value!(a = 2)], 2);
+}
+
+#[test]
+fn map_over_single_list_argument() {
+    let f = function::Function::new(parameter_list!(a: Integer))
+        .with_return_type(Type::Integer)
+        .with_statements([FunctionStatement::Tail(expr!(a).into())]);
+
+    assert_eval(
+        &f,
+        [argument_value!(a = list![1, 2, 3])],
+        Value::list([1, 2, 3]),
+    );
+    assert_eval(&f, [argument_value!(a = list![2])], Value::list([2]));
+    assert_eval(&f, [argument_value!(list![3, 4])], Value::list([3, 4]));
+}
+
+#[test]
+fn map_over_empty_list_argument() {
+    let f = function::Function::new(parameter_list!(a: Integer))
+        .with_return_type(Type::Integer)
+        .with_statements([FunctionStatement::Tail(expr!(a).into())]);
+
+    let empty: Value = Value::list(std::iter::empty::<Value>());
+    assert_eval(
+        &f,
+        [argument_value!(a = empty)],
+        Value::list(std::iter::empty::<Value>()),
+    );
+}
+
+#[test]
+fn list_parameter_is_not_expanded() {
+    let f = function::Function::new(vec![symbol::Parameter::new(
+        "a",
+        Type::List(Box::new(Type::Integer)),
+    )])
+    .with_statements([FunctionStatement::Tail(expr!(a).into())]);
+
+    assert_eval(&f, [argument_value!(a = list![1, 2])], Value::list([1, 2]));
+}
+
+#[test]
+fn multiple_list_arguments_are_rejected() {
+    let f = function::Function::new(parameter_list!(a: Integer, b: Integer))
+        .with_return_type(Type::Integer)
+        .with_statements([FunctionStatement::Tail(expr!(a).into())]);
+
+    let mut context = EvalContext::new();
+    let error = <Function as Callable>::call(
+        &f,
+        &ArgumentValueList::from_iter([
+            argument_value!(a = list![1, 2]),
+            argument_value!(b = list![3, 4]),
+        ]),
+        &mut context,
+    )
+    .expect_err("two list arguments require an error");
+
+    assert!(
+        error
+            .to_string()
+            .contains("Only one list argument can be expanded")
+    );
 }
 
 /// Test a function `f(a: Integer, b: Integer) -> Integer` that return the sum of `a` and `b`.
