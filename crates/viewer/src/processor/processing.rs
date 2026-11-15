@@ -196,7 +196,7 @@ impl Processor {
                     .outputs
                     .iter()
                     .flat_map(|output| {
-                        let (meshes, mut edges) = match &output.geometry {
+                        let (mut meshes, mut edges) = match &output.geometry {
                             mu::core::Geometry::Geometry2D(geometry) => {
                                 (geometry.to_bevy_mesh_default(), None)
                             }
@@ -209,6 +209,21 @@ impl Processor {
                                 )
                             }
                         };
+                        // Vertex colors belong to the part, not to the shared material.
+                        // The model hash includes attributes, so differently colored parts
+                        // cannot accidentally reuse the same colored mesh asset.
+                        if let Some(color) = output.attr.fill_color {
+                            let color: bevy::prelude::Color = crate::ToBevy::to_bevy(color);
+                            let color = color.to_linear();
+                            let color = [color.red, color.green, color.blue, color.alpha];
+                            for mesh in &mut meshes {
+                                let vertex_count = mesh.count_vertices();
+                                mesh.insert_attribute(
+                                    bevy::mesh::Mesh::ATTRIBUTE_COLOR,
+                                    vec![color; vertex_count],
+                                );
+                            }
+                        }
                         // The edges belong to the first mesh of a geometry.
                         meshes.into_iter().map(move |mesh| (mesh, edges.take()))
                     })
