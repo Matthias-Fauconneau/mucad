@@ -33,7 +33,13 @@ impl ModelViewState {
                 colour: state.config.theme.darker.make_transparent(0.5).to_bevy(),
                 width: 4.0,
             },
-            base_color: info.color.unwrap_or(state.config.theme.brighter.to_bevy()),
+            // Explicit part colors are carried by the mesh vertex attribute. Keep the
+            // material white so it does not multiply the vertex color a second time.
+            base_color: if info.color.is_some() {
+                Color::WHITE
+            } else {
+                state.config.theme.brighter.to_bevy()
+            },
             info,
             ..Default::default()
         }
@@ -47,6 +53,11 @@ impl ModelViewState {
             mu::types::ModelType::Geometry3D => create_3d_material(self.base_color),
             _ => unreachable!(),
         };
+        // Alpha is stored in the vertex color when a part has an explicit color.
+        // Select blending accordingly while leaving the material base color white.
+        if let Some(color) = self.info.color {
+            material.alpha_mode = alpha_mode_for_color(&color);
+        }
         if self.is_selected {
             material.base_color = Color::srgb(1.0, 0.0, 0.0);
         }
