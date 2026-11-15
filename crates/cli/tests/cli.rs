@@ -130,6 +130,25 @@ fn check_missing_file() {
 }
 
 #[test]
+fn export_glb() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let input = source_file(
+        &dir,
+        "part.mu",
+        "std::geo2d::Rect(width = 10mm, height = 10mm).std::ops::extrude(height = 2mm);\n",
+    );
+    let output = dir.path().join("part.glb");
+
+    mucad()
+        .arg("export")
+        .arg(&input)
+        .arg(&output)
+        .assert()
+        .success();
+    assert_eq!(&std::fs::read(output).expect("GLB output")[..4], b"glTF");
+}
+
+#[test]
 fn compile_emits_nothing_by_default() {
     let dir = tempfile::tempdir().expect("temp dir");
     let input = source_file(&dir, "valid.mu", VALID);

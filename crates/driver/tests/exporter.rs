@@ -53,6 +53,31 @@ fn export_output_path() {
     assert!(output.is_file());
 }
 
+#[test]
+fn export_glb() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let output = dir.path().join("part.glb");
+    mu::Exporter::new()
+        .export(&compile(PART), "model.mu", Some(&output))
+        .expect("A GLB");
+
+    let bytes = std::fs::read(output).expect("A GLB file");
+    assert_eq!(&bytes[..4], b"glTF");
+    assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()), 2);
+    assert_eq!(
+        u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize,
+        bytes.len()
+    );
+    assert_eq!(
+        u32::from_le_bytes(bytes[16..20].try_into().unwrap()),
+        0x4E4F_534A
+    );
+    let json_length = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let document = std::str::from_utf8(&bytes[20..20 + json_length]).expect("Valid JSON text");
+    assert!(document.contains("\"version\":\"2.0\""));
+    assert!(document.contains("\"meshes\":[{"));
+}
+
 /// A model cannot be exported by an exporter of another model type or an unknown exporter.
 #[test]
 fn export_wrong_type() {

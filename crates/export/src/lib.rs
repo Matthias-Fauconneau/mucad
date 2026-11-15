@@ -8,6 +8,7 @@ use mucad_lang_types::{ModelTree, ModelType, Value};
 use mucad_render::{RenderError, RenderIssue, Renderer};
 use thiserror::Error;
 
+pub mod glb;
 pub mod stl;
 pub mod svg;
 pub mod wkt;
