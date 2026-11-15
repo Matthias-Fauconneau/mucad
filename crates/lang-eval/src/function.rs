@@ -267,11 +267,23 @@ impl Eval<FlowSignal> for Box<[symbol::FunctionStatement]> {
 
 impl Callable for symbol::Function {
     fn call(&self, args: &ArgumentValueList, context: &mut EvalContext) -> EvalResult {
-        use crate::ArgumentMatch;
-        match self.argument_match(args) {
-            Ok(args) => context.scope(FunctionFrame::new(args), |context| {
-                Ok(self.statements.eval(context)?.into_value())
-            }),
+        match crate::argument_match::argument_single_match(self, args) {
+            Ok((expanded, matches)) => {
+                let mut values = Vec::with_capacity(matches.len());
+                for args in matches {
+                    values.push(
+                        context.scope(FunctionFrame::new(args), |context| -> EvalResult {
+                            Ok(self.statements.eval(context)?.into_value())
+                        })?,
+                    );
+                }
+
+                if expanded {
+                    Ok(Value::list(values))
+                } else {
+                    Ok(values.pop().unwrap_or_default())
+                }
+            }
             Err(err) => Err(EvalError::argument_match(
                 context.current_symbol_src_ref(),
                 context.current_symbol_name().unwrap_or_default(),

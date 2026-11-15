@@ -8,6 +8,74 @@ use mucad_lang_types::{ArgumentValueList, Arguments, Tuple, Ty, Value};
 
 use crate::{ArgumentMatch, ArgumentMatchError};
 
+/// Match arguments for a function call, expanding at most one list argument.
+///
+/// The boolean indicates whether a list was expanded. An empty list still counts as an
+/// expansion and therefore produces an empty result list.
+pub(crate) fn argument_single_match(
+    matcher: &(impl ArgumentMatch + ?Sized),
+    arguments: &ArgumentValueList,
+) -> Result<(bool, Vec<Arguments>), ArgumentMatchError> {
+    let base_args = matcher.argument_match(arguments)?;
+    let Some(params) = matcher.call_signature().parameters else {
+        return Ok((false, vec![base_args]));
+    };
+
+    let mut expansion: Option<(Identifier, Vec<Value>)> = None;
+    for (id, value) in &base_args.0.named {
+        let Some(expected) = params
+            .iter()
+            .find(|(param_id, _)| param_id == id)
+            .map(|(_, ty)| ty)
+        else {
+            continue;
+        };
+
+        let Value::List(elements) = value else {
+            continue;
+        };
+
+        let expands = value.ty().matches_list_type(expected)
+            || (elements.is_empty()
+                && !matches!(
+                    expected,
+                    mucad_lang_types::Type::List(_) | mucad_lang_types::Type::Any
+                ));
+        if !expands {
+            continue;
+        }
+
+        if expansion.is_some() {
+            return Err(ArgumentMatchError::MultipleListArguments {
+                arguments: arguments.to_string(),
+            });
+        }
+
+        expansion = Some((id.clone(), elements.iter().cloned().collect()));
+    }
+
+    let Some((id, values)) = expansion else {
+        return Ok((false, vec![base_args]));
+    };
+
+    let matches = values
+        .into_iter()
+        .map(|value| {
+            let mut args = base_args.clone();
+            let (_, arg_value) = args
+                .0
+                .named
+                .iter_mut()
+                .find(|(arg_id, _)| arg_id == &id)
+                .expect("expanded argument is present");
+            *arg_value = value;
+            args
+        })
+        .collect();
+
+    Ok((true, matches))
+}
+
 /// Match `arguments`, a list argument for a non-list parameter results in one match per element.
 ///
 /// Returns the cartesian product of all such lists.
