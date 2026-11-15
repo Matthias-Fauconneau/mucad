@@ -6,6 +6,8 @@
 mod matcher;
 mod multi_match;
 
+pub(super) use multi_match::argument_single_match;
+
 use miette::Diagnostic;
 use mucad_lang_base::{Identifier, IdentifierList};
 use mucad_lang_resolve::library::symbol::{
@@ -18,6 +20,10 @@ use matcher::Matcher;
 
 #[derive(Error, Debug, Diagnostic)]
 pub enum ArgumentMatchError {
+    /// More than one argument requires list expansion in a function call.
+    #[error("Only one list argument can be expanded for a function call: {arguments}")]
+    MultipleListArguments { arguments: String },
+
     /// Variadic list expansion is not supported for variadic call signatures.
     #[error("List expansion `({arguments})` is not allowed for variadic call signatures")]
     #[diagnostic(help(
