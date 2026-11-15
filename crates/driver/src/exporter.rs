@@ -4,7 +4,7 @@
 //! µcad model exporter
 
 use crate::prelude as mu;
-use mu::export::{Export, stl::StlExporter, svg::SvgExporter};
+use mu::export::{Export, glb::GlbExporter, stl::StlExporter, svg::SvgExporter};
 use mu::types::{ModelType, model::NodeExt};
 
 /// A file to export a model into, e.g. of an export attribute: `#[export = "logo.svg"]`.
@@ -194,6 +194,7 @@ impl Exporter {
                 resolution,
                 ..Default::default()
             })),
+            Some("glb") => Ok(Box::new(GlbExporter { resolution })),
             _ => Err(miette::miette!("No exporter for {path:?}")),
         }
     }
