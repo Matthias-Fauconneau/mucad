@@ -10,7 +10,7 @@ use crate::{Cli, commands::RunCommand};
 pub struct Export {
     pub input: String,
 
-    /// Output file (e.g. an SVG or STL) for the whole model.
+    /// Output file (e.g. SVG, STL, or GLB) for the whole model.
     ///
     /// Without output, the model is exported into the files of its export attributes
     /// (e.g. `#[export = "logo.svg"]`) or, without any, next to the input.
