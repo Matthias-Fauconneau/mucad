@@ -13,9 +13,61 @@ fn boolean_op(
     tree: &GeometryTree,
     op: core::BooleanOp,
     context: &mut RenderContext,
+    preserve_colors: bool,
 ) -> RenderResult {
     let outputs = context.collect_outputs(tree).primary();
     use GeometryType::*;
+
+    // A union normally produces a single geometry output. Keep independently
+    // colored parts separate by unioning each color group on its own.
+    if preserve_colors {
+        let mut groups: Vec<(Option<core::Color>, Vec<core::Geometry>)> = Vec::new();
+        for output in outputs {
+            let color = output.attr.fill_color;
+            let index = groups
+                .iter()
+                .position(|(group_color, _)| *group_color == color)
+                .unwrap_or_else(|| {
+                    groups.push((color, Vec::new()));
+                    groups.len() - 1
+                });
+            groups[index].1.push(output.geometry.clone());
+        }
+
+        return Ok(groups
+            .into_iter()
+            .flat_map(|(color, geometries)| {
+                let geometry = match geometries.first().map(core::Geometry::ty) {
+                    Some(Geometry2D) => {
+                        let geometries = geometries
+                            .into_iter()
+                            .filter_map(|geometry| match geometry {
+                                Geometry::Geometry2D(geometry) => Some(geometry),
+                                Geometry::Geometry3D(_) => None,
+                            })
+                            .collect();
+                        Geometry::geo2d(core::Geometries2D::new(geometries).union())
+                    }
+                    Some(Geometry3D) => {
+                        let geometries = geometries
+                            .into_iter()
+                            .filter_map(|geometry| match geometry {
+                                Geometry::Geometry2D(_) => None,
+                                Geometry::Geometry3D(geometry) => Some(geometry),
+                            })
+                            .collect();
+                        Geometry::geo3d(core::Geometries3D::new(geometries).union())
+                    }
+                    _ => return None,
+                };
+                let mut output = GeometryOutput::from(geometry);
+                if let Some(color) = color {
+                    output.attr = output.attr.with_color(color);
+                }
+                Some(output.into())
+            })
+            .collect());
+    }
 
     Ok(match outputs.ty() {
         Geometry2D => Geometry::geo2d(outputs.to_2d().boolean_op(op)).into(),
@@ -31,7 +83,7 @@ impl Render for mu::ops::Union {
         tree: &GeometryTree,
         context: &mut RenderContext,
     ) -> RenderResult<GeometryOutputs> {
-        boolean_op(tree, core::BooleanOp::Union, context)
+        boolean_op(tree, core::BooleanOp::Union, context, true)
     }
 }
 
@@ -41,7 +93,7 @@ impl Render for mu::ops::Subtract {
         tree: &GeometryTree,
         context: &mut RenderContext,
     ) -> RenderResult<GeometryOutputs> {
-        boolean_op(tree, core::BooleanOp::Subtract, context)
+        boolean_op(tree, core::BooleanOp::Subtract, context, false)
     }
 }
 
@@ -51,7 +103,7 @@ impl Render for mu::ops::Intersect {
         tree: &GeometryTree,
         context: &mut RenderContext,
     ) -> RenderResult<GeometryOutputs> {
-        boolean_op(tree, core::BooleanOp::Intersect, context)
+        boolean_op(tree, core::BooleanOp::Intersect, context, false)
     }
 }
 
