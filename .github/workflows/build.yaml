@@ -1,0 +1,25 @@
+name: Build Typst document
+on:
+  push:
+    paths:
+      - '*.typ'
+      - '.github/workflows/build.yaml'
+  pull_request:
+    paths:
+      - '*.typ'
+
+jobs:
+  build_typst_documents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Typst
+        uses: lvignoli/typst-action@main
+        with:
+          source_file: plan.typ
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-pdf
+          path: plan.pdf
