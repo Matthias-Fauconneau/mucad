@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - '*.typ'
+      - '.github/workflows/build.yaml'
   pull_request:
     paths:
       - '*.typ'
