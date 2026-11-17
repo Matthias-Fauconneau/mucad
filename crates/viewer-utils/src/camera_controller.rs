@@ -277,10 +277,11 @@ impl CameraController {
         self.update_camera_lens();
     }
 
-    /// Zoom by the vertical movement of the mouse in pixels within the time `elapsed`, since
-    /// the last frame or the start of zooming: moving downwards zooms in at the zoom point.
-    pub fn zoom_by_mouse(&mut self, mouse_delta: Vec2, elapsed: Duration) {
-        let d = scaled_by_time(mouse_delta, elapsed);
+    /// Zoom at the zoom point by the vertical delta of the mouse wheel within the time
+    /// `elapsed`, since the last frame or the start of zooming: a positive `y` zooms in, a
+    /// negative one out, with a positive zoom speed.
+    pub fn zoom_by_wheel(&mut self, wheel_delta: Vec2, elapsed: Duration) {
+        let d = scaled_by_time(wheel_delta, elapsed);
         let delta = -d.y as f64 * self.zoom_speed();
         let zoom_factor = 1.0 + delta / 100.0;
 
@@ -575,7 +576,8 @@ impl CameraController {
     }
 }
 
-/// The mouse movement `d` multiplied with the elapsed time in seconds.
+/// The movement `d` of the mouse or its wheel multiplied with the elapsed time in seconds,
+/// so that orbiting and zooming have the same speed at any frame rate.
 fn scaled_by_time(d: Vec2, elapsed: Duration) -> Vec2 {
     d * elapsed.as_secs_f32()
 }
@@ -641,13 +643,15 @@ mod tests {
     }
 
     #[test]
-    fn zoom_by_mouse() {
+    fn zoom_by_wheel() {
         let mut controller = CameraController::new(WINDOW);
         controller.set_zoom_point_from_screen_coordinates(WINDOW / 2.0);
         controller.start_zoom();
-        // Moving the mouse downwards zooms in.
-        controller.zoom_by_mouse(Vec2::new(0.0, 2.0), Duration::from_secs(1));
+        // A positive delta zooms in, a negative one out.
+        controller.zoom_by_wheel(Vec2::new(0.0, 2.0), Duration::from_secs(1));
         assert!((controller.zoom_level() - 2.0).abs() < 1e-9);
+        controller.zoom_by_wheel(Vec2::new(0.0, -2.0), Duration::from_secs(1));
+        assert!((controller.zoom_level() - 4.0 / 3.0).abs() < 1e-9);
         assert_eq!(
             controller.camera().projection_matrix(),
             controller.zoom_model().detail_ortho_projection_matrix()

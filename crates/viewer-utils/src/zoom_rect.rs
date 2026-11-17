@@ -245,15 +245,15 @@ impl ZoomRectModel {
         }
     }
 
-    /// Show the rectangle `r` as detail.
+    /// Show the rectangle `r` in the middle of the detail, which keeps its aspect ratio.
     ///
-    /// `factor` is not used yet, and the aspect ratio of the detail is not kept.
+    /// The detail is scaled to fit `r` and then by `factor`, e.g. 1 fits `r` exactly and 1.1
+    /// leaves a margin. The zoom level stays between the minimum and the maximum.
     pub fn zoom_to_rect(&mut self, r: Rect, factor: f64) {
-        let _ = factor;
-        // TODO: Keep aspect ratio
-        // let zoom_factor = r.width / self.detail.width * factor;
-        // self.zoom_to_point(r.center(), zoom_factor);
-        self.set_detail(r);
+        let r = r.normalized();
+        let zoom_factor = (r.width / self.detail.width).max(r.height / self.detail.height) * factor;
+        let size = self.detail.size() * zoom_factor;
+        self.set_detail(Rect::from_top_left_size(r.center() - 0.5 * size, size));
     }
 
     /// The ratio of the width to the height of the detail.
@@ -308,7 +308,7 @@ impl ZoomRectModel {
 
     fn boundary_rect(&self) -> Rect {
         let ds = self.detail.size();
-        self.overview.adjusted(-ds.x, ds.y, ds.x, ds.y)
+        self.overview.adjusted(-ds.x, -ds.y, ds.x, ds.y)
     }
 }
 
@@ -396,6 +396,22 @@ mod tests {
         model.set_zoom_level(2.0);
         model.translate(Vec2::new(10.0, -10.0));
         assert_eq!(model.detail(), Rect::new(-90.0, -60.0, 200.0, 100.0));
+    }
+
+    #[test]
+    fn zoom_to_rect() {
+        let mut model = model();
+        // A tall rectangle is fitted by its height into the 2:1 detail.
+        model.zoom_to_rect(Rect::new(10.0, 10.0, 20.0, 50.0), 1.0);
+        assert_eq!(model.detail(), Rect::new(-30.0, 10.0, 100.0, 50.0));
+        assert_eq!(model.aspect_ratio(), 2.0);
+        assert_eq!(model.zoom_level(), 4.0);
+        // A factor leaves a margin around the rectangle.
+        model.zoom_to_rect(Rect::new(10.0, 10.0, 20.0, 50.0), 2.0);
+        assert_eq!(model.detail(), Rect::new(-80.0, -15.0, 200.0, 100.0));
+        // Not further than the maximum zoom level.
+        model.zoom_to_rect(Rect::new(0.0, 0.0, 0.01, 0.01), 1.0);
+        assert_eq!(model.zoom_level(), model.max_zoom_level());
     }
 
     #[test]
