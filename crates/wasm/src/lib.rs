@@ -1,8 +1,9 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The µcad toolchain for WebAssembly: compile µcad code, render it and export it,
-//! e.g. in a browser. See the README for the usage from JavaScript.
+//! The µcad toolchain for WebAssembly: compile µcad code, render it and export it, and
+//! navigate the camera of a viewer, e.g. in a browser. See the README for the usage from
+//! JavaScript.
 
 use std::sync::Arc;
 
@@ -10,11 +11,13 @@ mod completion;
 mod diagnostic;
 mod geometry;
 mod literal;
+mod navigation;
 mod share;
 
 pub use completion::Completion;
 pub use diagnostic::{Diagnostic, Severity};
 pub use literal::{LiteralRange, SteppedLiteral};
+pub use navigation::{ALT, CTRL, CameraNavigation, META, SHIFT, Selection};
 pub use share::SharedLink;
 
 use mu::{

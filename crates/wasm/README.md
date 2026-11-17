@@ -2,6 +2,7 @@
 
 The µcad toolchain compiled to WebAssembly: compile µcad code, render its model and export it,
 e.g. in a browser. The standard library is embedded, there is no file system access.
+It also contains the camera navigation of the µcad viewers, see [Camera navigation](#camera-navigation).
 
 ## Build
 
@@ -121,9 +122,78 @@ link.download = "model.stl";
 link.click();
 ```
 
+### Camera navigation
+
+`CameraNavigation` controls the camera of a viewer with the mouse and the keys, e.g. for
+Three.js: the camera controller and the configurable controls of
+[mucad-viewer-utils](https://crates.io/crates/mucad-viewer-utils). It needs no `Mucad`.
+
+The methods take the values of DOM events. Coordinates are pixels from the top left of the
+element, e.g. `offsetX` and `offsetY`. Modifiers are bits: Ctrl 1, Shift 2, Alt 4 and Meta 8.
+
+```js
+import init, { CameraNavigation } from "./pkg/mucad_wasm.js";
+
+await init(); // Load the WebAssembly binary.
+
+const navigation = new CameraNavigation(element.clientWidth, element.clientHeight);
+const modifiers = (e) => e.ctrlKey | (e.shiftKey << 1) | (e.altKey << 2) | (e.metaKey << 3);
+
+element.addEventListener("pointerdown", (e) =>
+  navigation.mouseDown(e.button, e.offsetX, e.offsetY, modifiers(e)));
+element.addEventListener("pointerup", (e) => {
+  const selection = navigation.mouseUp(e.button, e.offsetX, e.offsetY, modifiers(e));
+  if (selection) {
+    // Pick the object at selection.x and selection.y, add it with selection.multi.
+  }
+});
+
+// After the events, apply the camera, e.g. to a camera of Three.js.
+camera.matrixAutoUpdate = false;
+camera.matrixWorld.fromArray(navigation.cameraMatrix());
+camera.matrixWorldInverse.fromArray(navigation.viewMatrix());
+camera.projectionMatrix.fromArray(navigation.projectionMatrix());
+camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+```
+
+The projection is orthographic and maps to the normalized device coordinates of WebGL, from -1
+to 1 in z, like the projections of Three.js with the `WebGLRenderer`.
+
+| Method | Does |
+|---|---|
+| `new CameraNavigation(width, height, controlsToml?)` | The navigation with the controls in TOML or the defaults, throws an error for invalid controls |
+| `CameraNavigation.defaultControls()` | The default controls as TOML with comments |
+| `setControls(toml)` | Sets the controls, missing entries are the defaults |
+
+The events of the element: `elapsedMs` is the time since the last frame, which keeps the speed
+of orbiting and zooming the same at any frame rate.
+
+| Method | Event |
+|---|---|
+| `mouseDown(button, x, y, modifiers)` | `pointerdown` with `MouseEvent.button` |
+| `mouseUp(button, x, y, modifiers)` | `pointerup`, returns a `Selection` after a click |
+| `mouseMove(dx, dy, elapsedMs)` | `pointermove` with `movementX` and `movementY` |
+| `wheel(deltaY, deltaMode, x, y, modifiers, elapsedMs)` | `wheel`, returns whether it is bound to prevent scrolling |
+| `keyDown(key, modifiers)` | `keydown` with `KeyboardEvent.key`, returns whether it is bound to prevent e.g. zooming the page |
+| `resize(width, height)` | The element is resized |
+
+`mouseAction()` is `select`, `orbit`, `pan`, `zoom` or undefined, e.g. for the cursor. While
+`pointerPinned()`, the pointer is locked with `requestPointerLock`.
+
+| Method | Returns or does |
+|---|---|
+| `cameraMatrix()`, `viewMatrix()`, `projectionMatrix()` | 16 numbers by columns, like `Matrix4.fromArray` |
+| `position()`, `viewCenter()`, `up()`, `pivot()` | `[x, y, z]` |
+| `setScene(x, y, z, radius)` | Sets the center and the radius of the scene, e.g. of the bounding sphere of the model |
+| `setView(name)` | Shows `isometric`, `front`, `top`, `right`, `rear`, `bottom` or `left` |
+| `zoomFit()`, `zoomLevel()`, `resetPivot()` | Shows the whole scene, the zoom level, sets the pivot to the scene center |
+| `takeEvents()` | The changes since the last call: `zoomLevelChanged` and `pivotChanged` |
+
+`Selection` and `CameraNavigation` are freed with `free()`.
+
 ## Scope
 
-Only compiling, rendering and exporting are available yet.
+Only compiling, rendering, exporting and the camera navigation are available yet.
 The model tree and the symbol library may be exposed in the future, e.g. for a model browser.
 
 ## Tests

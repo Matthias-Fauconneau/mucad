@@ -7,9 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{KeyBinding, Modifiers, MouseBinding, MouseButton};
 
+/// The default controls as TOML with comments, e.g. to start a configuration file.
+pub const DEFAULT_CONTROLS_TOML: &str = include_str!("../controls.toml");
+
 /// The controls of the camera with the mouse and the keys and their speeds.
 ///
-/// It is read from TOML like `controls.toml` of this crate, which has the defaults. Missing
+/// It is read from TOML like [`DEFAULT_CONTROLS_TOML`], which has the defaults. Missing
 /// entries are the defaults.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -173,12 +176,9 @@ impl Default for KeyboardControls {
 mod tests {
     use super::*;
 
-    /// The documented defaults.
-    const CONTROLS_TOML: &str = include_str!("../controls.toml");
-
     #[test]
     fn defaults_are_documented() {
-        let controls = Controls::from_toml(CONTROLS_TOML).expect("controls.toml");
+        let controls = Controls::from_toml(DEFAULT_CONTROLS_TOML).expect("controls.toml");
         assert_eq!(controls, Controls::default());
     }
 
