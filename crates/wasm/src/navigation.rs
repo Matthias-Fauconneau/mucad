@@ -230,7 +230,13 @@ impl CameraNavigation {
         Ok(())
     }
 
-    /// Show the whole scene.
+    /// Show the whole scene in the middle of the view, e.g. to reset the camera.
+    #[wasm_bindgen(js_name = showAll)]
+    pub fn show_all(&mut self) {
+        self.navigation.controller_mut().show_all();
+    }
+
+    /// Show the whole scene with the zoom level 1 around the center of the view.
     #[wasm_bindgen(js_name = zoomFit)]
     pub fn zoom_fit(&mut self) {
         self.navigation.controller_mut().zoom_fit();

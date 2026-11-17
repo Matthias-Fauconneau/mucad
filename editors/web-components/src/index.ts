@@ -3,13 +3,15 @@
 
 /**
  * µcad web components, which the web viewer and the desktop app are made of: the app, the
- * custom elements `<mucad-navbar>`, `<mucad-editor>` and `<mucad-viewer>`, the dock, the
- * compiler, the services of documents and shared links, the examples and the platform.
+ * custom elements `<mucad-navbar>`, `<mucad-editor>` and `<mucad-viewer>`, the dock, the camera
+ * controls, the compiler, the services of documents and shared links, the examples and the
+ * platform.
  */
 
 import "./style.css";
 
 export * from "./app/app";
+export * from "./camera-controls";
 export * from "./compiler/types";
 export { wasmCompiler } from "./compiler/wasm";
 export * from "./dock";

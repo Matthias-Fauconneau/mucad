@@ -270,6 +270,21 @@ impl ZoomRectModel {
         ));
     }
 
+    /// Adapt the overview and the detail to a window with `aspect_ratio`, e.g. after resizing
+    /// it: their widths change around their centers, their heights and the zoom level stay.
+    pub fn fit_window_aspect_ratio(&mut self, aspect_ratio: f64) {
+        let fit = |rect: Rect| {
+            let width = rect.height * aspect_ratio;
+            Rect::new(rect.center().x - width / 2.0, rect.y, width, rect.height)
+        };
+        let overview = fit(self.overview);
+        if !self.overview.fuzzy_eq(&overview) {
+            self.overview = overview;
+            self.events.push(ZoomEvent::OverviewChanged(self.overview));
+        }
+        self.set_detail(fit(self.detail));
+    }
+
     /// The detail and the overview, e.g. to restore them later.
     pub fn state(&self) -> ZoomState {
         ZoomState {
@@ -421,6 +436,21 @@ mod tests {
         assert_eq!(model.normalized_detail(), Rect::new(0.25, 0.25, 0.5, 0.5));
         assert_eq!(model.normalized_horizontal_range(), (0.25, 0.75));
         assert_eq!(model.normalized_vertical_range(), (0.75, 0.25));
+    }
+
+    #[test]
+    fn fit_window_aspect_ratio() {
+        let mut model = model();
+        model.set_zoom_level(2.0);
+        model.take_events();
+        // From 2:1 to 1:1, the heights stay.
+        model.fit_window_aspect_ratio(1.0);
+        assert_eq!(model.overview(), Rect::new(-100.0, -100.0, 200.0, 200.0));
+        assert_eq!(model.detail(), Rect::new(-50.0, -50.0, 100.0, 100.0));
+        assert_eq!(model.zoom_level(), 2.0);
+        let events = model.take_events();
+        assert!(events.contains(&ZoomEvent::DetailChanged(model.detail())));
+        assert!(events.contains(&ZoomEvent::OverviewChanged(model.overview())));
     }
 
     #[test]

@@ -138,9 +138,18 @@ impl CameraController {
         self.window_size
     }
 
-    /// Set the size of the window in pixels, e.g. after resizing it.
+    /// Set the size of the window in pixels, e.g. after resizing it: the view keeps its
+    /// height and becomes wider or narrower.
+    ///
+    /// An empty size is ignored, e.g. of a hidden window.
     pub fn set_window_size(&mut self, window_size: DVec2) {
+        if !(window_size.x > 0.0 && window_size.y > 0.0) {
+            return;
+        }
         self.window_size = window_size;
+        self.zoom_rect_model
+            .fit_window_aspect_ratio(window_size.x / window_size.y);
+        self.handle_zoom_events();
     }
 
     /// The radius of the scene around its center.
@@ -315,7 +324,15 @@ impl CameraController {
         self.handle_zoom_events();
     }
 
-    /// Show the whole scene.
+    /// Show the whole scene in the middle of the view, unlike [`CameraController::zoom_fit`],
+    /// which keeps the center of the view, e.g. after panning.
+    pub fn show_all(&mut self) {
+        let overview = self.zoom_rect_model.overview();
+        self.zoom_rect_model.set_detail(overview);
+        self.handle_zoom_events();
+    }
+
+    /// Show the whole scene with the zoom level 1 around the center of the view.
     pub fn zoom_fit(&mut self) {
         self.zoom_rect_model.reset();
         self.handle_zoom_events();
@@ -693,6 +710,41 @@ mod tests {
         assert_eq!(controller.camera().view_center(), controller.scene_center());
         let after = controller.screen_coord(point);
         assert!(after.abs_diff_eq(before, 1e-2), "{before} {after}");
+    }
+
+    #[test]
+    fn show_all() {
+        let mut controller = CameraController::new(WINDOW);
+        controller.set_zoom_level(2.0);
+        controller.translate(Vec2::new(50.0, 20.0));
+        controller.zoom_fit();
+        assert_eq!(controller.zoom_level(), 1.0);
+        assert_ne!(
+            controller.zoom_model().detail(),
+            controller.zoom_model().overview()
+        );
+        controller.show_all();
+        assert_eq!(
+            controller.zoom_model().detail(),
+            controller.zoom_model().overview()
+        );
+    }
+
+    #[test]
+    fn resize() {
+        let mut controller = CameraController::new(WINDOW);
+        controller.set_window_size(DVec2::new(200.0, 200.0));
+        assert_eq!(controller.aspect_ratio(), 1.0);
+        // The projection is square, i.e. the scene is not distorted.
+        let corner = controller.world_point(DVec2::ZERO);
+        assert!(corner.abs_diff_eq(Vec3::new(-100.0, 100.0, 0.0), 1e-3));
+        assert_eq!(
+            controller.camera().projection_matrix(),
+            controller.zoom_model().detail_ortho_projection_matrix()
+        );
+        // A hidden window is ignored.
+        controller.set_window_size(DVec2::ZERO);
+        assert_eq!(controller.window_size(), DVec2::new(200.0, 200.0));
     }
 
     #[test]

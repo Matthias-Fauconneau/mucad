@@ -1,0 +1,290 @@
+// Copyright © 2026 The µcad authors <info@mucad.org>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import * as THREE from "three";
+import { CameraNavigation } from "mucad-wasm";
+import { loadWasm } from "./compiler/wasm";
+
+/** A standard view of the scene with Z upwards. */
+export type StandardView = "isometric" | "front" | "top" | "right" | "rear" | "bottom" | "left";
+
+/** The detail of a `select` event: a click at `x` and `y` in pixels from the top left. */
+export interface SelectDetail {
+  x: number;
+  y: number;
+  /** Whether the object is added to the selection, instead of replacing it. */
+  multi: boolean;
+}
+
+/** The near and far plane of the projection of the camera controller. */
+const NEAR = 0.1;
+const FAR = 100000;
+
+/** The cursors of the actions of the mouse. */
+const CURSORS: Record<string, string> = { pan: "move", zoom: "ns-resize", orbit: "grabbing" };
+
+/** The modifiers of an event as bits: Ctrl 1, Shift 2, Alt 4 and Meta 8. */
+function modifiers(event: MouseEvent | KeyboardEvent): number {
+  return (
+    Number(event.ctrlKey) |
+    (Number(event.shiftKey) << 1) |
+    (Number(event.altKey) << 2) |
+    (Number(event.metaKey) << 3)
+  );
+}
+
+/**
+ * The camera navigation of the µcad viewers for a three.js camera: orbiting, panning and
+ * zooming an orthographic view with the mouse and the keys, configurable in TOML.
+ *
+ * The controls listen to the events of `element`, e.g. the canvas of the renderer, which gets
+ * the focus for the keys by a click. `update()` applies the camera in each frame, a click
+ * dispatches a `select` event with a {@link SelectDetail}.
+ *
+ * The WebAssembly module is loaded at the first call or event, which are applied after it.
+ *
+ * ```ts
+ * const controls = new CameraControls(camera, renderer.domElement);
+ * controls.setScene(center, radius);
+ * controls.setView("isometric");
+ * controls.addEventListener("select", (event) => pick((event as CustomEvent<SelectDetail>).detail));
+ * renderer.setAnimationLoop(() => {
+ *   controls.update();
+ *   renderer.render(scene, camera);
+ * });
+ * ```
+ */
+export class CameraControls extends EventTarget {
+  private navigation?: CameraNavigation;
+  /** The calls before the WebAssembly module is loaded. */
+  private pending: ((navigation: CameraNavigation) => void)[] = [];
+  private loading = false;
+  private disposed = false;
+  /** The buttons of `MouseEvent.button`, which are pressed on the element. */
+  private pressed = new Set<number>();
+  /** The start of the frame, the time since it scales the movements, like a frame timer. */
+  private frameStart = performance.now();
+  private width = 1;
+  private height = 1;
+
+  /**
+   * Controls for `camera`, whose matrices they set, with the events of `element` and the
+   * controls in TOML or the defaults, see `CameraNavigation.defaultControls()`.
+   */
+  constructor(
+    private camera: THREE.OrthographicCamera,
+    private element: HTMLElement,
+    private controlsToml?: string,
+  ) {
+    super();
+    camera.near = NEAR;
+    camera.far = FAR;
+    // The canvas gets the focus for the keys, without an outline.
+    element.tabIndex = 0;
+    element.style.outline = "none";
+    element.addEventListener("mousedown", this.onMouseDown);
+    element.addEventListener("wheel", this.onWheel, { passive: false });
+    element.addEventListener("keydown", this.onKeyDown);
+    // The right button drags.
+    element.addEventListener("contextmenu", this.preventDefault);
+    window.addEventListener("blur", this.releaseAll);
+  }
+
+  /** Set the scene: its center and its radius, e.g. of the bounding sphere of the model. */
+  setScene(center: THREE.Vector3, radius: number) {
+    this.run((navigation) => navigation.setScene(center.x, center.y, center.z, radius));
+  }
+
+  /** Show a standard view. */
+  setView(view: StandardView) {
+    this.run((navigation) => navigation.setView(view));
+  }
+
+  /** Show the whole scene in the middle of the view. */
+  showAll() {
+    this.run((navigation) => navigation.showAll());
+  }
+
+  /** Set the pivot, which the camera orbits around, to the scene center. */
+  resetPivot() {
+    this.run((navigation) => navigation.resetPivot());
+  }
+
+  /**
+   * Set the controls in TOML, missing entries are the defaults.
+   *
+   * Throws an error with the reason for invalid controls, once the WebAssembly module is
+   * loaded.
+   */
+  setControls(toml: string) {
+    this.controlsToml = toml;
+    this.navigation?.setControls(toml);
+  }
+
+  /** Set the size of the element in pixels, e.g. after resizing it. */
+  resize(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+    this.navigation?.resize(width, height);
+  }
+
+  /** Apply the camera, e.g. in each frame before rendering. */
+  update() {
+    this.frameStart = performance.now();
+    const navigation = this.navigation;
+    if (!navigation) return;
+    const camera = this.camera;
+    camera.matrix.fromArray(navigation.cameraMatrix());
+    camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);
+    camera.updateMatrixWorld(true);
+    camera.projectionMatrix.fromArray(navigation.projectionMatrix());
+    camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  }
+
+  /** Remove the event listeners and free the WebAssembly memory. */
+  dispose() {
+    this.disposed = true;
+    this.releaseAll();
+    this.element.removeEventListener("mousedown", this.onMouseDown);
+    this.element.removeEventListener("wheel", this.onWheel);
+    this.element.removeEventListener("keydown", this.onKeyDown);
+    this.element.removeEventListener("contextmenu", this.preventDefault);
+    window.removeEventListener("blur", this.releaseAll);
+    this.navigation?.free();
+    this.navigation = undefined;
+  }
+
+  /** Call `action` with the navigation, after loading the WebAssembly module. */
+  private run(action: (navigation: CameraNavigation) => void) {
+    if (this.navigation) {
+      action(this.navigation);
+      return;
+    }
+    this.pending.push(action);
+    this.load();
+  }
+
+  /** Load the WebAssembly module once and apply the pending calls. */
+  private load() {
+    if (this.loading) return;
+    this.loading = true;
+    loadWasm()
+      .then(() => {
+        if (this.disposed) return;
+        this.navigation = this.createNavigation();
+        for (const action of this.pending) action(this.navigation);
+        this.pending = [];
+        this.update();
+      })
+      .catch((error) => console.error("Cannot load the camera controls:", error));
+  }
+
+  /** The navigation with the controls, or with the default ones, if they are invalid. */
+  private createNavigation(): CameraNavigation {
+    try {
+      return new CameraNavigation(this.width, this.height, this.controlsToml);
+    } catch (error) {
+      console.error(error);
+      return new CameraNavigation(this.width, this.height);
+    }
+  }
+
+  /** The position of `event` in pixels from the top left of the element. */
+  private position(event: MouseEvent): [number, number] {
+    const rect = this.element.getBoundingClientRect();
+    return [event.clientX - rect.left, event.clientY - rect.top];
+  }
+
+  /** The time since the start of the frame in milliseconds. */
+  private elapsed(): number {
+    return performance.now() - this.frameStart;
+  }
+
+  private updateCursor() {
+    const action = this.navigation?.mouseAction();
+    this.element.style.cursor = (action && CURSORS[action]) ?? "";
+  }
+
+  private onMouseDown = (event: MouseEvent) => {
+    const navigation = this.navigation;
+    if (!navigation) {
+      this.load();
+      return;
+    }
+    // No autoscroll with the middle button and no text selection, but the focus for the keys.
+    event.preventDefault();
+    this.element.focus({ preventScroll: true });
+    if (this.pressed.size === 0) {
+      // Movements outside of the element, e.g. while orbiting, are followed.
+      window.addEventListener("mousemove", this.onMouseMove);
+      window.addEventListener("mouseup", this.onMouseUp);
+    }
+    this.pressed.add(event.button);
+    // Like the timer at the start of an action.
+    this.frameStart = performance.now();
+    navigation.mouseDown(event.button, ...this.position(event), modifiers(event));
+    this.updateCursor();
+  };
+
+  private onMouseMove = (event: MouseEvent) => {
+    this.navigation?.mouseMove(event.movementX, event.movementY, this.elapsed());
+  };
+
+  /** Release the button and dispatch a `select` event after a click. */
+  private onMouseUp = (event: MouseEvent) => {
+    if (!this.pressed.delete(event.button)) return;
+    const detail = this.release(event.button, ...this.position(event), modifiers(event));
+    if (detail) this.dispatchEvent(new CustomEvent<SelectDetail>("select", { detail }));
+  };
+
+  /** Release `button`, returns the selection after a click. */
+  private release(
+    button: number,
+    x: number,
+    y: number,
+    modifierBits: number,
+  ): SelectDetail | undefined {
+    if (this.pressed.size === 0) {
+      window.removeEventListener("mousemove", this.onMouseMove);
+      window.removeEventListener("mouseup", this.onMouseUp);
+    }
+    const selection = this.navigation?.mouseUp(button, x, y, modifierBits);
+    this.updateCursor();
+    if (!selection) return undefined;
+    const detail = { x: selection.x, y: selection.y, multi: selection.multi };
+    selection.free();
+    return detail;
+  }
+
+  /**
+   * Release all buttons without selecting, e.g. when the window loses the focus while
+   * dragging.
+   */
+  private releaseAll = () => {
+    for (const button of [...this.pressed]) {
+      this.pressed.delete(button);
+      this.release(button, 0, 0, 0);
+    }
+  };
+
+  private onWheel = (event: WheelEvent) => {
+    const navigation = this.navigation;
+    if (!navigation) return;
+    const [x, y] = this.position(event);
+    const bound = navigation.wheel(
+      event.deltaY,
+      event.deltaMode,
+      x,
+      y,
+      modifiers(event),
+      this.elapsed(),
+    );
+    if (bound) event.preventDefault();
+  };
+
+  private onKeyDown = (event: KeyboardEvent) => {
+    if (this.navigation?.keyDown(event.key, modifiers(event))) event.preventDefault();
+  };
+
+  private preventDefault = (event: Event) => event.preventDefault();
+}

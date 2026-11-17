@@ -2,28 +2,35 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { CameraControls, type StandardView } from "./camera-controls";
 import type { Color, Geometry, MeshData, SketchData, Triangles } from "./compiler/types";
 import { theme } from "./theme";
 
 /** The angle between faces, above which an edge is shown sharp instead of smooth. */
 const CREASE_ANGLE = THREE.MathUtils.degToRad(20);
 
-/** The directions to look at 3D models (from the front at an angle) and 2D models (from above). */
-const VIEW_DIRECTION = {
-  "3d": new THREE.Vector3(1, -1.5, 1),
-  "2d": new THREE.Vector3(0, 0, 1),
-} as const;
+/** The views of 3D models (from the front, the right and the top) and 2D models (from above). */
+const VIEWS = {
+  "3d": "isometric",
+  "2d": "top",
+} as const satisfies Record<string, StandardView>;
 
-type ModelKind = keyof typeof VIEW_DIRECTION;
+type ModelKind = keyof typeof VIEWS;
 
-/** A three.js view of µcad models, the Z axis points up like in µcad. */
+/**
+ * A three.js view of µcad models, the Z axis points up like in µcad.
+ *
+ * The orthographic camera is navigated with the mouse and the keys by {@link CameraControls}.
+ */
 export class Viewer {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100000);
-  private controls: OrbitControls;
+  private camera = new THREE.OrthographicCamera();
+  /** The camera navigation, e.g. to listen to its `select` events or to set its controls. */
+  readonly controls: CameraControls;
+  /** The radius of the scene of the camera, which a bigger model increases. */
+  private sceneRadius = 0;
   private model = new THREE.Group();
   private grid?: THREE.GridHelper;
   /** The kind of the shown model, whose direction the camera was reset to. */
@@ -43,8 +50,7 @@ export class Viewer {
     this.scene.add(this.camera);
 
     THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
-    this.camera.up.set(0, 0, 1);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls = new CameraControls(this.camera, this.renderer.domElement);
 
     const resetButton = document.createElement("button");
     resetButton.className = "view-button";
@@ -150,29 +156,27 @@ export class Viewer {
       this.kind = kind;
       this.resetCamera();
     } else {
-      // A bigger model is not cut off.
-      const distance = this.camera.position.distanceTo(this.controls.target);
-      const radius = box.getBoundingSphere(new THREE.Sphere()).radius;
-      this.camera.far = Math.max(this.camera.far, (distance + 2 * radius) * 10);
-      this.camera.updateProjectionMatrix();
+      // A bigger model is not cut off by the near plane of the camera, which is outside of the
+      // scene.
+      const { center, radius } = box.getBoundingSphere(new THREE.Sphere());
+      if (radius > this.sceneRadius) {
+        this.sceneRadius = radius;
+        this.controls.setScene(center, radius);
+      }
     }
     this.updateGrid(box);
   }
 
-  /** Move the camera to see the whole model from the direction of its kind. */
+  /** Move the camera to see the whole model in the standard view of its kind. */
   resetCamera() {
     const box = this.bounds();
     if (!box || !this.kind) return;
-    const center = box.getCenter(new THREE.Vector3());
-    const radius = box.getBoundingSphere(new THREE.Sphere()).radius || 1;
-    const distance = radius / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    const direction = VIEW_DIRECTION[this.kind].clone().normalize();
-
-    this.camera.position.copy(center).addScaledVector(direction, distance);
-    this.camera.near = distance / 100;
-    this.camera.far = distance * 100;
-    this.camera.updateProjectionMatrix();
-    this.controls.target.copy(center);
+    const { center, radius } = box.getBoundingSphere(new THREE.Sphere());
+    this.sceneRadius = radius || 1;
+    this.controls.setScene(center, this.sceneRadius);
+    this.controls.setView(VIEWS[this.kind]);
+    this.controls.showAll();
+    this.controls.resetPivot();
   }
 
   /** The bounds of the model, `undefined` without model. */
@@ -201,9 +205,9 @@ export class Viewer {
   private resize() {
     const { clientWidth: width, clientHeight: height } = this.element;
     this.renderer.setSize(width, height);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+    this.controls.resize(width, height);
     // Resizing clears the canvas, render at once to avoid flickering while a panel is resized.
+    this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
 }

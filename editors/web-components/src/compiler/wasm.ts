@@ -29,6 +29,15 @@ import {
   type SteppedLiteral,
 } from "./types";
 
+/** The WebAssembly module of the page, which is loaded once, e.g. for the compiler and viewers. */
+let wasmModule: Promise<void> | undefined;
+
+/** Load the WebAssembly module at the first call, e.g. for the compiler or the camera controls. */
+export function loadWasm(): Promise<void> {
+  wasmModule ??= init().then(() => undefined);
+  return wasmModule;
+}
+
 /** The compiler of the page, which is loaded once, e.g. for several viewers. */
 let compiler: Promise<Compiler> | undefined;
 
@@ -38,7 +47,7 @@ let compiler: Promise<Compiler> | undefined;
  * All sessions share one instance of the compiler, whose calls are queued.
  */
 export function wasmCompiler(): Promise<Compiler> {
-  compiler ??= init().then(() => new WasmCompiler());
+  compiler ??= loadWasm().then(() => new WasmCompiler());
   return compiler;
 }
 

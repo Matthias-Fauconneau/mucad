@@ -186,7 +186,8 @@ of orbiting and zooming the same at any frame rate.
 | `position()`, `viewCenter()`, `up()`, `pivot()` | `[x, y, z]` |
 | `setScene(x, y, z, radius)` | Sets the center and the radius of the scene, e.g. of the bounding sphere of the model |
 | `setView(name)` | Shows `isometric`, `front`, `top`, `right`, `rear`, `bottom` or `left` |
-| `zoomFit()`, `zoomLevel()`, `resetPivot()` | Shows the whole scene, the zoom level, sets the pivot to the scene center |
+| `showAll()` | Shows the whole scene in the middle of the view, e.g. to reset the camera |
+| `zoomFit()`, `zoomLevel()`, `resetPivot()` | Zooms to level 1 around the center of the view, the zoom level, sets the pivot to the scene center |
 | `takeEvents()` | The changes since the last call: `zoomLevelChanged` and `pivotChanged` |
 
 `Selection` and `CameraNavigation` are freed with `free()`.
