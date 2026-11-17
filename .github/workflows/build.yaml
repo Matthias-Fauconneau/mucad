@@ -18,3 +18,8 @@ jobs:
         uses: lvignoli/typst-action@main
         with:
           source_file: plan.typ
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-pdf
+          path: plan.pdf
