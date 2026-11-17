@@ -20,6 +20,9 @@ export interface SelectDetail {
 const NEAR = 0.1;
 const FAR = 100000;
 
+/** The time in milliseconds after a drag with the right button, in which no context menu opens. */
+const CONTEXT_MENU_DELAY = 500;
+
 /** The cursors of the actions of the mouse. */
 const CURSORS: Record<string, string> = { pan: "move", zoom: "ns-resize", orbit: "grabbing" };
 
@@ -35,11 +38,17 @@ function modifiers(event: MouseEvent | KeyboardEvent): number {
 
 /**
  * The camera navigation of the µcad viewers for a three.js camera: orbiting, panning and
- * zooming an orthographic view with the mouse and the keys, configurable in TOML.
+ * zooming an orthographic view with the mouse, the keys and touch, configurable in TOML.
  *
  * The controls listen to the events of `element`, e.g. the canvas of the renderer, which gets
- * the focus for the keys by a click. `update()` applies the camera in each frame, a click
- * dispatches a `select` event with a {@link SelectDetail}.
+ * the focus for the keys by a click. `update()` applies the camera in each frame, a click or a
+ * tap dispatches a `select` event with a {@link SelectDetail}.
+ *
+ * The context menu of the element is disabled, so that the right button orbits, also when it
+ * is released outside of the element.
+ *
+ * Touch: one finger orbits, two fingers pinch to zoom and pan, the page does not scroll or
+ * zoom with them.
  *
  * The WebAssembly module is loaded at the first call or event, which are applied after it.
  *
@@ -62,6 +71,9 @@ export class CameraControls extends EventTarget {
   private disposed = false;
   /** The buttons of `MouseEvent.button`, which are pressed on the element. */
   private pressed = new Set<number>();
+  /** Whether the context menu after a drag with the right button is prevented. */
+  private noContextMenu = false;
+  private contextMenuTimer?: number;
   /** The start of the frame, the time since it scales the movements, like a frame timer. */
   private frameStart = performance.now();
   private width = 1;
@@ -85,8 +97,16 @@ export class CameraControls extends EventTarget {
     element.addEventListener("mousedown", this.onMouseDown);
     element.addEventListener("wheel", this.onWheel, { passive: false });
     element.addEventListener("keydown", this.onKeyDown);
-    // The right button drags.
+    // The browser neither scrolls nor zooms the page with the fingers on the element.
+    element.style.touchAction = "none";
+    element.addEventListener("touchstart", this.onTouchStart, { passive: false });
+    element.addEventListener("touchmove", this.onTouchMove, { passive: false });
+    element.addEventListener("touchend", this.onTouchEnd, { passive: false });
+    element.addEventListener("touchcancel", this.onTouchCancel, { passive: false });
+    // The right button orbits: no context menu on the element, and none after a drag, which
+    // opens on some systems where the button is released, e.g. outside of the element.
     element.addEventListener("contextmenu", this.preventDefault);
+    window.addEventListener("contextmenu", this.onContextMenu, { capture: true });
     window.addEventListener("blur", this.releaseAll);
   }
 
@@ -148,8 +168,14 @@ export class CameraControls extends EventTarget {
     this.element.removeEventListener("mousedown", this.onMouseDown);
     this.element.removeEventListener("wheel", this.onWheel);
     this.element.removeEventListener("keydown", this.onKeyDown);
+    this.element.removeEventListener("touchstart", this.onTouchStart);
+    this.element.removeEventListener("touchmove", this.onTouchMove);
+    this.element.removeEventListener("touchend", this.onTouchEnd);
+    this.element.removeEventListener("touchcancel", this.onTouchCancel);
     this.element.removeEventListener("contextmenu", this.preventDefault);
+    window.removeEventListener("contextmenu", this.onContextMenu, { capture: true });
     window.removeEventListener("blur", this.releaseAll);
+    clearTimeout(this.contextMenuTimer);
     this.navigation?.free();
     this.navigation = undefined;
   }
@@ -190,7 +216,7 @@ export class CameraControls extends EventTarget {
   }
 
   /** The position of `event` in pixels from the top left of the element. */
-  private position(event: MouseEvent): [number, number] {
+  private position(event: MouseEvent | Touch): [number, number] {
     const rect = this.element.getBoundingClientRect();
     return [event.clientX - rect.left, event.clientY - rect.top];
   }
@@ -233,6 +259,7 @@ export class CameraControls extends EventTarget {
   /** Release the button and dispatch a `select` event after a click. */
   private onMouseUp = (event: MouseEvent) => {
     if (!this.pressed.delete(event.button)) return;
+    if (event.button === 2) this.preventContextMenu();
     const detail = this.release(event.button, ...this.position(event), modifiers(event));
     if (detail) this.dispatchEvent(new CustomEvent<SelectDetail>("select", { detail }));
   };
@@ -265,6 +292,61 @@ export class CameraControls extends EventTarget {
       this.pressed.delete(button);
       this.release(button, 0, 0, 0);
     }
+  };
+
+  /** Prevent the context menu, which opens shortly after releasing the right button. */
+  private preventContextMenu() {
+    this.noContextMenu = true;
+    clearTimeout(this.contextMenuTimer);
+    this.contextMenuTimer = window.setTimeout(
+      () => (this.noContextMenu = false),
+      CONTEXT_MENU_DELAY,
+    );
+  }
+
+  private onContextMenu = (event: MouseEvent) => {
+    if (this.pressed.size === 0 && !this.noContextMenu) return;
+    event.preventDefault();
+    this.noContextMenu = false;
+  };
+
+  private onTouchStart = (event: TouchEvent) => {
+    // No mouse events are emulated for the touches, e.g. no second selection after a tap.
+    event.preventDefault();
+    const navigation = this.navigation;
+    if (!navigation) {
+      this.load();
+      return;
+    }
+    // Like the timer at the start of an action.
+    this.frameStart = performance.now();
+    for (const touch of event.changedTouches) {
+      navigation.touchStart(touch.identifier, ...this.position(touch));
+    }
+  };
+
+  private onTouchMove = (event: TouchEvent) => {
+    event.preventDefault();
+    const touches = [...event.changedTouches].flatMap((touch) => [
+      touch.identifier,
+      ...this.position(touch),
+    ]);
+    this.navigation?.touchMove(new Float64Array(touches), this.elapsed());
+  };
+
+  private onTouchEnd = (event: TouchEvent) => {
+    event.preventDefault();
+    for (const touch of event.changedTouches) {
+      const selection = this.navigation?.touchEnd(touch.identifier, ...this.position(touch));
+      if (!selection) continue;
+      const detail = { x: selection.x, y: selection.y, multi: selection.multi };
+      selection.free();
+      this.dispatchEvent(new CustomEvent<SelectDetail>("select", { detail }));
+    }
+  };
+
+  private onTouchCancel = (event: TouchEvent) => {
+    for (const touch of event.changedTouches) this.navigation?.touchCancel(touch.identifier);
   };
 
   private onWheel = (event: WheelEvent) => {

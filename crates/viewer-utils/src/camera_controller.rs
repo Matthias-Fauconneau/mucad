@@ -292,7 +292,9 @@ impl CameraController {
     pub fn zoom_by_wheel(&mut self, wheel_delta: Vec2, elapsed: Duration) {
         let d = scaled_by_time(wheel_delta, elapsed);
         let delta = -d.y as f64 * self.zoom_speed();
-        let zoom_factor = 1.0 + delta / 100.0;
+        // Like `1 + delta / 100` for small deltas, but never 0 or negative, e.g. for a turn of
+        // the wheel in a long frame, and zooming in and out by the same delta cancel out.
+        let zoom_factor = (delta / 100.0).exp();
 
         self.zoom_rect_model
             .zoom_to_point(self.zoom_point(), zoom_factor);
@@ -321,6 +323,15 @@ impl CameraController {
     pub fn zoom_at_center(&mut self, zoom_factor: f64) {
         let center = self.zoom_rect_model.detail().center();
         self.zoom_rect_model.zoom_to_point(center, zoom_factor);
+        self.handle_zoom_events();
+    }
+
+    /// Scale the detail by `zoom_factor` around the point under the screen coordinates in
+    /// pixels, which stays in place, e.g. for pinching: a factor below 1 zooms in.
+    pub fn zoom_at_screen_point(&mut self, screen_coords: DVec2, zoom_factor: f64) {
+        self.set_zoom_point_from_screen_coordinates(screen_coords);
+        self.zoom_rect_model
+            .zoom_to_point(self.zoom_point(), zoom_factor);
         self.handle_zoom_events();
     }
 
@@ -555,7 +566,7 @@ impl CameraController {
 
     /// The point under the screen coordinate in pixels, in the plane of the pivot parallel
     /// to the view.
-    fn world_point(&self, screen_coord: DVec2) -> Vec3 {
+    pub fn world_point(&self, screen_coord: DVec2) -> Vec3 {
         let ray = self.camera_ray(screen_coord);
 
         // The virtual scene plane is defined by the camera viewVector and the
@@ -575,8 +586,7 @@ impl CameraController {
     }
 
     /// The screen coordinate in pixels of a point in world coordinates.
-    #[cfg_attr(not(test), expect(dead_code))]
-    fn screen_coord(&self, world_point: Vec3) -> DVec2 {
+    pub fn screen_coord(&self, world_point: Vec3) -> DVec2 {
         let ndc = self.normalized_screen_coord(world_point);
 
         DVec2::new(
@@ -672,11 +682,15 @@ mod tests {
         let mut controller = CameraController::new(WINDOW);
         controller.set_zoom_point_from_screen_coordinates(WINDOW / 2.0);
         controller.start_zoom();
-        // A positive delta zooms in, a negative one out.
+        // A positive delta zooms in, a negative one out by the same factor.
         controller.zoom_by_wheel(Vec2::new(0.0, 2.0), Duration::from_secs(1));
-        assert!((controller.zoom_level() - 2.0).abs() < 1e-9);
+        assert!((controller.zoom_level() - 0.5f64.exp()).abs() < 1e-9);
         controller.zoom_by_wheel(Vec2::new(0.0, -2.0), Duration::from_secs(1));
-        assert!((controller.zoom_level() - 4.0 / 3.0).abs() < 1e-9);
+        assert!((controller.zoom_level() - 1.0).abs() < 1e-9);
+        // A large delta in a long frame zooms in, but does not flip the view.
+        controller.zoom_by_wheel(Vec2::new(0.0, 100.0), Duration::from_millis(170));
+        assert!(controller.zoom_model().detail().width > 0.0);
+        assert!(controller.zoom_level() > 1.0);
         assert_eq!(
             controller.camera().projection_matrix(),
             controller.zoom_model().detail_ortho_projection_matrix()
@@ -710,6 +724,17 @@ mod tests {
         assert_eq!(controller.camera().view_center(), controller.scene_center());
         let after = controller.screen_coord(point);
         assert!(after.abs_diff_eq(before, 1e-2), "{before} {after}");
+    }
+
+    #[test]
+    fn zoom_at_screen_point() {
+        let mut controller = CameraController::new(WINDOW);
+        let point = DVec2::new(100.0, 50.0);
+        let world = controller.world_point(point);
+        controller.zoom_at_screen_point(point, 0.5);
+        assert!((controller.zoom_level() - 2.0).abs() < 1e-9);
+        // The point under the screen coordinates stays in place.
+        assert!(controller.screen_coord(world).abs_diff_eq(point, 1e-3));
     }
 
     #[test]

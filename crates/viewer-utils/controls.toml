@@ -1,4 +1,4 @@
-# The default controls of the camera in the µcad viewers.
+# The default controls of the camera in the µcad viewers with the mouse, the keys and touch.
 #
 # Missing entries are these defaults, e.g. a file with only `[mouse]` and `pan = ["Middle"]`
 # changes only panning with the mouse.
@@ -31,7 +31,7 @@ select = ["Left"]
 # Turn the wheel to zoom at the pointer, or drag upwards to zoom in and downwards to zoom out.
 zoom = ["Wheel", "Ctrl+Shift+Right"]
 # Drag to orbit around the point under the pointer.
-orbit = ["Middle+Right", "Middle+Left", "Shift+Right"]
+orbit = ["Middle+Right", "Middle+Left", "Right"]
 # Drag to pan.
 pan = ["Middle", "Ctrl+Right"]
 
@@ -58,3 +58,8 @@ view_bottom = ["5"]
 view_left = ["6"]
 # Pressed while selecting, to select more than one object.
 multi_select = "Ctrl"
+
+# The gestures of touch screens: two fingers pinch to zoom and pan, a tap selects.
+[touch]
+# Drag with one finger to `orbit` around the point under the finger, or to `pan`.
+one_finger = "orbit"

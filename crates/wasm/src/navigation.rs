@@ -12,7 +12,7 @@ use std::time::Duration;
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mucad_viewer_utils::{
     CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, Modifiers, MouseAction, MouseButton,
-    Navigation, StandardView,
+    Navigation, StandardView, TouchId,
 };
 use wasm_bindgen::prelude::*;
 
@@ -142,13 +142,40 @@ impl CameraNavigation {
         let command =
             self.navigation
                 .mouse_released(button, to_modifiers(modifiers), DVec2::new(x, y))?;
-        match command {
-            Command::Select { position, multi } => Some(Selection {
-                x: position.x,
-                y: position.y,
-                multi,
-            }),
-        }
+        Some(selection(command))
+    }
+
+    /// Start the touch with `Touch.identifier` at `(x, y)`.
+    #[wasm_bindgen(js_name = touchStart)]
+    pub fn touch_start(&mut self, id: f64, x: f64, y: f64) {
+        self.navigation
+            .touch_started(id as TouchId, DVec2::new(x, y));
+    }
+
+    /// Move the touches of one `touchmove` event within `elapsed_ms` milliseconds, since the
+    /// last frame: `touches` are `Touch.identifier`, x and y of each touch one after another,
+    /// e.g. `[id1, x1, y1, id2, x2, y2]`.
+    ///
+    /// One finger orbits, two fingers pinch to zoom and pan.
+    #[wasm_bindgen(js_name = touchMove)]
+    pub fn touch_move(&mut self, touches: &[f64], elapsed_ms: f64) {
+        self.navigation
+            .touches_moved(&to_touches(touches), duration(elapsed_ms));
+    }
+
+    /// End the touch with `Touch.identifier` at `(x, y)`, returns a selection after a tap.
+    #[wasm_bindgen(js_name = touchEnd)]
+    pub fn touch_end(&mut self, id: f64, x: f64, y: f64) -> Option<Selection> {
+        let command = self
+            .navigation
+            .touch_ended(id as TouchId, DVec2::new(x, y))?;
+        Some(selection(command))
+    }
+
+    /// Cancel the touch with `Touch.identifier`, e.g. after `touchcancel`.
+    #[wasm_bindgen(js_name = touchCancel)]
+    pub fn touch_cancel(&mut self, id: f64) {
+        self.navigation.touch_cancelled(id as TouchId);
     }
 
     /// Move the mouse by `movementX` and `movementY` in pixels within `elapsed_ms`
@@ -320,6 +347,26 @@ impl CameraNavigation {
     }
 }
 
+/// The selection of a command.
+fn selection(command: Command) -> Selection {
+    match command {
+        Command::Select { position, multi } => Selection {
+            x: position.x,
+            y: position.y,
+            multi,
+        },
+    }
+}
+
+/// The touches of identifiers, x and y one after another, an incomplete last one is ignored.
+fn to_touches(values: &[f64]) -> Vec<(TouchId, DVec2)> {
+    let (touches, _) = values.as_chunks::<3>();
+    touches
+        .iter()
+        .map(|[id, x, y]| (*id as TouchId, DVec2::new(*x, *y)))
+        .collect()
+}
+
 /// The controls in TOML or the reason, why they are invalid.
 fn parse_controls(toml: &str) -> Result<Controls, String> {
     Controls::from_toml(toml).map_err(|error| format!("invalid controls: {error}"))
@@ -413,6 +460,14 @@ mod tests {
         assert_eq!(duration(16.0), Duration::from_millis(16));
         assert_eq!(duration(-1.0), Duration::ZERO);
         assert_eq!(duration(f64::NAN), Duration::ZERO);
+    }
+
+    #[test]
+    fn touches() {
+        assert_eq!(
+            to_touches(&[1.0, 10.0, 20.0, 2.0, 30.0, 40.0, 3.0]),
+            [(1, DVec2::new(10.0, 20.0)), (2, DVec2::new(30.0, 40.0))]
+        );
     }
 
     #[test]

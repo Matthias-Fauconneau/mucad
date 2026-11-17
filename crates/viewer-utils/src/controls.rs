@@ -1,7 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The configuration of the mouse and the keys to control the camera, e.g. from TOML.
+//! The configuration of the mouse, the keys and touch to control the camera, e.g. from TOML.
 
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,7 @@ use crate::{KeyBinding, Modifiers, MouseBinding, MouseButton};
 /// The default controls as TOML with comments, e.g. to start a configuration file.
 pub const DEFAULT_CONTROLS_TOML: &str = include_str!("../controls.toml");
 
-/// The controls of the camera with the mouse and the keys and their speeds.
+/// The controls of the camera with the mouse, the keys and touch, and their speeds.
 ///
 /// It is read from TOML like [`DEFAULT_CONTROLS_TOML`], which has the defaults. Missing
 /// entries are the defaults.
@@ -33,6 +33,8 @@ pub struct Controls {
     pub mouse: MouseControls,
     /// The keys, which are available with any navigation style.
     pub keyboard: KeyboardControls,
+    /// The gestures of touch screens.
+    pub touch: TouchControls,
 }
 
 impl Default for Controls {
@@ -46,6 +48,7 @@ impl Default for Controls {
             rotate_step: 90.0,
             mouse: MouseControls::default(),
             keyboard: KeyboardControls::default(),
+            touch: TouchControls::default(),
         }
     }
 }
@@ -94,7 +97,7 @@ impl Default for MouseControls {
             orbit: vec![
                 MouseBinding::buttons(none, &[Middle, Right]),
                 MouseBinding::buttons(none, &[Middle, Left]),
-                MouseBinding::buttons(shift, &[Right]),
+                MouseBinding::buttons(none, &[Right]),
             ],
             pan: vec![
                 MouseBinding::buttons(none, &[Middle]),
@@ -172,6 +175,25 @@ impl Default for KeyboardControls {
     }
 }
 
+/// What dragging with one finger does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TouchDrag {
+    /// Orbit around the point under the finger.
+    #[default]
+    Orbit,
+    /// Pan the view.
+    Pan,
+}
+
+/// The gestures of touch screens: two fingers always pinch to zoom and pan, a tap selects.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TouchControls {
+    /// What dragging with one finger does: `orbit` or `pan`.
+    pub one_finger: TouchDrag,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,11 +223,16 @@ mod tests {
         assert_eq!(controls.mouse.pan, ["Middle".parse().expect("binding")]);
         assert_eq!(controls.mouse.orbit, MouseControls::default().orbit);
         assert_eq!(controls.keyboard.multi_select, Modifiers::SHIFT);
+        assert_eq!(controls.touch, TouchControls::default());
+
+        let controls = Controls::from_toml("[touch]\none_finger = \"pan\"\n").expect("TOML");
+        assert_eq!(controls.touch.one_finger, TouchDrag::Pan);
     }
 
     #[test]
     fn errors() {
         assert!(Controls::from_toml("[mouse]\npan = [\"Middle+Up\"]\n").is_err());
         assert!(Controls::from_toml("[mouse]\nspin = [\"Middle\"]\n").is_err());
+        assert!(Controls::from_toml("[touch]\none_finger = \"spin\"\n").is_err());
     }
 }

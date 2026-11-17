@@ -16,8 +16,10 @@ mod zoom_rect;
 
 pub use camera::{Camera, ProjectionType};
 pub use camera_controller::{CameraController, CameraEvent, CameraState, Mode, Ray};
-pub use controls::{Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls};
+pub use controls::{
+    Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls, TouchControls, TouchDrag,
+};
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
-pub use navigation::{Command, MouseAction, Navigation, StandardView};
+pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
 pub use rect::Rect;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};

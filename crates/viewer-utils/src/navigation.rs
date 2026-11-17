@@ -1,14 +1,16 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The navigation with the mouse and the keys: input events of a viewer control the camera
-//! by the configured [`Controls`].
+//! The navigation with the mouse, the keys and touch: input events of a viewer control the
+//! camera by the configured [`Controls`].
 
 use std::time::Duration;
 
 use glam::{DVec2, Vec2, Vec3};
 
-use crate::{CameraController, Controls, KeyBinding, Modifiers, MouseButton, MouseInput};
+use crate::{
+    CameraController, Controls, KeyBinding, Modifiers, MouseButton, MouseInput, TouchDrag,
+};
 
 /// The distance in pixels, which the mouse can move while clicking.
 const CLICK_TOLERANCE: f32 = 4.0;
@@ -86,10 +88,16 @@ pub enum MouseAction {
     Zoom,
 }
 
-/// The navigation of a [`CameraController`] with the mouse and the keys.
+/// The identifier of a touch, i.e. of a finger on the screen, e.g. `PointerEvent.pointerId`.
+pub type TouchId = i64;
+
+/// The navigation of a [`CameraController`] with the mouse, the keys and touch.
 ///
 /// The viewer passes its input events, the modifiers and the pointer position in pixels from
-/// the top left of the window, and applies the camera of the controller after them. While
+/// the top left of the window, and applies the camera of the controller after them.
+///
+/// Touch: one finger orbits or pans, see [`crate::TouchControls`], two fingers pinch to zoom
+/// and pan, a tap selects. More fingers are ignored. While
 /// [`CameraController::pointer_pinned`], it passes the movement of the mouse, e.g. of a locked
 /// pointer, also when the pointer position stays the same.
 #[derive(Debug, Clone)]
@@ -103,6 +111,12 @@ pub struct Navigation {
     moved: f32,
     /// Whether only a select action has been started since the first button was pressed.
     clicking: bool,
+    /// The touches with their positions in the order they started.
+    touches: Vec<(TouchId, DVec2)>,
+    /// The distance, which the touches moved since the first one started.
+    touch_moved: f32,
+    /// Whether only one finger touched since the first one started, e.g. for a tap.
+    tapping: bool,
 }
 
 impl Navigation {
@@ -115,6 +129,9 @@ impl Navigation {
             action: None,
             moved: 0.0,
             clicking: false,
+            touches: Vec::new(),
+            touch_moved: 0.0,
+            tapping: false,
         };
         navigation.set_controls(controls);
         navigation
@@ -224,6 +241,102 @@ impl Navigation {
                 .zoom_by_wheel(Vec2::new(0.0, delta), elapsed);
         }
         bound
+    }
+
+    /// Start the touch `id` at `position`.
+    pub fn touch_started(&mut self, id: TouchId, position: DVec2) {
+        if self.touches.is_empty() {
+            self.touch_moved = 0.0;
+            self.tapping = true;
+        }
+        self.touches.retain(|(touch, _)| *touch != id);
+        self.touches.push((id, position));
+        if self.touches.len() > 1 {
+            self.tapping = false;
+        }
+        self.start_touch_gesture();
+    }
+
+    /// Move the touches to their positions within the time `elapsed`, since the last frame:
+    /// one finger orbits or pans, two fingers pinch to zoom at their center and pan with it.
+    ///
+    /// The touches, which move together, e.g. of one `touchmove` event, are moved in one call,
+    /// so that moving two fingers in parallel pans without zooming.
+    pub fn touches_moved(&mut self, moved: &[(TouchId, DVec2)], elapsed: Duration) {
+        let previous: Vec<DVec2> = self.touches.iter().map(|(_, position)| *position).collect();
+        for (id, position) in moved {
+            if let Some(touch) = self.touches.iter_mut().find(|(touch, _)| touch == id) {
+                touch.1 = *position;
+            }
+        }
+        let current: Vec<DVec2> = self.touches.iter().map(|(_, position)| *position).collect();
+        self.touch_moved += current
+            .iter()
+            .zip(&previous)
+            .map(|(current, previous)| current.distance(*previous) as f32)
+            .sum::<f32>();
+        match (current.as_slice(), previous.as_slice()) {
+            ([current], [previous]) => {
+                let delta = (*current - *previous).as_vec2();
+                match self.controls.touch.one_finger {
+                    TouchDrag::Orbit => self.controller.orbit_by_mouse(delta, elapsed),
+                    TouchDrag::Pan => self.controller.translate_by_mouse(delta),
+                }
+            }
+            ([a, b], [previous_a, previous_b]) => {
+                let center = (*a + *b) / 2.0;
+                let previous_center = (*previous_a + *previous_b) / 2.0;
+                self.controller
+                    .translate_by_mouse((center - previous_center).as_vec2());
+                let distance = a.distance(*b);
+                let previous_distance = previous_a.distance(*previous_b);
+                if distance > 0.0 && previous_distance > 0.0 {
+                    // Spreading the fingers zooms in.
+                    self.controller
+                        .zoom_at_screen_point(center, previous_distance / distance);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// End the touch `id` at `position`, returns a command, e.g. after a tap.
+    pub fn touch_ended(&mut self, id: TouchId, position: DVec2) -> Option<Command> {
+        let tap = self.touches.len() == 1
+            && self.touches[0].0 == id
+            && self.tapping
+            && self.touch_moved <= CLICK_TOLERANCE;
+        self.touch_cancelled(id);
+        tap.then_some(Command::Select {
+            position,
+            multi: false,
+        })
+    }
+
+    /// Cancel the touch `id`, e.g. when the browser takes it over, without a command.
+    pub fn touch_cancelled(&mut self, id: TouchId) {
+        let count = self.touches.len();
+        self.touches.retain(|(touch, _)| *touch != id);
+        if self.touches.len() != count {
+            self.start_touch_gesture();
+        }
+    }
+
+    /// End the previous gesture and start the one of the touches, e.g. orbiting around the
+    /// point under one finger.
+    fn start_touch_gesture(&mut self) {
+        self.controller.set_inactive();
+        match self.touches.as_slice() {
+            [(_, position)] => match self.controls.touch.one_finger {
+                TouchDrag::Orbit => {
+                    self.controller.set_pivot_from_screen_coordinates(*position);
+                    self.controller.start_orbit();
+                }
+                TouchDrag::Pan => self.controller.start_translate(),
+            },
+            [_, _] => self.controller.start_translate(),
+            _ => {}
+        }
     }
 
     /// Press `key`, a logical key like `KeyboardEvent.key` of the web, with `modifiers`.
@@ -426,9 +539,11 @@ mod tests {
         navigation.mouse_released(Middle, none, CENTER);
         assert_eq!(navigation.mouse_released(Left, none, CENTER), None);
 
-        // The right button alone is not bound.
+        // The right button and then the middle one are not bound.
         navigation.mouse_pressed(Right, none, CENTER);
+        navigation.mouse_pressed(Middle, none, CENTER);
         assert_eq!(navigation.mouse_action(), None);
+        navigation.mouse_released(Middle, none, CENTER);
         navigation.mouse_released(Right, none, CENTER);
     }
 
@@ -436,9 +551,10 @@ mod tests {
     fn modifiers_with_right() {
         let mut navigation = navigation();
         for (modifiers_name, mode) in [
-            ("Shift", Mode::Orbit),
+            ("", Mode::Orbit),
             ("Ctrl", Mode::Translation),
             ("Ctrl+Shift", Mode::Zoom),
+            ("Shift", Mode::Inactive),
         ] {
             let modifiers = modifiers(modifiers_name);
             navigation.mouse_pressed(Right, modifiers, CENTER);
@@ -453,9 +569,9 @@ mod tests {
         let mut navigation = navigation();
         // Orbiting turns the view.
         let view = navigation.controller().camera().view_vector().normalize();
-        navigation.mouse_pressed(Right, Modifiers::SHIFT, CENTER);
+        navigation.mouse_pressed(Right, Modifiers::NONE, CENTER);
         navigation.mouse_moved(Vec2::new(50.0, 0.0), FRAME);
-        navigation.mouse_released(Right, Modifiers::SHIFT, CENTER);
+        navigation.mouse_released(Right, Modifiers::NONE, CENTER);
         let turned = navigation.controller().camera().view_vector().normalize();
         assert!(view.angle_between(turned) > 0.01);
 
@@ -546,14 +662,103 @@ mod tests {
 
     #[test]
     fn configured() {
-        let controls =
-            Controls::from_toml("[mouse]\npan = [\"Right\"]\n[keyboard]\nview_top = [\"t\"]\n")
-                .expect("controls");
+        let controls = Controls::from_toml(
+            "[mouse]\norbit = [\"Middle+Right\"]\npan = [\"Right\"]\n\
+                 [keyboard]\nview_top = [\"t\"]\n[touch]\none_finger = \"pan\"\n",
+        )
+        .expect("controls");
         let mut navigation = Navigation::new(WINDOW, controls);
         navigation.mouse_pressed(Right, Modifiers::NONE, CENTER);
         assert_eq!(navigation.controller().mode(), Mode::Translation);
         navigation.mouse_released(Right, Modifiers::NONE, CENTER);
         assert!(navigation.key_pressed("T", Modifiers::SHIFT));
         assert!(!navigation.key_pressed("2", Modifiers::NONE));
+        navigation.touch_started(1, CENTER);
+        assert_eq!(navigation.controller().mode(), Mode::Translation);
+    }
+
+    #[test]
+    fn tap_selects() {
+        let mut navigation = navigation();
+        navigation.touch_started(7, CENTER);
+        assert_eq!(navigation.controller().mode(), Mode::Orbit);
+        assert_eq!(
+            navigation.touch_ended(7, CENTER),
+            Some(Command::Select {
+                position: CENTER,
+                multi: false
+            })
+        );
+        assert_eq!(navigation.controller().mode(), Mode::Inactive);
+
+        // Dragging is no tap.
+        navigation.touch_started(7, CENTER);
+        navigation.touches_moved(&[(7, CENTER + DVec2::new(10.0, 0.0))], FRAME);
+        assert_eq!(navigation.touch_ended(7, CENTER), None);
+
+        // Two fingers are no tap.
+        navigation.touch_started(1, CENTER);
+        navigation.touch_started(2, CENTER + DVec2::X);
+        navigation.touch_ended(2, CENTER);
+        assert_eq!(navigation.touch_ended(1, CENTER), None);
+    }
+
+    #[test]
+    fn one_finger_orbits() {
+        let mut navigation = navigation();
+        let view = navigation.controller().camera().view_vector().normalize();
+        navigation.touch_started(1, CENTER);
+        navigation.touches_moved(&[(1, CENTER + DVec2::new(50.0, 0.0))], FRAME);
+        navigation.touch_ended(1, CENTER);
+        let turned = navigation.controller().camera().view_vector().normalize();
+        assert!(view.angle_between(turned) > 0.01);
+    }
+
+    #[test]
+    fn pinch_zooms() {
+        let mut navigation = navigation();
+        let left = DVec2::new(150.0, 100.0);
+        let right = DVec2::new(250.0, 100.0);
+        navigation.touch_started(1, left);
+        navigation.touch_started(2, right);
+        assert_eq!(navigation.controller().mode(), Mode::Translation);
+        let center = DVec2::new(200.0, 100.0);
+        let world = navigation.controller().world_point(center);
+        // Spreading the fingers from 100 to 300 pixels zooms in three times.
+        navigation.touches_moved(
+            &[(1, DVec2::new(50.0, 100.0)), (2, DVec2::new(350.0, 100.0))],
+            FRAME,
+        );
+        assert!((navigation.controller().zoom_level() - 3.0).abs() < 1e-6);
+        // The point between the fingers stays between them.
+        let moved = navigation.controller().screen_coord(world);
+        assert!(moved.abs_diff_eq(center, 1e-2), "{moved}");
+
+        // Releasing one finger orbits with the other.
+        navigation.touch_ended(2, DVec2::new(350.0, 100.0));
+        assert_eq!(navigation.controller().mode(), Mode::Orbit);
+        navigation.touch_cancelled(1);
+        assert_eq!(navigation.controller().mode(), Mode::Inactive);
+    }
+
+    #[test]
+    fn two_fingers_pan() {
+        let mut navigation = navigation();
+        navigation.key_pressed("PageUp", Modifiers::NONE);
+        let point = DVec2::new(200.0, 100.0);
+        let world = navigation.controller().world_point(point);
+        navigation.touch_started(1, DVec2::new(150.0, 100.0));
+        navigation.touch_started(2, DVec2::new(250.0, 100.0));
+        // Both fingers move by (20, 10), the scene follows their center.
+        navigation.touches_moved(
+            &[(1, DVec2::new(170.0, 110.0)), (2, DVec2::new(270.0, 110.0))],
+            FRAME,
+        );
+        let moved = navigation.controller().screen_coord(world);
+        assert!(
+            moved.abs_diff_eq(point + DVec2::new(20.0, 10.0), 1e-2),
+            "{moved}"
+        );
+        assert!((navigation.controller().zoom_level() - 1.25).abs() < 1e-6);
     }
 }

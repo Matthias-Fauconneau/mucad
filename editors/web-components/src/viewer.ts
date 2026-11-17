@@ -51,6 +51,8 @@ export class Viewer {
 
     THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
+    // The right button orbits, the view has no context menu.
+    element.addEventListener("contextmenu", (event) => event.preventDefault());
 
     const resetButton = document.createElement("button");
     resetButton.className = "view-button";

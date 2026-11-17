@@ -57,11 +57,11 @@ fn click_selects() {
 fn drag_orbits() {
     let mut navigation = navigation();
     let view = navigation.view_matrix();
-    navigation.mouse_down(2, 200.0, 100.0, SHIFT);
+    navigation.mouse_down(2, 200.0, 100.0, 0);
     assert_eq!(navigation.mouse_action().as_deref(), Some("orbit"));
     assert!(navigation.pointer_pinned());
     navigation.mouse_move(30.0, 10.0, FRAME_MS);
-    assert!(navigation.mouse_up(2, 200.0, 100.0, SHIFT).is_none());
+    assert!(navigation.mouse_up(2, 200.0, 100.0, 0).is_none());
     assert!(!navigation.pointer_wrapped());
     assert_ne!(navigation.view_matrix(), view);
 }
@@ -103,11 +103,31 @@ fn views_and_scene() {
 
 #[test]
 fn controls() {
-    let toml = "[mouse]\npan = [\"Right\"]\n";
+    let toml = "[mouse]\norbit = [\"Middle+Right\"]\npan = [\"Right\"]\n";
     let Ok(mut navigation) = CameraNavigation::new(WIDTH, HEIGHT, Some(toml.into())) else {
         panic!("Valid controls");
     };
     navigation.mouse_down(2, 0.0, 0.0, 0);
     assert_eq!(navigation.mouse_action().as_deref(), Some("pan"));
     assert!(CameraNavigation::default_controls().contains("[keyboard]"));
+}
+
+#[test]
+fn touch() {
+    let mut navigation = navigation();
+    // A tap selects.
+    navigation.touch_start(5.0, 10.0, 20.0);
+    let selection = navigation.touch_end(5.0, 10.0, 20.0).expect("A tap");
+    assert_eq!(
+        (selection.x(), selection.y(), selection.multi()),
+        (10.0, 20.0, false)
+    );
+
+    // Pinching zooms in.
+    navigation.touch_start(1.0, 150.0, 100.0);
+    navigation.touch_start(2.0, 250.0, 100.0);
+    navigation.touch_move(&[1.0, 100.0, 100.0, 2.0, 300.0, 100.0], FRAME_MS);
+    assert!((navigation.zoom_level() - 2.0).abs() < 1e-6);
+    assert!(navigation.touch_end(2.0, 300.0, 100.0).is_none());
+    navigation.touch_cancel(1.0);
 }

@@ -124,7 +124,7 @@ link.click();
 
 ### Camera navigation
 
-`CameraNavigation` controls the camera of a viewer with the mouse and the keys, e.g. for
+`CameraNavigation` controls the camera of a viewer with the mouse, the keys and touch, e.g. for
 Three.js: the camera controller and the configurable controls of
 [mucad-viewer-utils](https://crates.io/crates/mucad-viewer-utils). It needs no `Mucad`.
 
@@ -175,7 +175,15 @@ of orbiting and zooming the same at any frame rate.
 | `mouseMove(dx, dy, elapsedMs)` | `pointermove` with `movementX` and `movementY` |
 | `wheel(deltaY, deltaMode, x, y, modifiers, elapsedMs)` | `wheel`, returns whether it is bound to prevent scrolling |
 | `keyDown(key, modifiers)` | `keydown` with `KeyboardEvent.key`, returns whether it is bound to prevent e.g. zooming the page |
+| `touchStart(id, x, y)` | `touchstart` with `Touch.identifier`, for each changed touch |
+| `touchMove(touches, elapsedMs)` | `touchmove` with all changed touches together as `[id1, x1, y1, id2, x2, y2]` |
+| `touchEnd(id, x, y)` | `touchend`, for each changed touch, returns a `Selection` after a tap |
+| `touchCancel(id)` | `touchcancel`, for each changed touch |
 | `resize(width, height)` | The element is resized |
+
+One finger orbits (or pans, see `[touch]` of the controls), two fingers pinch to zoom and pan
+with their center. The touches of one `touchmove` event are passed together, so that moving
+two fingers in parallel pans without zooming.
 
 `mouseAction()` is `select`, `orbit`, `pan`, `zoom` or undefined, e.g. for the cursor. While
 `pointerPinned()`, the pointer is locked with `requestPointerLock`.
