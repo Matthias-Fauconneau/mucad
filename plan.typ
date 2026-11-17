@@ -1,9 +1,55 @@
-#set par(justify: true)
+#import "@preview/xarrow:0.3.1": xarrow
+#set par(justify: true, first-line-indent: (amount: 1em, all: true))
 #show link: underline
 #set text(hyphenate: false)
+#set raw(syntaxes: "mucad.sublime-syntax")
+#set document(title: "VLM loop for declarative procedural 3D modeling")
+#show title: set align(center)
+#title()
+//Self-improving automatic procedural 3D modeling workflow for interactive applications
+#align(center)[#text(size: 10pt, style: "italic")[Matthias Fauconneau — matthias.fauconneau\@gmail.com]]
 
-= Self-improving automatic procedural 3D modeling workflow for interactive applications
+#block(height: 40%)[
+#columns(2)[
+#set align(horizon)
+#show raw.where(block: true): set text(5pt)
+//#raw(read("examples/mangrove.mu"), block: true, lang: "mu")
+```mu
+part Segment(
+    p0: (x: Length, y: Length, z: Length), r0: Length,
+    p1: (x: Length, y: Length, z: Length), r1: Length
+) {
+    a = Sphere(radius = r0).translate(x = p0.x, y = p0.y, z = p0.z);
+    b = Sphere(radius = r1).translate(x = p1.x, y = p1.y, z = p1.z);
+    { a; b; }.hull();
+}
 
+fn bezier_point(
+    p0: (x: Length, y: Length, z: Length),
+    p1: (x: Length, y: Length, z: Length),
+    p2: (x: Length, y: Length, z: Length),
+    t: Scalar
+) -> (Length, Length, Length) {
+    mt = 1 - t;
+    w0 = mt * mt;
+    w1 = 2 * mt * t;
+    w2 = t * t;
+    w0 * p0 + w1 * p1 + w2 * p2
+}
+
+part BezierLimb(
+    p0: (x: Length, y: Length, z: Length),
+    p1: (x: Length, y: Length, z: Length),
+    p2: (x: Length, y: Length, z: Length),
+    r0: Length, r1: Length
+) {
+    q = bezier_point(p0, p1, p2, [0..6] * (1/6));
+    ...
+```
+#colbreak()
+#image("mangrove.png", height: 100%)
+]
+]
 == Background
 
 3D modeling is normally an artist's job using integrated UI-heavy software like #link("https://www.blender.org/")[Blender].
@@ -26,7 +72,7 @@ Those #link("https://github.com/CK42BB/procedural-grass-threejs/blob/main/SKILL.
 
 == Drawback
 
-The main drawback of this approach is that the AI produces a lot of unfamiliar low-level code (slop), which is both hard to review and prompt.
+The main drawback of this approach is that the AI produces a lot of unfamiliar unstructured low-level code (slop), which is both hard to review and prompt.
 It also wastes a lot of tokens on reasoning and iteration.
 This is because the LLM has to connect two extremes: from a general-purpose programming language to the product (3D primitives like mesh triangle soup or textures).
 While there is much existing software that helps build bridges along the way, the challenge is figuring out how to make those programs work together.
@@ -55,7 +101,7 @@ The closest platform I could find is #link("https://mucad.org")[μcad].
 The main challenge is integrating all the tools needed for general 3D modeling beyond CAD: #link("https://github.com/mucad-lang/mucad/compare/main...Matthias-Fauconneau:mucad:main")[μcad changes] (GPT/Codex assisted).
 For example, a #link("https://en.wikipedia.org/wiki/Mangrove")[mangrove] has nothing to do with a typical #link("https://en.wikipedia.org/wiki/Computer-aided_design")[computer-aided designed part].
 
-Here is the self-improving loop :
+Here is the self-improving loop:
 1. Generate the prompt that defines the scene to model.
     - parametric mangrove forest cluster of trees with varied scales. Each tree should have a leaning, multi-segment trunk; arching stilt prop roots of varying heights and radial spreads; curved upper branches; and a green canopy with dark brown bark.
 2. Generate μcad code with the help of #link("https://gist.github.com/Matthias-Fauconneau/368a6f88843b32c7e609737b1ec72955")[instructions] (assisted) and the μcad compiler.
@@ -66,10 +112,10 @@ Here is the self-improving loop :
 4. Review the #link("https://codeberg.org/attachments/d2653cea-723c-4516-9d41-6754435f8c2a")[rendered object result]:
     - #link("https://github.com/Matthias-Fauconneau/glbviewer")[glbviewer]
    "What do you think you could improve? Do you miss any tool to make it easier to generate a more realistic mangrove tree?"
-   -Gemini> #link("https://gist.github.com/Matthias-Fauconneau/7da254e4b8ae182f7bb8d3df14679fbf")[feedback]
+   #xarrow("Gemini") #link("https://gist.github.com/Matthias-Fauconneau/7da254e4b8ae182f7bb8d3df14679fbf")[feedback]
     - ∞ improve the tools (Codex), edit the instructions and prompt, and retry until convergence.
 
-== Related literature to review
+== Related literature
 
 - #link("https://arxiv.org/html/2504.05482")[Imperative vs. Declarative Programming Paradigms for Open-Universe Scene Generation]
 - #link("https://arxiv.org/pdf/2608.26238")[Agentic 3D Modeling with Procedural Control]
@@ -78,3 +124,14 @@ Here is the self-improving loop :
 == Related demonstration for inspiration
 
 - #link("https://x.com/ToniMacaroniy/status/2122367916830052574")[Real-time procedural terrain engine built by a 3D environment artist]
+
+== Proposed Ph.D. Research Directions
+
+- *IR Formalization*: Defining the formal properties of an optimal declarative intermediate representation (IR) for LLM-driven 3D synthesis.
+- *Hybrid B-Rep & Organic Proceduralism*: Mathematically and structurally unifying deterministic CAD-style B-Rep operations with organic, stochastic proceduralism in a single differentiable or verifiable graph.
+- *Automated DSL Abstraction*: Automatically abstracting recurring low-level geometric operations into reusable DSL primitives while preventing semantic drift or DSL bloat.
+
+== Preliminary Prototype & Tooling
+- #link("https://github.com/mucad-lang/mucad/compare/main...Matthias-Fauconneau:mucad:main")[μcad]
+- #link("https://github.com/Matthias-Fauconneau/glb-opt")[glb-opt]
+- #link("https://github.com/Matthias-Fauconneau/glbviewer")[glbviewer]
