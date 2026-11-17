@@ -1,0 +1,269 @@
+/* Copyright © 2026 The µcad authors <info@mucad.org> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/* One row on wide screens, which wraps on narrow ones, the items themselves do not wrap. */
+mucad-navbar .navbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--darker);
+  white-space: nowrap;
+}
+
+mucad-navbar .logo {
+  position: relative;
+  display: inline-block;
+  color: var(--bright);
+  text-decoration: none;
+}
+
+mucad-navbar .logo img {
+  display: block;
+  width: auto;
+  height: 64px;
+}
+
+mucad-navbar .version {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 11px;
+}
+
+mucad-navbar .status {
+  color: var(--guide);
+}
+
+mucad-navbar .status.error {
+  color: var(--complementary);
+}
+
+/* The name of the shown document and the button of the list of documents as one field. */
+mucad-navbar .documents {
+  /* Behind the logo, unlike the actions of the app. */
+  order: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+mucad-navbar .document-name {
+  width: 11rem;
+  height: 2.2rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--darker);
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  background: var(--primary);
+  color: var(--bright);
+  font: inherit;
+}
+
+mucad-navbar .document-name:focus {
+  outline: 1px solid var(--guide);
+}
+
+mucad-navbar .document-list-button {
+  padding: 0 0.5rem;
+  border-color: var(--darker);
+  border-radius: 0 4px 4px 0;
+  color: var(--bright);
+}
+
+/* The shown document has unsaved changes. */
+mucad-navbar .documents.modified::after {
+  content: "●";
+  margin-left: 0.3rem;
+  color: var(--signal);
+}
+
+mucad-navbar .document-list {
+  align-items: stretch;
+  gap: 0.2rem;
+  min-width: 100%;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+mucad-navbar .document-list button {
+  justify-content: flex-start;
+  border-color: transparent;
+  color: var(--bright);
+}
+
+mucad-navbar .document-list button[aria-selected="true"] {
+  border-color: var(--darker);
+  color: var(--signal);
+}
+
+/* A document in the list with a delete button for own documents. */
+mucad-navbar .document-row {
+  display: flex;
+  gap: 0.2rem;
+}
+
+mucad-navbar .document-list .document-row button[role="option"] {
+  flex: 1;
+}
+
+mucad-navbar .document-list .document-delete {
+  width: auto;
+  justify-content: center;
+  color: var(--darker);
+}
+
+mucad-navbar .document-list .document-delete:hover {
+  border-color: var(--complementary);
+  color: var(--complementary);
+}
+
+/* The groups of documents: own documents, shared code and examples. */
+mucad-navbar .document-group {
+  margin: 0.3rem 0 0;
+  color: var(--darker);
+  font-size: 0.8rem;
+}
+
+/* The links on the right of the navigation bar, which wrap together. */
+mucad-navbar .links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/*
+ * The menu of actions and links is a dropdown on phones only. Otherwise, its items are items
+ * of the navigation bar, which are in front of the actions of the app and behind them.
+ */
+mucad-navbar .menu {
+  display: contents;
+}
+
+mucad-navbar .menu > :not(.links) {
+  order: 1;
+}
+
+/* The actions of the app, e.g. a share menu, are items of the navigation bar. */
+mucad-navbar .actions {
+  display: contents;
+}
+
+mucad-navbar .actions > *,
+mucad-navbar .status {
+  order: 2;
+}
+
+mucad-navbar .links {
+  order: 3;
+}
+
+mucad-navbar .menu-button,
+mucad-navbar .menu-label {
+  display: none;
+}
+
+/* Without enough room, the made by link is the logo only. */
+@media (max-width: 1500px) {
+  mucad-navbar .made-by {
+    display: none;
+  }
+}
+
+/* Phones: one row with a smaller logo, smaller buttons and a menu on the right. */
+@media (max-width: 768px) {
+  mucad-navbar .navbar {
+    position: relative;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  mucad-navbar .logo img {
+    height: 40px;
+  }
+
+  mucad-navbar .version {
+    right: 0;
+    bottom: -4px;
+    font-size: 9px;
+  }
+
+  mucad-navbar select,
+  mucad-navbar button,
+  mucad-navbar .btn-link {
+    padding: 0 0.4rem;
+  }
+
+  /* The dropdowns below the navigation bar, wherever their button is. */
+  mucad-navbar .dropdown {
+    position: static;
+  }
+
+  mucad-navbar .dropdown-panel {
+    top: 100%;
+    right: 0.5rem;
+    left: 0.5rem;
+  }
+
+  /* The document field takes the rest of the row. */
+  mucad-navbar .documents {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  mucad-navbar .document-name {
+    flex: 1 1 auto;
+    width: 0;
+    min-width: 0;
+  }
+
+  mucad-navbar .actions > *,
+  mucad-navbar .status,
+  mucad-navbar .links,
+  mucad-navbar .menu > :not(.links) {
+    order: 0;
+  }
+
+  mucad-navbar .menu-button {
+    display: inline-flex;
+    margin-left: auto;
+    font-size: 1.2rem;
+  }
+
+  /* The menu below the navigation bar on the right, its items are a column. */
+  mucad-navbar .menu {
+    display: none;
+  }
+
+  mucad-navbar .menu.open {
+    position: absolute;
+    top: 100%;
+    right: 0.5rem;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.6rem;
+    border: 1px solid var(--darker);
+    border-radius: 4px;
+    background: var(--primary);
+  }
+
+  mucad-navbar .menu .links {
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 0;
+  }
+
+  mucad-navbar .menu button,
+  mucad-navbar .menu .btn-link {
+    justify-content: center;
+  }
+
+  mucad-navbar .made-by,
+  mucad-navbar .menu-label {
+    display: inline;
+  }
+}

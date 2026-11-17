@@ -4,8 +4,9 @@
 //! Change the version of the whole workspace, e.g. `cargo xtask change-version 0.6.1`.
 //!
 //! The version is changed in the root `Cargo.toml`, which all crates inherit, in its internal
-//! dependencies, in the manifests of the standard library and in the npm package of the web
-//! viewer. The editor extensions have versions of their own, which are not changed.
+//! dependencies, in the manifests of the standard library and in the npm packages of the web
+//! components and the web viewer. The editor extensions have versions of their own, which are not
+//! changed.
 
 use std::{
     error::Error,
@@ -23,11 +24,24 @@ const MU_TOMLS: &[&str] = &[
     "crates/driver/tests/data/lib/std/mu.toml",
 ];
 
-/// The npm files with the version of the workspace and the number of versions of their package
-/// in them: the lock file has it twice.
-const NPM_FILES: &[(&str, usize)] = &[
-    ("editors/web-viewer/package.json", 1),
-    ("editors/web-viewer/package-lock.json", 2),
+/// The npm files with the version of the workspace and the entries with the versions of the
+/// packages in them: `""` is the package of a `package.json`, a key like `"web-viewer": {` is
+/// the entry of a package in the lock file of the npm workspace.
+///
+/// The entry of the WebAssembly package in the lock file has the version of its build, which
+/// `npm install` takes from `crates/wasm/pkg`.
+const NPM_FILES: &[(&str, &[&str])] = &[
+    ("editors/desktop/package.json", &[""]),
+    ("editors/web-components/package.json", &[""]),
+    ("editors/web-viewer/package.json", &[""]),
+    (
+        "editors/package-lock.json",
+        &[
+            r#""desktop": {"#,
+            r#""web-components": {"#,
+            r#""web-viewer": {"#,
+        ],
+    ),
 ];
 
 /// The root of the workspace, the parent of the `xtask` crate.
@@ -86,32 +100,39 @@ fn mu_toml_with_version(text: &str, new: &Version) -> Result<(String, String), B
     Ok((old, doc.to_string()))
 }
 
-/// The version of the package of an npm file, and its text with the version `new`.
+/// The version of the packages of an npm file, and its text with the version `new`.
 ///
-/// The version of the package is the first `count` versions in the file, e.g. twice in a lock
-/// file, before the versions of its dependencies, which do not change.
+/// The version of a package is the first version after its entry, e.g. after `"web-viewer": {`
+/// in a lock file, or the first version of a `package.json` for the entry `""`. The versions of
+/// dependencies do not change.
 fn npm_with_version(
     text: &str,
     new: &Version,
-    count: usize,
+    entries: &[&str],
 ) -> Result<(String, String), Box<dyn Error>> {
     const KEY: &str = "\"version\": \"";
-    // The spans of the versions of the package, without quotes.
-    let spans: Vec<_> = (text.match_indices(KEY).take(count))
-        .map(|(index, _)| {
-            let start = index + KEY.len();
-            text[start..].find('"').map(|length| start..start + length)
-        })
-        .collect::<Option<_>>()
-        .ok_or("A version is not closed")?;
+    // The spans of the versions of the packages, without quotes.
+    let mut spans = Vec::new();
+    for entry in entries {
+        let entry_start = text
+            .find(entry)
+            .ok_or_else(|| format!("No entry {entry}"))?;
+        let start = text[entry_start..]
+            .find(KEY)
+            .map(|index| entry_start + index + KEY.len())
+            .ok_or_else(|| format!("No version after {entry}"))?;
+        let length = text[start..].find('"').ok_or("A version is not closed")?;
+        spans.push(start..start + length);
+    }
     let old = match spans.first() {
-        Some(span) if spans.len() == count => text[span.clone()].to_string(),
-        _ => return Err(format!("The package has not {count} versions").into()),
+        Some(span) => text[span.clone()].to_string(),
+        None => return Err("No packages".into()),
     };
     if spans.iter().any(|span| text[span.clone()] != old) {
-        return Err("The versions of the package differ".into());
+        return Err("The versions of the packages differ".into());
     }
     let mut changed = text.to_string();
+    spans.sort_by_key(|span| span.start);
     for span in spans.into_iter().rev() {
         changed.replace_range(span, &new.to_string());
     }
@@ -146,10 +167,10 @@ pub fn change_version(version: &str, dry_run: bool) -> Result<(), Box<dyn Error>
             mu_toml_with_version(&read(path)?, &new).map_err(in_file(path))?,
         ));
     }
-    for (path, count) in NPM_FILES {
+    for (path, entries) in NPM_FILES {
         files.push((
             path,
-            npm_with_version(&read(path)?, &new, *count).map_err(in_file(path))?,
+            npm_with_version(&read(path)?, &new, entries).map_err(in_file(path))?,
         ));
     }
 
@@ -241,33 +262,64 @@ log = "0.4"
     }
 
     const LOCK: &str = r#"{
-  "name": "mucad-web-viewer",
-  "version": "0.6.0",
+  "name": "mucad-editors",
   "packages": {
     "": {
-      "name": "mucad-web-viewer",
-      "version": "0.6.0"
+      "name": "mucad-editors",
+      "workspaces": ["web-components", "web-viewer"]
     },
     "node_modules/a": {
+      "version": "0.6.0"
+    },
+    "web-components": {
+      "name": "mucad-web-components",
+      "version": "0.6.0"
+    },
+    "web-viewer": {
+      "name": "mucad-web-viewer",
       "version": "0.6.0"
     }
   }
 }
 "#;
 
-    /// Only the versions of the npm package change, not the ones of its dependencies.
+    /// The entries of the lock file of the workspace.
+    const ENTRIES: &[&str] = &[r#""web-components": {"#, r#""web-viewer": {"#];
+
+    /// Only the versions of the packages change, not the ones of their dependencies.
     #[test]
     fn npm() {
-        let (old, changed) = npm_with_version(LOCK, &version("0.6.1"), 2).expect("Changed");
+        let (old, changed) = npm_with_version(LOCK, &version("0.6.1"), ENTRIES).expect("Changed");
         assert_eq!(old, "0.6.0");
-        assert_eq!(changed, LOCK.replacen("0.6.0", "0.6.1", 2));
+        assert_eq!(
+            changed,
+            LOCK.replace(
+                "\"mucad-web-components\",\n      \"version\": \"0.6.0\"",
+                "\"mucad-web-components\",\n      \"version\": \"0.6.1\""
+            )
+            .replace(
+                "\"mucad-web-viewer\",\n      \"version\": \"0.6.0\"",
+                "\"mucad-web-viewer\",\n      \"version\": \"0.6.1\""
+            )
+        );
+        assert!(changed.contains("\"node_modules/a\": {\n      \"version\": \"0.6.0\""));
+
+        // The version of a package.json is its first one.
+        let package = "{\n  \"name\": \"a\",\n  \"version\": \"0.6.0\"\n}\n";
+        let (_, changed) = npm_with_version(package, &version("0.6.1"), &[""]).expect("Changed");
+        assert_eq!(changed, package.replace("0.6.0", "0.6.1"));
     }
 
-    /// The versions of the package must be the same.
+    /// The versions of the packages must be the same, and the entries must exist.
     #[test]
-    fn npm_different_versions() {
-        let lock = LOCK.replacen("0.6.0", "0.5.0", 1);
-        assert!(npm_with_version(&lock, &version("0.6.1"), 2).is_err());
-        assert!(npm_with_version("{}", &version("0.6.1"), 1).is_err());
+    fn npm_invalid() {
+        let lock = LOCK.replacen(
+            "\"version\": \"0.6.0\"\n    }\n  }",
+            "\"version\": \"0.5.0\"\n    }\n  }",
+            1,
+        );
+        assert!(npm_with_version(&lock, &version("0.6.1"), ENTRIES).is_err());
+        assert!(npm_with_version(LOCK, &version("0.6.1"), &["\"desktop\": {"]).is_err());
+        assert!(npm_with_version("{}", &version("0.6.1"), &[""]).is_err());
     }
 }

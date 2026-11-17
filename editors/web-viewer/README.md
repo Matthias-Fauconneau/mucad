@@ -41,4 +41,4 @@ An example can be opened directly with its index in the URL, e.g. `?example=1`.
 
 ## Examples
 
-The examples are listed in `src/examples.ts` and imported from the `examples` folder.
+The examples are imported from the `examples` folder in `web-components/src/examples.ts`.

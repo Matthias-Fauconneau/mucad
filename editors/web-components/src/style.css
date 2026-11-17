@@ -1,0 +1,116 @@
+/* Copyright © 2026 The µcad authors <info@mucad.org> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/* The colors of the µcad theme, see `theme.ts`, and the controls of the components. */
+:root {
+  --primary: #020d1a;
+  --bright: #82a8c4;
+  --brighter: #e6f4ff;
+  --darker: #33556d;
+  --complementary: #c5221f;
+  --signal: #ff9f0a;
+  --guide: #00b4d8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+mucad-editor,
+mucad-navbar {
+  display: block;
+}
+
+select,
+button,
+.btn-link {
+  /* An identical height of all controls, with horizontal padding only. */
+  height: 2.2rem;
+  padding: 0 0.6rem;
+  border: none;
+  border-radius: 4px;
+  background: var(--primary);
+  color: var(--signal);
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+}
+
+/* Links look like buttons without a border. */
+select,
+button {
+  border: 1px solid var(--signal);
+}
+
+select {
+  border-color: var(--darker);
+  color: var(--bright);
+}
+
+.btn-bright {
+  background: var(--signal);
+  color: var(--primary);
+  border-color: var(--signal);
+}
+
+button:disabled {
+  border-color: var(--darker);
+  color: var(--darker);
+  cursor: default;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--brighter);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  accent-color: var(--signal);
+  cursor: pointer;
+}
+
+/* A button with a panel below it, e.g. to share the code. */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--darker);
+  border-radius: 4px;
+  background: var(--primary);
+}
+
+/* Hidden elements, also buttons, which are displayed as flex boxes. */
+.dropdown-panel[hidden],
+.dropdown-panel [hidden] {
+  display: none;
+}
+
+.dropdown-panel button {
+  width: 100%;
+  margin-left: 0;
+  justify-content: center;
+}
+
+/* Phones: no shortcuts, which need a keyboard. */
+@media (max-width: 768px) {
+  .shortcut-key {
+    display: none;
+  }
+}

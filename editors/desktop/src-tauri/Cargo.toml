@@ -1,0 +1,30 @@
+# Copyright © 2026 The µcad authors <info@mucad.org>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "mucad-desktop"
+description = "µcad desktop app: edit, display and export µcad models"
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+percent-encoding = "2"
+tauri = { version = "2", features = [] }
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+
+[lints.rust]
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "warn"

@@ -8,6 +8,7 @@ import {
   type DockviewApi,
   type PaneviewApi,
 } from "dockview-core";
+import "./dock.css";
 
 /** A view or subscription, which is disposed when the screen width changes. */
 type Disposable = { dispose(): void };

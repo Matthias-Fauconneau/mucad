@@ -1,0 +1,29 @@
+/* Copyright © 2026 The µcad authors <info@mucad.org> */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/* The dockview dark theme with the µcad colors. */
+body .dockview-theme-dark {
+  --dv-group-view-background-color: var(--primary);
+  --dv-tabs-and-actions-container-background-color: var(--primary);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--primary);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--primary);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--primary);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--primary);
+  --dv-tab-divider-color: var(--darker);
+  --dv-activegroup-visiblepanel-tab-color: var(--signal);
+  --dv-activegroup-hiddenpanel-tab-color: var(--brighter);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--bright);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--brighter);
+  --dv-separator-border: var(--darker);
+  --dv-active-sash-color: var(--guide);
+  --dv-drag-over-background-color: var(--darker) / 25%;
+  --dv-drag-over-border: 1px solid var(--guide);
+  --dv-floating-border: 1px solid var(--darker);
+  --dv-tabs-and-actions-container-font-size: 0.85rem;
+  --dv-tabs-and-actions-container-height: 2rem;
+}
+
+/* Panels cannot be closed, there is no way to open them again. */
+.dockview-theme-dark .dv-tab .dv-default-tab .dv-default-tab-action {
+  display: none;
+}

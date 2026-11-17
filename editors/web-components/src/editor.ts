@@ -5,8 +5,18 @@ import * as monaco from "monaco-editor/editor/editor.api";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 // The API contains no features of the editor, e.g. the suggestions of completions.
 import "monaco-editor/editor/contrib/suggest/browser/suggestController";
-import { type Diagnostic, Severity } from "mucad-wasm";
+import type {
+  Completion,
+  Diagnostic,
+  LiteralRange,
+  Severity,
+  SteppedLiteral,
+} from "./compiler/types";
 import { theme } from "./theme";
+import "./editor.css";
+
+/** A Monaco editor of µcad code. */
+export type CodeEditor = monaco.editor.IStandaloneCodeEditor;
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 
@@ -85,29 +95,28 @@ function defineTheme() {
   });
 }
 
-/** Create a µcad code editor in `element`, `onChange` is called after each edit. */
 /** The owner of the markers of the compiler. */
 const MARKER_OWNER = "mucad";
 
 /** Show diagnostics of the compiler as markers in the code, e.g. squiggles below errors. */
-export function setDiagnostics(
-  editor: monaco.editor.IStandaloneCodeEditor,
-  diagnostics: Diagnostic[],
-) {
+export function setDiagnostics(editor: CodeEditor, diagnostics: Diagnostic[]) {
   const model = editor.getModel();
   if (!model) return;
   monaco.editor.setModelMarkers(model, MARKER_OWNER, diagnostics.map(marker));
 }
 
+/** The Monaco severities of the severities of diagnostics. */
+const MARKER_SEVERITIES: Record<Severity, monaco.MarkerSeverity> = {
+  error: monaco.MarkerSeverity.Error,
+  warning: monaco.MarkerSeverity.Warning,
+  advice: monaco.MarkerSeverity.Hint,
+};
+
 /** The Monaco marker of a diagnostic. */
 function marker(diagnostic: Diagnostic): monaco.editor.IMarkerData {
   return {
     message: diagnostic.message,
-    severity: {
-      [Severity.Error]: monaco.MarkerSeverity.Error,
-      [Severity.Warning]: monaco.MarkerSeverity.Warning,
-      [Severity.Advice]: monaco.MarkerSeverity.Hint,
-    }[diagnostic.severity],
+    severity: MARKER_SEVERITIES[diagnostic.severity],
     startLineNumber: diagnostic.startLineNo,
     startColumn: diagnostic.startColumn,
     endLineNumber: diagnostic.endLineNo,
@@ -118,9 +127,17 @@ function marker(diagnostic: Diagnostic): monaco.editor.IMarkerData {
   };
 }
 
-export function createEditor(element: HTMLElement, onChange: (code: string) => void) {
-  registerLanguage();
-  defineTheme();
+/** Whether the language, the theme and the completion are registered, which is done once. */
+let registered = false;
+
+/** Create a µcad code editor in `element`, `onChange` is called after each edit. */
+export function createEditor(element: HTMLElement, onChange: (code: string) => void): CodeEditor {
+  if (!registered) {
+    registerLanguage();
+    defineTheme();
+    registerCompletion();
+    registered = true;
+  }
   const editor = monaco.editor.create(element, {
     language: LANGUAGE,
     theme: LANGUAGE,
@@ -129,10 +146,10 @@ export function createEditor(element: HTMLElement, onChange: (code: string) => v
     // Suggestions and their documentation may overlap other panels, outside of the dock,
     // which clips its panels. The class gives them the colors of the theme.
     fixedOverflowWidgets: true,
-    overflowWidgetsDomNode: Object.assign(document.body.appendChild(document.createElement("div")), {
-      id: "editor-widgets",
-      className: "monaco-editor",
-    }),
+    overflowWidgetsDomNode: Object.assign(
+      document.body.appendChild(document.createElement("div")),
+      { className: "monaco-editor mucad-editor-widgets" },
+    ),
     fontSize: 14,
     tabSize: 4,
   });
@@ -144,10 +161,7 @@ export function createEditor(element: HTMLElement, onChange: (code: string) => v
  * Run `compile` with Ctrl+Enter (Cmd+Enter on macOS), also when the editor has the focus,
  * where Monaco would insert a line otherwise.
  */
-export function addCompileShortcut(
-  editor: monaco.editor.IStandaloneCodeEditor,
-  compile: () => void,
-) {
+export function addCompileShortcut(editor: CodeEditor, compile: () => void) {
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, compile);
 }
 
@@ -155,7 +169,7 @@ export function addCompileShortcut(
  * Run `save` with Ctrl+S (Cmd+S on macOS), also when the editor has the focus, instead of
  * saving the page by the browser.
  */
-export function addSaveShortcut(editor: monaco.editor.IStandaloneCodeEditor, save: () => void) {
+export function addSaveShortcut(editor: CodeEditor, save: () => void) {
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, save);
 }
 
@@ -163,7 +177,7 @@ export function addSaveShortcut(editor: monaco.editor.IStandaloneCodeEditor, sav
  * Replace the code of the editor as one edit, which can be undone, unlike `setValue`.
  * The cursor stays at its line and column, as far as they still exist.
  */
-export function replaceCode(editor: monaco.editor.IStandaloneCodeEditor, code: string) {
+export function replaceCode(editor: CodeEditor, code: string) {
   const model = editor.getModel();
   if (!model) return;
   const position = editor.getPosition();
@@ -171,17 +185,6 @@ export function replaceCode(editor: monaco.editor.IStandaloneCodeEditor, code: s
   editor.executeEdits("format", [{ range: model.getFullModelRange(), text: code }]);
   editor.pushUndoStop();
   if (position) editor.setPosition(model.validatePosition(position));
-}
-
-/** A symbol to complete a path with, e.g. `Circle` for `std::geo2d::Ci`. */
-export interface Completion {
-  name: string;
-  /** e.g. `sketch`, `fn` or `mod`. */
-  kind: string;
-  /** The documentation in Markdown. */
-  doc?: string;
-  /** `stable`, `experimental` or `deprecated`. */
-  stability: string;
 }
 
 /** The Monaco kinds of the kinds of completions. */
@@ -196,17 +199,27 @@ const COMPLETION_KINDS: Record<string, monaco.languages.CompletionItemKind> = {
   const: monaco.languages.CompletionItemKind.Constant,
 };
 
+/** The symbols at a line and column (from 1, in UTF-16 code units) of code, e.g. of a session. */
+type Complete = (code: string, lineNo: number, column: number) => Promise<Completion[]>;
+
+/** The completions of the code of the editors by their models. */
+const completions = new WeakMap<monaco.editor.ITextModel, Complete>();
+
 /**
- * Complete names with the symbols of `complete` at a line and column (from 1, in UTF-16 code
- * units), e.g. after `::`, and with keywords and types, unless the name is after `::`.
+ * Complete names in the code of `editor` with the symbols of `complete`, e.g. after `::`, and
+ * with keywords and types, unless the name is after `::`.
  */
-export function addCompletion(
-  complete: (code: string, lineNo: number, column: number) => Completion[],
-) {
+export function addCompletion(editor: CodeEditor, complete: Complete) {
+  const model = editor.getModel();
+  if (model) completions.set(model, complete);
+}
+
+/** Register the completion of all editors, which finds the completion of each editor. */
+function registerCompletion() {
   monaco.languages.registerCompletionItemProvider(LANGUAGE, {
     // Paths are completed after `::`, like by the language server.
     triggerCharacters: [":", "."],
-    provideCompletionItems(model, position) {
+    async provideCompletionItems(model, position) {
       const word = model.getWordUntilPosition(position);
       const range = new monaco.Range(
         position.lineNumber,
@@ -214,7 +227,10 @@ export function addCompletion(
         position.lineNumber,
         word.endColumn,
       );
-      const symbols = complete(model.getValue(), position.lineNumber, position.column);
+      const complete = completions.get(model);
+      const symbols = complete
+        ? await complete(model.getValue(), position.lineNumber, position.column)
+        : [];
       const suggestions: monaco.languages.CompletionItem[] = symbols.map((symbol) => ({
         label: symbol.name,
         kind: COMPLETION_KINDS[symbol.kind] ?? monaco.languages.CompletionItemKind.Variable,
@@ -242,20 +258,6 @@ export function addCompletion(
   });
 }
 
-/** The range of a literal in a line, e.g. under the cursor. */
-export interface LiteralRange {
-  lineNo: number;
-  startColumn: number;
-  endColumn: number;
-}
-
-/** A literal after a step, with its stepped digit in UTF-16 code units from its start. */
-export interface SteppedLiteral {
-  text: string;
-  digitStart?: number;
-  digitEnd?: number;
-}
-
 /** The factors of the steps of literals by the modifiers of the arrow keys. */
 const LITERAL_STEPS: [number, number][] = [
   [monaco.KeyMod.Alt, 1],
@@ -273,37 +275,50 @@ const LITERAL_STEPS: [number, number][] = [
  * after each step, e.g. to compile the code.
  */
 export function addLiteralStepping(
-  editor: monaco.editor.IStandaloneCodeEditor,
-  literalAt: (code: string, lineNo: number, column: number) => LiteralRange | undefined,
-  stepLiteral: (literal: string, cursor: number, factor: number) => SteppedLiteral | undefined,
+  editor: CodeEditor,
+  literalAt: (code: string, lineNo: number, column: number) => Promise<LiteralRange | undefined>,
+  stepLiteral: (
+    literal: string,
+    cursor: number,
+    factor: number,
+  ) => Promise<SteppedLiteral | undefined>,
   onStep: () => void,
 ) {
   /** The range of the literal at the start of the selection, and the start of the selection. */
-  const literalAtSelection = () => {
+  const literalAtSelection = async () => {
     const model = editor.getModel();
     const position = editor.getSelection()?.getStartPosition();
     if (!model || !position) return undefined;
-    const range = literalAt(model.getValue(), position.lineNumber, position.column);
+    const range = await literalAt(model.getValue(), position.lineNumber, position.column);
     if (!range) return undefined;
     const { lineNo, startColumn, endColumn } = range;
     return { range: new monaco.Range(lineNo, startColumn, lineNo, endColumn), position };
   };
 
-  // The keys are only bound on a literal, otherwise they keep their default behavior.
+  // The keys are only bound on a literal, otherwise they keep their default behavior. Only the
+  // answer to the latest selection sets the key.
   const onLiteral = editor.createContextKey<boolean>("mucadLiteral", false);
-  editor.onDidChangeCursorSelection(() => onLiteral.set(literalAtSelection() !== undefined));
+  let selections = 0;
+  editor.onDidChangeCursorSelection(async () => {
+    const selection = ++selections;
+    const literal = await literalAtSelection();
+    if (selection === selections) onLiteral.set(literal !== undefined);
+  });
 
   // The version of the code after the last step: a step of the unchanged code is merged into
   // the undo step of the steps before.
   let steppedVersion: number | undefined;
-  const step = (factor: number) => {
+  const step = async (factor: number) => {
     const model = editor.getModel();
-    const literal = literalAtSelection();
-    if (!model || !literal) return;
+    if (!model) return;
+    // A step of code, which has changed meanwhile, e.g. by typing, is not applied.
+    const version = model.getVersionId();
+    const literal = await literalAtSelection();
+    if (!literal || model.getVersionId() !== version) return;
     const { range, position } = literal;
     const cursor = position.column - range.startColumn;
-    const stepped = stepLiteral(model.getValueInRange(range), cursor, factor);
-    if (stepped === undefined) return;
+    const stepped = await stepLiteral(model.getValueInRange(range), cursor, factor);
+    if (stepped === undefined || model.getVersionId() !== version) return;
     if (model.getAlternativeVersionId() !== steppedVersion) editor.pushUndoStop();
     // The stepped digit is selected, otherwise the literal, e.g. a bool.
     const { startLineNumber: line, startColumn: start } = range;
@@ -315,8 +330,17 @@ export function addLiteralStepping(
     steppedVersion = model.getAlternativeVersionId();
     onStep();
   };
+  // The steps are made one after another, so that a step of a held key is not lost.
+  let steps = Promise.resolve();
+  const queueStep = (factor: number) => {
+    steps = steps.then(() => step(factor));
+  };
   for (const [modifiers, factor] of LITERAL_STEPS) {
-    editor.addCommand(modifiers | monaco.KeyCode.UpArrow, () => step(factor), "mucadLiteral");
-    editor.addCommand(modifiers | monaco.KeyCode.DownArrow, () => step(-factor), "mucadLiteral");
+    editor.addCommand(modifiers | monaco.KeyCode.UpArrow, () => queueStep(factor), "mucadLiteral");
+    editor.addCommand(
+      modifiers | monaco.KeyCode.DownArrow,
+      () => queueStep(-factor),
+      "mucadLiteral",
+    );
   }
 }
