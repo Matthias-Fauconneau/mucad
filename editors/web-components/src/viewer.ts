@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { Mesh, Sketch } from "mucad-wasm";
+import type { Color, Geometry, MeshData, SketchData, Triangles } from "./compiler/types";
 import { theme } from "./theme";
 
 /** The angle between faces, above which an edge is shown sharp instead of smooth. */
@@ -60,8 +60,20 @@ export class Viewer {
     });
   }
 
+  /** Show the geometry of a model, or remove the model without geometry. */
+  show(geometry: Geometry) {
+    switch (geometry.kind) {
+      case "3d":
+        return this.show3d(geometry.meshes);
+      case "2d":
+        return this.show2d(geometry.sketches);
+      case "none":
+        return this.clear();
+    }
+  }
+
   /** Show 3D triangle meshes in their colors with contours at their sharp edges. */
-  show3d(meshes: Mesh[]) {
+  show3d(meshes: MeshData[]) {
     this.replace(
       meshes.flatMap((mesh) => {
         const material = new THREE.MeshStandardMaterial({
@@ -77,7 +89,7 @@ export class Viewer {
         const contours = new THREE.LineSegments(
           new THREE.BufferGeometry()
             .setAttribute("position", new THREE.BufferAttribute(mesh.positions, 3))
-            .setIndex(new THREE.BufferAttribute(mesh.edges(), 1)),
+            .setIndex(new THREE.BufferAttribute(mesh.edges, 1)),
           new THREE.LineBasicMaterial({ color: theme.primary }),
         );
         return [surface, contours];
@@ -91,7 +103,7 @@ export class Viewer {
    *
    * Sketches without a color are filled in the darker color with outlines in the signal color.
    */
-  show2d(sketches: Sketch[]) {
+  show2d(sketches: SketchData[]) {
     this.replace(
       sketches.flatMap((sketch) => {
         const fill = new THREE.Mesh(
@@ -101,7 +113,7 @@ export class Viewer {
             side: THREE.DoubleSide,
           }),
         );
-        const positions = sketch.lines.positions;
+        const positions = sketch.lines;
         const points = new Float32Array((positions.length / 2) * 3);
         positions.forEach(
           (value, index) => (points[Math.floor(index / 2) * 3 + (index % 2)] = value),
@@ -200,7 +212,7 @@ export class Viewer {
  * Material parameters of a µcad color (`r, g, b, a` from 0 to 1), e.g. of `#[color = "red"]`,
  * or of the `fallback` color, if there is none.
  */
-function colorParameters(color: Float32Array | undefined, fallback: string) {
+function colorParameters(color: Color | undefined, fallback: string) {
   if (!color) return { color: fallback };
   const [r, g, b, a] = color;
   return {
@@ -210,8 +222,8 @@ function colorParameters(color: Float32Array | undefined, fallback: string) {
   };
 }
 
-/** A three.js geometry of a µcad mesh. */
-function geometry(mesh: Mesh): THREE.BufferGeometry {
+/** A three.js geometry of µcad triangles. */
+function geometry(mesh: Triangles): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(mesh.positions, 3));
   geometry.setIndex(new THREE.BufferAttribute(mesh.indices, 1));

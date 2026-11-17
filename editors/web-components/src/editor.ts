@@ -5,7 +5,13 @@ import * as monaco from "monaco-editor/editor/editor.api";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 // The API contains no features of the editor, e.g. the suggestions of completions.
 import "monaco-editor/editor/contrib/suggest/browser/suggestController";
-import { type Diagnostic, Severity } from "mucad-wasm";
+import type {
+  Completion,
+  Diagnostic,
+  LiteralRange,
+  Severity,
+  SteppedLiteral,
+} from "./compiler/types";
 import { theme } from "./theme";
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
@@ -99,15 +105,18 @@ export function setDiagnostics(
   monaco.editor.setModelMarkers(model, MARKER_OWNER, diagnostics.map(marker));
 }
 
+/** The Monaco severities of the severities of diagnostics. */
+const MARKER_SEVERITIES: Record<Severity, monaco.MarkerSeverity> = {
+  error: monaco.MarkerSeverity.Error,
+  warning: monaco.MarkerSeverity.Warning,
+  advice: monaco.MarkerSeverity.Hint,
+};
+
 /** The Monaco marker of a diagnostic. */
 function marker(diagnostic: Diagnostic): monaco.editor.IMarkerData {
   return {
     message: diagnostic.message,
-    severity: {
-      [Severity.Error]: monaco.MarkerSeverity.Error,
-      [Severity.Warning]: monaco.MarkerSeverity.Warning,
-      [Severity.Advice]: monaco.MarkerSeverity.Hint,
-    }[diagnostic.severity],
+    severity: MARKER_SEVERITIES[diagnostic.severity],
     startLineNumber: diagnostic.startLineNo,
     startColumn: diagnostic.startColumn,
     endLineNumber: diagnostic.endLineNo,
@@ -173,17 +182,6 @@ export function replaceCode(editor: monaco.editor.IStandaloneCodeEditor, code: s
   if (position) editor.setPosition(model.validatePosition(position));
 }
 
-/** A symbol to complete a path with, e.g. `Circle` for `std::geo2d::Ci`. */
-export interface Completion {
-  name: string;
-  /** e.g. `sketch`, `fn` or `mod`. */
-  kind: string;
-  /** The documentation in Markdown. */
-  doc?: string;
-  /** `stable`, `experimental` or `deprecated`. */
-  stability: string;
-}
-
 /** The Monaco kinds of the kinds of completions. */
 const COMPLETION_KINDS: Record<string, monaco.languages.CompletionItemKind> = {
   library: monaco.languages.CompletionItemKind.Module,
@@ -201,12 +199,12 @@ const COMPLETION_KINDS: Record<string, monaco.languages.CompletionItemKind> = {
  * units), e.g. after `::`, and with keywords and types, unless the name is after `::`.
  */
 export function addCompletion(
-  complete: (code: string, lineNo: number, column: number) => Completion[],
+  complete: (code: string, lineNo: number, column: number) => Promise<Completion[]>,
 ) {
   monaco.languages.registerCompletionItemProvider(LANGUAGE, {
     // Paths are completed after `::`, like by the language server.
     triggerCharacters: [":", "."],
-    provideCompletionItems(model, position) {
+    async provideCompletionItems(model, position) {
       const word = model.getWordUntilPosition(position);
       const range = new monaco.Range(
         position.lineNumber,
@@ -214,7 +212,7 @@ export function addCompletion(
         position.lineNumber,
         word.endColumn,
       );
-      const symbols = complete(model.getValue(), position.lineNumber, position.column);
+      const symbols = await complete(model.getValue(), position.lineNumber, position.column);
       const suggestions: monaco.languages.CompletionItem[] = symbols.map((symbol) => ({
         label: symbol.name,
         kind: COMPLETION_KINDS[symbol.kind] ?? monaco.languages.CompletionItemKind.Variable,
@@ -242,20 +240,6 @@ export function addCompletion(
   });
 }
 
-/** The range of a literal in a line, e.g. under the cursor. */
-export interface LiteralRange {
-  lineNo: number;
-  startColumn: number;
-  endColumn: number;
-}
-
-/** A literal after a step, with its stepped digit in UTF-16 code units from its start. */
-export interface SteppedLiteral {
-  text: string;
-  digitStart?: number;
-  digitEnd?: number;
-}
-
 /** The factors of the steps of literals by the modifiers of the arrow keys. */
 const LITERAL_STEPS: [number, number][] = [
   [monaco.KeyMod.Alt, 1],
@@ -274,36 +258,49 @@ const LITERAL_STEPS: [number, number][] = [
  */
 export function addLiteralStepping(
   editor: monaco.editor.IStandaloneCodeEditor,
-  literalAt: (code: string, lineNo: number, column: number) => LiteralRange | undefined,
-  stepLiteral: (literal: string, cursor: number, factor: number) => SteppedLiteral | undefined,
+  literalAt: (code: string, lineNo: number, column: number) => Promise<LiteralRange | undefined>,
+  stepLiteral: (
+    literal: string,
+    cursor: number,
+    factor: number,
+  ) => Promise<SteppedLiteral | undefined>,
   onStep: () => void,
 ) {
   /** The range of the literal at the start of the selection, and the start of the selection. */
-  const literalAtSelection = () => {
+  const literalAtSelection = async () => {
     const model = editor.getModel();
     const position = editor.getSelection()?.getStartPosition();
     if (!model || !position) return undefined;
-    const range = literalAt(model.getValue(), position.lineNumber, position.column);
+    const range = await literalAt(model.getValue(), position.lineNumber, position.column);
     if (!range) return undefined;
     const { lineNo, startColumn, endColumn } = range;
     return { range: new monaco.Range(lineNo, startColumn, lineNo, endColumn), position };
   };
 
-  // The keys are only bound on a literal, otherwise they keep their default behavior.
+  // The keys are only bound on a literal, otherwise they keep their default behavior. Only the
+  // answer to the latest selection sets the key.
   const onLiteral = editor.createContextKey<boolean>("mucadLiteral", false);
-  editor.onDidChangeCursorSelection(() => onLiteral.set(literalAtSelection() !== undefined));
+  let selections = 0;
+  editor.onDidChangeCursorSelection(async () => {
+    const selection = ++selections;
+    const literal = await literalAtSelection();
+    if (selection === selections) onLiteral.set(literal !== undefined);
+  });
 
   // The version of the code after the last step: a step of the unchanged code is merged into
   // the undo step of the steps before.
   let steppedVersion: number | undefined;
-  const step = (factor: number) => {
+  const step = async (factor: number) => {
     const model = editor.getModel();
-    const literal = literalAtSelection();
-    if (!model || !literal) return;
+    if (!model) return;
+    // A step of code, which has changed meanwhile, e.g. by typing, is not applied.
+    const version = model.getVersionId();
+    const literal = await literalAtSelection();
+    if (!literal || model.getVersionId() !== version) return;
     const { range, position } = literal;
     const cursor = position.column - range.startColumn;
-    const stepped = stepLiteral(model.getValueInRange(range), cursor, factor);
-    if (stepped === undefined) return;
+    const stepped = await stepLiteral(model.getValueInRange(range), cursor, factor);
+    if (stepped === undefined || model.getVersionId() !== version) return;
     if (model.getAlternativeVersionId() !== steppedVersion) editor.pushUndoStop();
     // The stepped digit is selected, otherwise the literal, e.g. a bool.
     const { startLineNumber: line, startColumn: start } = range;
@@ -315,8 +312,17 @@ export function addLiteralStepping(
     steppedVersion = model.getAlternativeVersionId();
     onStep();
   };
+  // The steps are made one after another, so that a step of a held key is not lost.
+  let steps = Promise.resolve();
+  const queueStep = (factor: number) => {
+    steps = steps.then(() => step(factor));
+  };
   for (const [modifiers, factor] of LITERAL_STEPS) {
-    editor.addCommand(modifiers | monaco.KeyCode.UpArrow, () => step(factor), "mucadLiteral");
-    editor.addCommand(modifiers | monaco.KeyCode.DownArrow, () => step(-factor), "mucadLiteral");
+    editor.addCommand(modifiers | monaco.KeyCode.UpArrow, () => queueStep(factor), "mucadLiteral");
+    editor.addCommand(
+      modifiers | monaco.KeyCode.DownArrow,
+      () => queueStep(-factor),
+      "mucadLiteral",
+    );
   }
 }

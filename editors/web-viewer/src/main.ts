@@ -1,9 +1,11 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import init, { Mucad } from "mucad-wasm";
-import { Dock } from "./dock";
 import {
+  Dock,
+  Viewer,
+  errorMessage,
+  wasmCompiler,
   addCompileShortcut,
   addCompletion,
   addLiteralStepping,
@@ -11,9 +13,8 @@ import {
   createEditor,
   replaceCode,
   setDiagnostics,
-} from "./editor";
+} from "mucad-web-components";
 import { examples } from "./examples";
-import { Viewer } from "./viewer";
 import "./style.css";
 
 /** The time after the last edit, before the code is compiled again. */
@@ -48,8 +49,8 @@ const dock = new Dock(element("dock"), [
   { id: "diagnostics", title: "Diagnostics", element: diagnostics },
 ], "view");
 
-await init();
-const mucad = new Mucad();
+const compiler = await wasmCompiler();
+const session = compiler.session();
 const viewer = new Viewer(element("view"));
 
 /** The model type of the last successful compilation, which decides the export format. */
@@ -73,31 +74,16 @@ function compileNow() {
   compile(editor.getValue());
 }
 
-/** Compile `code` and show its model, diagnostics and status. */
-function compile(code: string) {
+/** Compile `code` and show its model, diagnostics and status, unless it is outdated. */
+async function compile(code: string) {
   setModified(false);
-  const result = mucad.compile(code);
+  const result = await session.build(code);
+  if (!result) return;
   diagnostics.textContent = result.report;
   setDiagnostics(editor, result.diagnostics);
   diagnostics.classList.toggle("error", !result.success);
-  modelType = result.success ? result.modelType : undefined;
-
-  try {
-    switch (modelType) {
-      case "3d":
-        viewer.show3d(mucad.renderMeshes());
-        break;
-      case "2d":
-        viewer.show2d(mucad.renderSketches());
-        break;
-      default:
-        viewer.clear();
-    }
-  } catch (error) {
-    diagnostics.textContent += String(error);
-    diagnostics.classList.add("error");
-    modelType = undefined;
-  }
+  viewer.show(result.geometry);
+  modelType = result.geometry.kind === "none" ? undefined : result.geometry.kind;
 
   status.textContent = modelType ? `${modelType.toUpperCase()} model` : "Errors";
   status.classList.toggle("error", !modelType);
@@ -105,9 +91,13 @@ function compile(code: string) {
   exportButtonCaption.textContent = modelType === "2d" ? "Export SVG" : "Export STL";
 }
 
-function format() {
-  const code = editor.getValue();
-  const formatted = mucad.format(code);
+/** Format the code of the editor, unless it is changed meanwhile. */
+async function format() {
+  const model = editor.getModel();
+  if (!model) return;
+  const version = model.getVersionId();
+  const formatted = await compiler.format(model.getValue());
+  if (model.getVersionId() !== version) return;
   if (formatted.success && formatted.formatted) {
     replaceCode(editor, formatted.code);
   }
@@ -338,8 +328,8 @@ function updateModified() {
  * Save the shown document in the browser, which formats and compiles it and shows its link in
  * the URL.
  */
-function save() {
-  format();
+async function save() {
+  await format();
   if (shownDocument !== undefined) {
     let doc = docOf(shownDocument);
     // An example or shared code cannot be changed, it is copied into an own document, e.g.
@@ -352,7 +342,7 @@ function save() {
   }
   updateModified();
   compileNow();
-  updateUrl();
+  void updateUrl();
 }
 
 /** The key of the code of a shared link. */
@@ -363,7 +353,7 @@ const SHARED_CODE = "shared";
  * `#wrUBQUQABENpcmNsZShyID0gMTBtbSk7CgM`, or as query parameter `?code=`. Without a shared
  * link, there is neither code nor error.
  */
-function sharedLink(): { code?: string; name?: string; error?: string } {
+async function sharedLink(): Promise<{ code?: string; name?: string; error?: string }> {
   const link =
     location.hash.length > 1
       ? location.hash
@@ -372,13 +362,11 @@ function sharedLink(): { code?: string; name?: string; error?: string } {
         : undefined;
   if (link === undefined) return {};
   try {
-    const shared = Mucad.decodeLinkWithPreamble(link);
-    const { code, preamble } = shared;
-    shared.free();
-    const { name } = JSON.parse(preamble);
+    const { code, preamble } = await compiler.decodeLink(link);
+    const { name } = preamble;
     return { code, name: typeof name === "string" ? name : undefined };
   } catch (error) {
-    return { error: String(error) };
+    return { error: errorMessage(error) };
   }
 }
 
@@ -386,8 +374,8 @@ function sharedLink(): { code?: string; name?: string; error?: string } {
  * Show the code of a shared link formatted under its `name`, e.g. `brick.mu (shared)`, compile
  * it and look at the whole model.
  */
-function showSharedCode(code: string, name?: string) {
-  const formatted = mucad.format(code);
+async function showSharedCode(code: string, name?: string) {
+  const formatted = await compiler.format(code);
   code = formatted.success && formatted.formatted ? formatted.code : code;
   // The link of a saved own document, e.g. in the URL after a reload, shows the document.
   const own = [...docs].find(
@@ -432,10 +420,9 @@ function showShareError(error?: string) {
  *
  * Fails, e.g. for code, which is too long for a link.
  */
-function encodeLink(strip: boolean): string {
+function encodeLink(strip: boolean): Promise<string> {
   const name = shownDocument === undefined ? undefined : docOf(shownDocument).sharedName;
-  const preamble = JSON.stringify(name === undefined ? {} : { name });
-  return Mucad.encodeLinkWithPreamble(editor.getValue(), preamble, strip);
+  return compiler.encodeLink(editor.getValue(), name === undefined ? {} : { name }, strip);
 }
 
 /**
@@ -445,11 +432,11 @@ function encodeLink(strip: boolean): string {
  * The URL is replaced without a new entry in the history and without opening the link again.
  * Code, which is too long for a link, removes the link from the URL, which would be outdated.
  */
-function updateUrl() {
+async function updateUrl() {
   const url = new URL(location.href);
   url.searchParams.delete("code");
   try {
-    url.hash = encodeLink(false).split("#")[1];
+    url.hash = (await encodeLink(false)).split("#")[1];
   } catch {
     url.hash = "";
   }
@@ -457,18 +444,18 @@ function updateUrl() {
 }
 
 /** The link to share the code of the editor, `undefined` after an error. */
-function shareLink(): string | undefined {
+async function shareLink(): Promise<string | undefined> {
   try {
-    return encodeLink(stripComments.checked);
+    return await encodeLink(stripComments.checked);
   } catch (error) {
-    showShareError(`Cannot share the code: ${error}`);
+    showShareError(`Cannot share the code: ${errorMessage(error)}`);
     return undefined;
   }
 }
 
 /** Copy the link with the code to the clipboard. */
 async function copyLink() {
-  const link = shareLink();
+  const link = await shareLink();
   if (link === undefined) return;
   try {
     await navigator.clipboard.writeText(link);
@@ -482,17 +469,24 @@ async function copyLink() {
 /** The number of modules of the quiet zone around a QR code. */
 const QR_QUIET_ZONE = 4;
 
-/** Draw the QR code of the link with the code dark on white, returns if it is drawn. */
-function drawQrCode(): boolean {
-  const link = shareLink();
+/** The number of the latest update of the share menu, earlier updates are not shown. */
+let shareMenuUpdates = 0;
+
+/**
+ * Draw the QR code of the link with the code dark on white, returns if it is drawn, `undefined`
+ * if a later update of the share menu has been started meanwhile.
+ */
+async function drawQrCode(update: number): Promise<boolean | undefined> {
+  const link = await shareLink();
   if (link === undefined) return false;
   let modules: Uint8Array;
   try {
-    modules = Mucad.qrCode(link);
+    modules = await compiler.qrCode(link);
   } catch (error) {
-    showShareError(`Cannot create the QR code: ${error}`);
+    showShareError(`Cannot create the QR code: ${errorMessage(error)}`);
     return false;
   }
+  if (update !== shareMenuUpdates) return undefined;
   const width = Math.sqrt(modules.length);
   const size = width + 2 * QR_QUIET_ZONE;
   // At least 512 pixels for a sharp PNG.
@@ -515,9 +509,11 @@ function drawQrCode(): boolean {
  * Update the share menu for the code of the editor: the QR code, or the error, e.g. of code,
  * which is too long for a link.
  */
-function updateShareMenu() {
+async function updateShareMenu() {
+  const update = ++shareMenuUpdates;
   showShareError();
-  const shareable = drawQrCode();
+  const shareable = await drawQrCode(update);
+  if (shareable === undefined) return;
   for (const element of [copyLinkButton, qrCanvas, qrDownloadButton]) {
     element.hidden = !shareable;
   }
@@ -526,7 +522,7 @@ function updateShareMenu() {
 /** Show or hide the share menu. */
 function toggleShareMenu() {
   sharePanel.hidden = !sharePanel.hidden;
-  if (!sharePanel.hidden) updateShareMenu();
+  if (!sharePanel.hidden) void updateShareMenu();
 }
 
 /** Show or hide the menu of actions and links on phones. */
@@ -557,12 +553,15 @@ function downloadQrCode() {
 }
 
 /** Download the model as STL (3D) or SVG (2D). */
-function exportModel() {
-  const [data, type, extension] =
-    modelType === "2d"
-      ? [mucad.exportSvg(), "image/svg+xml", "svg"]
-      : [new Uint8Array(mucad.exportStl()), "model/stl", "stl"];
-  download(new Blob([data], { type }), `${modelName()}.${extension}`);
+async function exportModel() {
+  const [format, type] =
+    modelType === "2d" ? (["svg", "image/svg+xml"] as const) : (["stl", "model/stl"] as const);
+  try {
+    const data = await session.export(format);
+    download(new Blob([data as BlobPart], { type }), `${modelName()}.${format}`);
+  } catch (error) {
+    showError(`Cannot export the model: ${errorMessage(error)}`);
+  }
 }
 
 // Detect if the user is on macOS
@@ -581,13 +580,13 @@ document.addEventListener('keydown', (e) => {
     // Ctrl+E or Cmd+E -> Export
     if (e.key.toLowerCase() === 'e') {
       e.preventDefault();
-      if (!exportButton.disabled) exportModel();
+      if (!exportButton.disabled) void exportModel();
     }
 
     // Ctrl+S or Cmd+S -> Save
     if (e.key.toLowerCase() === 's') {
         e.preventDefault();
-        save();
+        void save();
     }
 
     // Ctrl+Enter or Cmd+Enter -> Compile
@@ -599,7 +598,7 @@ document.addEventListener('keydown', (e) => {
     // Ctrl+F or Cmd+F -> Format
     if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        format();
+        void format();
     }
 });
 
@@ -614,43 +613,25 @@ const editor = createEditor(element("editor"), (code) => {
     setModified(true);
   }
   // An open share menu shows the link of the changed code.
-  if (!sharePanel.hidden) updateShareMenu();
+  if (!sharePanel.hidden) void updateShareMenu();
 });
 addCompileShortcut(editor, compileNow);
 addSaveShortcut(editor, save);
-// Literals are stepped with Alt+↑/↓ by the digit at the cursor, the results are copied, so that
-// the objects of WebAssembly can be freed at once. A step is compiled at once with auto-update.
+// Literals are stepped with Alt+↑/↓ by the digit at the cursor, a step is compiled at once with
+// auto-update.
 addLiteralStepping(
   editor,
-  (code, lineNo, column) => {
-    const range = Mucad.literalAt(code, lineNo, column);
-    if (range === undefined) return undefined;
-    const { lineNo: line, startColumn, endColumn } = range;
-    range.free();
-    return { lineNo: line, startColumn, endColumn };
-  },
-  (literal, cursor, factor) => {
-    const stepped = Mucad.stepLiteralAt(literal, cursor, factor);
-    if (stepped === undefined) return undefined;
-    const { text, digitStart, digitEnd } = stepped;
-    stepped.free();
-    return { text, digitStart, digitEnd };
-  },
+  (code, lineNo, column) => compiler.literalAt(code, lineNo, column),
+  (literal, cursor, factor) => compiler.stepLiteral(literal, cursor, factor),
   () => {
     if (autoUpdate.checked) compileNow();
   },
 );
-// The completions are copied, so that the objects of WebAssembly can be freed at once.
-addCompletion((code, lineNo, column) =>
-  mucad.complete(code, lineNo, column).map((completion) => {
-    const { name, kind, doc, stability } = completion;
-    completion.free();
-    return { name, kind, doc, stability };
-  }),
-);
+// Names are completed with the symbols of the last compilation of the editor.
+addCompletion((code, lineNo, column) => session.complete(code, lineNo, column));
 
 // Set version tag
-const version = Mucad.versionString();
+const version = compiler.version;
 const versionTag = document.getElementById('version-tag');
 
 if (versionTag) {
@@ -668,9 +649,9 @@ documentName.addEventListener("keydown", (event) => {
   }
   if (event.key === "Enter" || event.key === "Escape") documentName.blur();
 });
-exportButton.addEventListener("click", exportModel);
-saveButton.addEventListener("click", save);
-formatButton.addEventListener("click", format);
+exportButton.addEventListener("click", () => void exportModel());
+saveButton.addEventListener("click", () => void save());
+formatButton.addEventListener("click", () => void format());
 compileButton.addEventListener("click", compileNow);
 shareButton.addEventListener("click", toggleShareMenu);
 copyLinkButton.addEventListener("click", copyLink);
@@ -678,7 +659,7 @@ qrDownloadButton.addEventListener("click", downloadQrCode);
 stripComments.addEventListener("change", () => {
   localStorage.setItem(STRIP_COMMENTS_KEY, String(stripComments.checked));
   // The shown QR code is of the link with the new setting.
-  updateShareMenu();
+  void updateShareMenu();
 });
 menuButton.addEventListener("click", () => showMenu(!menu.classList.contains("open")));
 // The menu is hidden after an action or link, but not after switching auto-update.
@@ -705,9 +686,9 @@ autoUpdate.addEventListener("change", () => {
 // The own documents of the browser, the code of a shared link, otherwise the first example or
 // the one given by the URL, e.g. `?example=1`.
 restoreDocuments();
-const shared = sharedLink();
+const shared = await sharedLink();
 if (shared.code !== undefined) {
-  showSharedCode(shared.code, shared.name);
+  await showSharedCode(shared.code, shared.name);
 } else {
   const example = Number(new URLSearchParams(location.search).get("example")) || 0;
   showDocument(String(examples[example] ? example : 0));
@@ -716,9 +697,9 @@ if (shared.code !== undefined) {
 }
 
 // A shared link opened while the viewer runs, e.g. pasted into the address bar.
-window.addEventListener("hashchange", () => {
-  const shared = sharedLink();
-  if (shared.code !== undefined) showSharedCode(shared.code, shared.name);
+window.addEventListener("hashchange", async () => {
+  const shared = await sharedLink();
+  if (shared.code !== undefined) await showSharedCode(shared.code, shared.name);
   else if (shared.error) showLinkError(shared.error);
 });
 
