@@ -5602,6 +5602,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mucad-viewer-utils"
+version = "0.6.3"
+dependencies = [
+ "glam 0.30.10",
+]
+
+[[package]]
 name = "mucad-wasm"
 version = "0.6.3"
 dependencies = [

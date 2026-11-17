@@ -1,0 +1,7 @@
+// Copyright © 2026 The µcad authors <info@mucad.org>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Utilities shared by the µcad viewers, e.g. the Bevy viewer and the web viewer.
+//!
+//! The utilities are independent of a renderer, they compute with [`glam`] vectors and
+//! matrices, which a viewer applies to its camera.

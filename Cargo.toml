@@ -25,6 +25,7 @@ members = [
     "crates/std",
     "crates/viewer",
     "crates/viewer-ipc",
+    "crates/viewer-utils",
     "crates/wasm",
 
     "editors/desktop/src-tauri",
@@ -54,6 +55,7 @@ default-members = [
     "crates/render",
     "crates/std",
     "crates/viewer",
+    "crates/viewer-utils",
     "crates/wasm",
 
     "xtask",
@@ -95,4 +97,5 @@ mucad-macros = { path = "crates/macros", version = "0.6.3" }
 mucad-render = { path = "crates/render", version = "0.6.3" }
 mucad-std = { path = "crates/std", version = "0.6.3" }
 mucad-viewer-ipc = { path = "crates/viewer-ipc", version = "0.6.3" }
+mucad-viewer-utils = { path = "crates/viewer-utils", version = "0.6.3" }
 mucad-viewer = { path = "crates/viewer", version = "0.6.3" }
