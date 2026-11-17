@@ -1,0 +1,60 @@
+# The default controls of the camera in the µcad viewers.
+#
+# Missing entries are these defaults, e.g. a file with only `[mouse]` and `pan = ["Middle"]`
+# changes only panning with the mouse.
+#
+# A binding is its modifiers and its input joined by `+`, e.g. `Ctrl+Shift+Right`.
+# Modifiers: `Ctrl`, `Shift`, `Alt` (`Option`), `Meta` (`Cmd`, `Super`), which must be pressed
+# exactly.
+
+# The speed of orbiting with the mouse.
+orbit_speed = 25.0
+# The speed of zooming with the mouse, a negative speed inverts zooming.
+zoom_speed = 25.0
+# The speed of translating with the mouse.
+translate_speed = 15.0
+# The factor, which a zoom key scales the view by.
+zoom_step = 1.25
+# The part of the window, which a pan key moves the view by.
+pan_step = 0.1
+# The angle in degrees, which a rotate key turns the view by.
+rotate_step = 90.0
+
+# The navigation style with the mouse.
+#
+# Buttons: `Left`, `Middle` (pressing the wheel) and `Right`, which are pressed in their
+# order, e.g. `Middle+Right` is first the middle and then the right button. `Wheel` is turning
+# the wheel, which only zooms.
+[mouse]
+# Click to select, also more than one object with the `multi_select` modifiers.
+select = ["Left"]
+# Turn the wheel to zoom at the pointer, or drag upwards to zoom in and downwards to zoom out.
+zoom = ["Wheel", "Ctrl+Shift+Right"]
+# Drag to orbit around the point under the pointer.
+orbit = ["Middle+Right", "Middle+Left", "Shift+Right"]
+# Drag to pan.
+pan = ["Middle", "Ctrl+Right"]
+
+# The keys, which are available with any navigation style.
+#
+# Keys are logical keys, like `KeyboardEvent.key` of the web: named keys like `ArrowLeft`,
+# `PageUp`, or characters like `0` or `a`, with `Plus`, `Minus` and `Space` for `+`, `-` and
+# ` `. Shift is ignored for characters, because keyboard layouts need it for some of them.
+[keyboard]
+zoom_in = ["Ctrl+Plus", "PageUp"]
+zoom_out = ["Ctrl+Minus", "PageDown"]
+pan_left = ["ArrowLeft"]
+pan_right = ["ArrowRight"]
+pan_up = ["ArrowUp"]
+pan_down = ["ArrowDown"]
+rotate_left = ["Shift+ArrowLeft"]
+rotate_right = ["Shift+ArrowRight"]
+view_isometric = ["0"]
+view_front = ["1"]
+view_top = ["2"]
+view_right = ["3"]
+view_rear = ["4"]
+view_bottom = ["5"]
+view_left = ["6"]
+# Pressed while selecting, to select more than one object.
+multi_select = "Ctrl"

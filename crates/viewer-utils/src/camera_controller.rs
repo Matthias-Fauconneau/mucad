@@ -307,6 +307,14 @@ impl CameraController {
         self.handle_zoom_events();
     }
 
+    /// Scale the detail by `zoom_factor` around the center of the view, e.g. by keys: a factor
+    /// below 1 zooms in.
+    pub fn zoom_at_center(&mut self, zoom_factor: f64) {
+        let center = self.zoom_rect_model.detail().center();
+        self.zoom_rect_model.zoom_to_point(center, zoom_factor);
+        self.handle_zoom_events();
+    }
+
     /// Show the whole scene.
     pub fn zoom_fit(&mut self) {
         self.zoom_rect_model.reset();

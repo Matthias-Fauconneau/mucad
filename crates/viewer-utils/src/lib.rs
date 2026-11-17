@@ -8,10 +8,16 @@
 
 mod camera;
 mod camera_controller;
+mod controls;
+mod input;
+mod navigation;
 mod rect;
 mod zoom_rect;
 
 pub use camera::{Camera, ProjectionType};
 pub use camera_controller::{CameraController, CameraEvent, CameraState, Mode, Ray};
+pub use controls::{Controls, KeyboardControls, MouseControls};
+pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
+pub use navigation::{Command, MouseAction, Navigation, StandardView};
 pub use rect::Rect;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};
