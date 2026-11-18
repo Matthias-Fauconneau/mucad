@@ -9,13 +9,13 @@ use bevy::{
         message::{Message, MessageReader},
         system::{Query, ResMut},
     },
-    pbr::{MeshMaterial3d, StandardMaterial},
+    pbr::StandardMaterial,
 };
 
 use mucad_driver::prelude as mu;
 
 use crate::{
-    ViewModel, material,
+    ViewModel,
     processor::ProcessingState,
     view_model::{Cursor, ModelViewState},
 };
@@ -62,8 +62,6 @@ impl ViewerEvent {
 /// Handler for viewer events.
 #[allow(clippy::too_many_arguments)]
 pub fn handle_viewer_event(
-    mut grid_materials: ResMut<Assets<material::Grid>>,
-    mat_query: Query<&mut MeshMaterial3d<material::Grid>>,
     mut navigations: Query<&mut crate::scene::CameraNavigation>,
     mut state: ResMut<ViewModel>,
     mut view_states: ResMut<Assets<ModelViewState>>,
@@ -73,13 +71,8 @@ pub fn handle_viewer_event(
     for event in events.read() {
         match event {
             ViewerEvent::ChangeGroundRadius(radius) => {
-                if let Some(grid) = state.scene.grid_entity
-                    && let Ok(material) = mat_query.get(grid)
-                    && let Some(material) = grid_materials.get_mut(material)
-                {
-                    state.scene.radius = **radius as f32;
-                    material.parameters.radius = **radius as f32;
-                }
+                // The camera bounds and the grid follow the radius.
+                state.scene.radius = **radius as f32;
             }
             ViewerEvent::SelectAll => {
                 ViewerEvent::for_each_view_state(

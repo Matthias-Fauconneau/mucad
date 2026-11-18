@@ -6,7 +6,6 @@
 use bevy::{
     asset::Assets,
     camera::visibility::Visibility,
-    camera::{Camera, Projection},
     ecs::{
         component::Component,
         query::With,
@@ -16,15 +15,13 @@ use bevy::{
     math::{Vec2, Vec3, primitives::Plane3d},
     mesh::{Mesh, Mesh3d},
     pbr::MeshMaterial3d,
-    transform::components::Transform,
-    window::Window,
 };
+use mucad_viewer_utils::GridConfig;
 
 #[derive(Component)]
 pub struct ToggleMe;
 
-use crate::{scene::get_current_zoom_level, view_model::ViewModel};
-use crate::{to_bevy::ToBevy, *};
+use crate::{scene::CameraNavigation, view_model::ViewModel, *};
 
 pub fn toggle_grid(
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -50,20 +47,11 @@ pub fn spawn_grid_plane(
     let plane = Mesh::from(Plane3d::new(Vec3::Z, Vec2::new(1000.0, 1000.0)));
     let mesh_handle = meshes.add(plane);
 
-    let theme = &state.config.theme;
-
     state.scene.grid_entity = Some(
         commands
             .spawn((
                 Mesh3d(mesh_handle),
-                MeshMaterial3d(materials.add(material::Grid {
-                    parameters: material::GridUniform {
-                        grid_color: theme.darker.to_bevy(),
-                        x_axis_color: theme.brighter.to_bevy(),
-                        y_axis_color: theme.brighter.to_bevy(),
-                        ..Default::default()
-                    },
-                })),
+                MeshMaterial3d(materials.add(material::Grid::default())),
                 bevy::picking::Pickable::IGNORE,
                 Visibility::Visible,
                 ToggleMe,
@@ -72,45 +60,21 @@ pub fn spawn_grid_plane(
     );
 }
 
-/// Update grid material according to zoom level.
+/// Update the grid material to the camera: its radius, zoom level and view angle, and the
+/// colors of the theme.
 pub fn update_grid(
     mut materials: ResMut<Assets<material::Grid>>,
     state: Res<ViewModel>,
-    proj_query: Query<&Projection, With<Camera>>,
-    windows: Query<&Window>,
-    mat_query: Query<&mut MeshMaterial3d<material::Grid>>,
+    navigations: Query<&CameraNavigation>,
+    mat_query: Query<&MeshMaterial3d<material::Grid>>,
 ) {
-    let radius = state.scene.radius;
-    let Ok(window) = windows.single() else {
+    let Ok(navigation) = navigations.single() else {
         return;
     };
-
-    for projection in proj_query {
-        if let Some(grid) = state.scene.grid_entity
-            && let Ok(material) = mat_query.get(grid)
-            && let Some(material) = materials.get_mut(material)
-        {
-            material.parameters.radius = radius;
-            material.parameters.zoom_level = window.width().max(window.height())
-                / 20.0
-                / get_current_zoom_level(projection)
-                / radius;
-        }
-    }
-}
-
-pub fn update_grid_on_view_angle_change(
-    mut materials: ResMut<Assets<material::Grid>>,
-    state: Res<ViewModel>,
-    cam_query: Query<(&Transform, &Camera)>,
-    mat_query: Query<&mut MeshMaterial3d<material::Grid>>,
-) {
-    for (transform, _) in cam_query {
-        if let Some(grid) = state.scene.grid_entity
-            && let Ok(material) = mat_query.get(grid)
-            && let Some(material) = materials.get_mut(material)
-        {
-            material.parameters.view_angle = transform.forward().normalize();
-        }
+    if let Some(grid) = state.scene.grid_entity
+        && let Ok(material) = mat_query.get(grid)
+        && let Some(material) = materials.get_mut(material)
+    {
+        material.parameters = GridConfig::new(navigation.controller(), &state.config.theme);
     }
 }

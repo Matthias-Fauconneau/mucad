@@ -13,9 +13,11 @@ mod bounding_sphere;
 mod camera;
 mod camera_controller;
 mod controls;
+mod grid;
 mod input;
 mod navigation;
 mod rect;
+mod shaders;
 mod theme;
 mod zoom_rect;
 
@@ -27,8 +29,10 @@ pub use camera_controller::{
 pub use controls::{
     Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls, TouchControls, TouchDrag,
 };
+pub use grid::GridConfig;
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
 pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
 pub use rect::Rect;
+pub use shaders::{GRID_WEB_WGSL, GRID_WGSL};
 pub use theme::Theme;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};
