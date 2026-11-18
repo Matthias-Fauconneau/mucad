@@ -29,8 +29,8 @@ export class Viewer {
   private camera = new THREE.OrthographicCamera();
   /** The camera navigation, e.g. to listen to its `select` events or to set its controls. */
   readonly controls: CameraControls;
-  /** The radius of the scene of the camera, which a bigger model increases. */
-  private sceneRadius = 0;
+  /** The radius of the bounds of the camera, which a bigger model increases. */
+  private boundsRadius = 0;
   private model = new THREE.Group();
   private grid?: THREE.GridHelper;
   /** The kind of the shown model, whose direction the camera was reset to. */
@@ -161,9 +161,9 @@ export class Viewer {
       // A bigger model is not cut off by the near plane of the camera, which is outside of the
       // scene.
       const { center, radius } = box.getBoundingSphere(new THREE.Sphere());
-      if (radius > this.sceneRadius) {
-        this.sceneRadius = radius;
-        this.controls.setScene(center, radius);
+      if (radius > this.boundsRadius) {
+        this.boundsRadius = radius;
+        this.controls.setBounds(center, radius);
       }
     }
     this.updateGrid(box);
@@ -174,8 +174,8 @@ export class Viewer {
     const box = this.bounds();
     if (!box || !this.kind) return;
     const { center, radius } = box.getBoundingSphere(new THREE.Sphere());
-    this.sceneRadius = radius || 1;
-    this.controls.setScene(center, this.sceneRadius);
+    this.boundsRadius = radius || 1;
+    this.controls.setBounds(center, this.boundsRadius);
     this.controls.setView(VIEWS[this.kind]);
     this.controls.showAll();
     this.controls.resetPivot();

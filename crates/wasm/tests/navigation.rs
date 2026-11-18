@@ -34,7 +34,7 @@ fn matrices() {
             .transform_point3(Vec3::ZERO)
             .abs_diff_eq(position, 1e-3)
     );
-    // The scene radius 100 fits into the height of the orthographic projection.
+    // The bounds of radius 100 fit into the height of the orthographic projection.
     let projection = matrix(navigation.projection_matrix());
     let top = projection * view * Vec3::new(0.0, 100.0, 0.0).extend(1.0);
     assert!((top.y / top.w - 1.0).abs() < 1e-5);
@@ -90,11 +90,11 @@ fn keys() {
 }
 
 #[test]
-fn views_and_scene() {
+fn views_and_bounds() {
     let mut navigation = navigation();
     assert!(navigation.set_view("front").is_ok());
     assert_eq!(navigation.up(), [0.0, 0.0, 1.0]);
-    navigation.set_scene(10.0, 0.0, 0.0, 50.0);
+    navigation.set_bounds(10.0, 0.0, 0.0, 50.0);
     assert_eq!(navigation.view_center(), [10.0, 0.0, 0.0]);
     navigation.key_down("PageUp", 0);
     navigation.zoom_fit();

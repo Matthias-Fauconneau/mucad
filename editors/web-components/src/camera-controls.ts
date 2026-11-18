@@ -54,7 +54,7 @@ function modifiers(event: MouseEvent | KeyboardEvent): number {
  *
  * ```ts
  * const controls = new CameraControls(camera, renderer.domElement);
- * controls.setScene(center, radius);
+ * controls.setBounds(center, radius);
  * controls.setView("isometric");
  * controls.addEventListener("select", (event) => pick((event as CustomEvent<SelectDetail>).detail));
  * renderer.setAnimationLoop(() => {
@@ -110,9 +110,12 @@ export class CameraControls extends EventTarget {
     window.addEventListener("blur", this.releaseAll);
   }
 
-  /** Set the scene: its center and its radius, e.g. of the bounding sphere of the model. */
-  setScene(center: THREE.Vector3, radius: number) {
-    this.run((navigation) => navigation.setScene(center.x, center.y, center.z, radius));
+  /**
+   * Set the bounds of what the camera shows: their center and their radius, e.g. of the bounding
+   * sphere of the model.
+   */
+  setBounds(center: THREE.Vector3, radius: number) {
+    this.run((navigation) => navigation.setBounds(center.x, center.y, center.z, radius));
   }
 
   /** Show a standard view. */
@@ -125,7 +128,7 @@ export class CameraControls extends EventTarget {
     this.run((navigation) => navigation.showAll());
   }
 
-  /** Set the pivot, which the camera orbits around, to the scene center. */
+  /** Set the pivot, which the camera orbits around, to the center of the bounds. */
   resetPivot() {
     this.run((navigation) => navigation.resetPivot());
   }

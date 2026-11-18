@@ -8,7 +8,7 @@ use std::time::Duration;
 use glam::{DVec2, Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use serde::{Deserialize, Serialize};
 
-use crate::{Camera, ProjectionType, Rect, ZoomEvent, ZoomRectModel, ZoomState};
+use crate::{BoundingSphere, Camera, ProjectionType, Rect, ZoomEvent, ZoomRectModel, ZoomState};
 
 /// The speeds of a [`CameraController`] with the mouse, e.g. from TOML.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -98,8 +98,8 @@ pub struct CameraController {
     config: CameraControllerConfig,
     mode: Mode,
 
-    scene_center: Vec3,
-    scene_radius: f64,
+    /// The bounds of what the camera shows: the overview and the distance of the camera.
+    bounds: BoundingSphere,
 
     pivot: Vec3,
 
@@ -110,7 +110,7 @@ pub struct CameraController {
 }
 
 impl CameraController {
-    /// A controller for a window of `window_size` in pixels, which shows a scene of radius 100
+    /// A controller for a window of `window_size` in pixels, which shows bounds of radius 100
     /// around the origin from the front.
     pub fn new(window_size: DVec2) -> Self {
         let mut controller = Self {
@@ -118,8 +118,7 @@ impl CameraController {
             window_size,
             config: CameraControllerConfig::default(),
             mode: Mode::Inactive,
-            scene_center: Vec3::ZERO,
-            scene_radius: 100.0,
+            bounds: BoundingSphere::new(Vec3::ZERO, 100.0),
             pivot: Vec3::ZERO,
             zoom_rect_model: ZoomRectModel::new(),
             zoom_point: DVec2::ZERO,
@@ -127,7 +126,7 @@ impl CameraController {
         };
 
         let pivot = controller.pivot();
-        let radius = controller.scene_radius as f32;
+        let radius = controller.bounds.radius as f32;
         let camera = &mut controller.camera;
         camera.set_up_vector(Vec3::Y);
         camera.set_view_center(pivot);
@@ -135,7 +134,7 @@ impl CameraController {
 
         controller
             .zoom_rect_model
-            .initialize(controller.scene_radius, window_size);
+            .initialize(controller.bounds.radius, window_size);
         controller.handle_zoom_events();
 
         controller.orbit(0.0, 0.0);
@@ -171,32 +170,24 @@ impl CameraController {
         self.handle_zoom_events();
     }
 
-    /// The radius of the scene around its center.
-    pub fn scene_radius(&self) -> f64 {
-        self.scene_radius
+    /// The bounds of what the camera shows.
+    pub fn bounds(&self) -> BoundingSphere {
+        self.bounds
     }
 
-    /// Set the radius of the scene, the overview is scaled with it.
-    pub fn set_scene_radius(&mut self, radius: f32) {
-        let scale = radius as f64 / self.scene_radius;
-        self.scene_radius = radius as f64;
+    /// Set the bounds of what the camera shows, e.g. of the model: the camera looks at its
+    /// position and is moved with it, the overview is scaled with its radius.
+    pub fn set_bounds(&mut self, bounds: BoundingSphere) {
+        let scale = bounds.radius / self.bounds.radius;
+        self.bounds = bounds;
+
+        let d = self.camera.view_center() - self.bounds.pos;
+
+        self.camera.set_view_center(self.bounds.pos);
+        self.camera.set_position(self.camera.position() - d);
+
         self.zoom_rect_model.scale_overview(scale);
         self.handle_zoom_events();
-    }
-
-    /// The center of the scene.
-    pub fn scene_center(&self) -> Vec3 {
-        self.scene_center
-    }
-
-    /// Set the center of the scene, the camera looks at it and is moved with it.
-    pub fn set_scene_center(&mut self, center: Vec3) {
-        self.scene_center = center;
-
-        let d = self.camera.view_center() - self.scene_center();
-
-        self.camera.set_view_center(self.scene_center());
-        self.camera.set_position(self.camera.position() - d);
     }
 
     /// The point, which the camera orbits around.
@@ -218,9 +209,9 @@ impl CameraController {
         self.set_pivot(self.world_point(screen_coords));
     }
 
-    /// Sets the pivot to the scene center.
+    /// Sets the pivot to the center of the bounds.
     pub fn reset_pivot(&mut self) {
-        self.set_pivot(self.scene_center());
+        self.set_pivot(self.bounds.pos);
     }
 
     /// Start orbiting with the mouse.
@@ -231,10 +222,10 @@ impl CameraController {
     /// Orbit the camera around the pivot by `pan` and `tilt` in degrees.
     pub fn orbit(&mut self, pan: f64, tilt: f64) {
         let camera = &mut self.camera;
-        // Place camera on scene sphere's periphery
+        // Place camera on bounding sphere's periphery
         camera.set_position(
             camera.view_center()
-                - camera.view_vector().normalize() * self.scene_radius as f32 * 10.0,
+                - camera.view_vector().normalize() * self.bounds.radius as f32 * 10.0,
         );
 
         let p = self.pivot;
@@ -279,7 +270,7 @@ impl CameraController {
         self.config = config;
     }
 
-    /// Move the view center back to the scene center, while the view stays the same, i.e. the
+    /// Move the view center back to the center of the bounds, while the view stays the same, i.e. the
     /// detail is moved by the offset of the view center instead.
     pub fn readjust_camera_position_and_detail(&mut self) {
         let to_camera = self.camera.transform_matrix().inverse();
@@ -288,14 +279,14 @@ impl CameraController {
             (p / p.w).xy().as_dvec2()
         };
 
-        let d = self.camera.view_center() - self.scene_center();
+        let d = self.camera.view_center() - self.bounds.pos;
         let view_center_xy = get_point_2d(self.camera.view_center());
-        let scene_center_xy = get_point_2d(self.scene_center());
+        let bounds_center_xy = get_point_2d(self.bounds.pos);
 
-        self.camera.set_view_center(self.scene_center());
+        self.camera.set_view_center(self.bounds.pos);
         self.camera.set_position(self.camera.position() - d);
         self.zoom_rect_model
-            .translate((view_center_xy - scene_center_xy).as_vec2());
+            .translate((view_center_xy - bounds_center_xy).as_vec2());
         self.handle_zoom_events();
     }
 
@@ -473,13 +464,13 @@ impl CameraController {
         self.window_size.x / self.window_size.y
     }
 
-    /// Look at the scene center along `view_vector` with `up`.
+    /// Look at the center of the bounds along `view_vector` with `up`.
     pub fn set_view(&mut self, view_vector: Vec3, up: Vec3) {
         let v = view_vector.normalize();
-        self.camera.set_view_center(self.scene_center());
+        self.camera.set_view_center(self.bounds.pos);
         self.camera.set_up_vector(up);
         self.camera
-            .set_position(self.scene_center() - v * self.scene_radius as f32 * 10.0);
+            .set_position(self.bounds.pos - v * self.bounds.radius as f32 * 10.0);
 
         self.update_camera_lens();
     }
@@ -569,12 +560,12 @@ impl CameraController {
         let ray = self.camera_ray(screen_coord);
 
         // The virtual scene plane is defined by the camera viewVector and the
-        // sceneCenter
+        // pivot
         let view_vector = self.camera.view_vector();
         let dot = ray.direction.dot(view_vector);
         if dot.abs() <= 0.00001 {
             // The ray is parallel to the virtual plane
-            return self.scene_center();
+            return self.bounds.pos;
         }
 
         let t = (self.pivot() - ray.origin).dot(view_vector) / dot;
@@ -626,7 +617,7 @@ mod tests {
     fn new() {
         let mut controller = CameraController::new(WINDOW);
         let camera = controller.camera();
-        // On the scene sphere's periphery, looking at the pivot from the front.
+        // On the bounding sphere's periphery, looking at the pivot from the front.
         assert!(
             camera
                 .position()
@@ -720,7 +711,7 @@ mod tests {
         let point = Vec3::new(5.0, 6.0, 7.0);
         let before = controller.screen_coord(point);
         controller.set_inactive();
-        assert_eq!(controller.camera().view_center(), controller.scene_center());
+        assert_eq!(controller.camera().view_center(), controller.bounds().pos);
         let after = controller.screen_coord(point);
         assert!(after.abs_diff_eq(before, 1e-2), "{before} {after}");
     }

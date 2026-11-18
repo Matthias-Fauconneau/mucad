@@ -6,6 +6,10 @@
 //! The utilities are independent of a renderer, they compute with [`glam`] vectors and
 //! matrices, which a viewer applies to its camera.
 
+/// A scalar like in µcad, e.g. a length in millimeters.
+pub type Scalar = f64;
+
+mod bounding_sphere;
 mod camera;
 mod camera_controller;
 mod controls;
@@ -14,6 +18,7 @@ mod navigation;
 mod rect;
 mod zoom_rect;
 
+pub use bounding_sphere::BoundingSphere;
 pub use camera::{Camera, ProjectionType};
 pub use camera_controller::{
     CameraController, CameraControllerConfig, CameraEvent, CameraState, Mode, Ray,

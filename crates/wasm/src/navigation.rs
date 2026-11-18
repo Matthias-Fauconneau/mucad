@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mucad_viewer_utils::{
-    CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, Modifiers, MouseAction, MouseButton,
-    Navigation, StandardView, TouchId,
+    BoundingSphere, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, Modifiers, MouseAction,
+    MouseButton, Navigation, Scalar, StandardView, TouchId,
 };
 use wasm_bindgen::prelude::*;
 
@@ -115,13 +115,13 @@ impl CameraNavigation {
         self.navigation.resize(DVec2::new(width, height));
     }
 
-    /// Set the scene: its center and the radius around it, e.g. of the bounding sphere of the
-    /// model.
-    #[wasm_bindgen(js_name = setScene)]
-    pub fn set_scene(&mut self, x: f32, y: f32, z: f32, radius: f32) {
-        let controller = self.navigation.controller_mut();
-        controller.set_scene_center(Vec3::new(x, y, z));
-        controller.set_scene_radius(radius);
+    /// Set the bounds of what the camera shows: their center and their radius, e.g. of the
+    /// bounding sphere of the model.
+    #[wasm_bindgen(js_name = setBounds)]
+    pub fn set_bounds(&mut self, x: f32, y: f32, z: f32, radius: f32) {
+        self.navigation
+            .controller_mut()
+            .set_bounds(BoundingSphere::new(Vec3::new(x, y, z), radius as Scalar));
     }
 
     /// Press the button of `MouseEvent.button` at `(x, y)`, other buttons than the left (0),
@@ -280,7 +280,7 @@ impl CameraNavigation {
         self.navigation.controller().pivot().to_array().to_vec()
     }
 
-    /// Set the pivot to the scene center.
+    /// Set the pivot to the center of the bounds.
     #[wasm_bindgen(js_name = resetPivot)]
     pub fn reset_pivot(&mut self) {
         self.navigation.controller_mut().reset_pivot();

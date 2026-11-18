@@ -192,10 +192,10 @@ two fingers in parallel pans without zooming.
 |---|---|
 | `cameraMatrix()`, `viewMatrix()`, `projectionMatrix()` | 16 numbers by columns, like `Matrix4.fromArray` |
 | `position()`, `viewCenter()`, `up()`, `pivot()` | `[x, y, z]` |
-| `setScene(x, y, z, radius)` | Sets the center and the radius of the scene, e.g. of the bounding sphere of the model |
+| `setBounds(x, y, z, radius)` | Sets the center and the radius of what the camera shows, e.g. of the bounding sphere of the model |
 | `setView(name)` | Shows `isometric`, `front`, `top`, `right`, `rear`, `bottom` or `left` |
 | `showAll()` | Shows the whole scene in the middle of the view, e.g. to reset the camera |
-| `zoomFit()`, `zoomLevel()`, `resetPivot()` | Zooms to level 1 around the center of the view, the zoom level, sets the pivot to the scene center |
+| `zoomFit()`, `zoomLevel()`, `resetPivot()` | Zooms to level 1 around the center of the view, the zoom level, sets the pivot to the center of the bounds |
 | `takeEvents()` | The changes since the last call: `zoomLevelChanged` and `pivotChanged` |
 
 `Selection` and `CameraNavigation` are freed with `free()`.

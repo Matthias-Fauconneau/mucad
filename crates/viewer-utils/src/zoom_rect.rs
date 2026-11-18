@@ -75,9 +75,9 @@ impl ZoomRectModel {
         std::mem::take(&mut self.events)
     }
 
-    /// Show the whole scene with `scene_radius` in a window with `window_size`.
-    pub fn initialize(&mut self, scene_radius: f64, window_size: DVec2) {
-        let r = scene_radius;
+    /// Show the whole bounds of `radius` in a window with `window_size`.
+    pub fn initialize(&mut self, radius: f64, window_size: DVec2) {
+        let r = radius;
         let aspect = window_size.x / window_size.y;
 
         self.state.overview = Rect::new(-r * aspect, -r, 2.0 * r * aspect, 2.0 * r);

@@ -142,7 +142,7 @@ impl Navigation {
         &self.controller
     }
 
-    /// The camera controller, e.g. to set the scene.
+    /// The camera controller, e.g. to set its bounds.
     pub fn controller_mut(&mut self) -> &mut CameraController {
         &mut self.controller
     }
@@ -386,7 +386,7 @@ impl Navigation {
     }
 
     /// Orbit around the pivot by `pan` in degrees like dragging the mouse to the right, and
-    /// move the view center back to the scene center like after orbiting with the mouse.
+    /// move the view center back to the center of the bounds like after orbiting with the mouse.
     fn rotate(&mut self, pan: f64) {
         self.controller.orbit(pan, 0.0);
         self.controller.readjust_camera_position_and_detail();
