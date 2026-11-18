@@ -56,7 +56,7 @@ pub struct Args {
     zoom: f32,
 
     /// The controls of the camera with the mouse, the keys and touch in a TOML file, see
-    /// `controls.toml` of `mucad-viewer-utils` for the defaults.
+    /// `Controls` of `mucad-viewer-utils` for the defaults.
     #[arg(long, value_name = "TOML", value_parser = parse_controls)]
     controls: Option<mu::viewer::Controls>,
 
@@ -106,7 +106,7 @@ fn parse_direction(text: &str) -> Result<bevy::math::Vec3, String> {
     }
 }
 
-/// Read the controls of a TOML file, e.g. `controls.toml`.
+/// Read the controls of a TOML file.
 fn parse_controls(path: &str) -> Result<mu::viewer::Controls, String> {
     let toml = std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
     mu::viewer::Controls::from_toml(&toml).map_err(|error| format!("{path}: {error}"))

@@ -162,8 +162,7 @@ to 1 in z, like the projections of Three.js with the `WebGLRenderer`.
 
 | Method | Does |
 |---|---|
-| `new CameraNavigation(width, height, controlsToml?)` | The navigation with the controls in TOML or the defaults, throws an error for invalid controls |
-| `CameraNavigation.defaultControls()` | The default controls as TOML with comments |
+| `new CameraNavigation(width, height, controlsToml?)` | The navigation with the controls in TOML or the defaults (see `Controls` of `mucad-viewer-utils`), throws an error for invalid controls |
 | `setControls(toml)` | Sets the controls, missing entries are the defaults |
 
 The events of the element: `elapsedMs` is the time since the last frame, which keeps the speed

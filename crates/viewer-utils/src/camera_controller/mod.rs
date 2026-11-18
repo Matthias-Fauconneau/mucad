@@ -41,11 +41,11 @@ pub enum ProjectionMode {
     Perspective,
 }
 
-/// The projection and the speeds of a camera controller, e.g. from TOML.
+/// The projection and the speeds of the camera with the mouse.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CameraControllerConfig {
-    /// The projection mode at the start.
+    /// The projection at the start: `orthographic` or `perspective`.
     pub projection: ProjectionMode,
     /// The vertical field of view of the perspective projection in degrees.
     pub fov_y_degrees: f64,

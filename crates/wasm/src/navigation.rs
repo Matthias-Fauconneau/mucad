@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mu::viewer::{
-    BoundingSphere, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, GridConfig, Modifiers,
-    MouseButton, Navigation, ProjectionMode, Scalar, StandardView, Theme, TouchId,
+    BoundingSphere, CameraEvent, Command, Controls, GridConfig, Modifiers, MouseButton, Navigation,
+    ProjectionMode, Scalar, StandardView, Theme, TouchId,
 };
 use mucad_driver::prelude as mu;
 use wasm_bindgen::prelude::*;
@@ -76,7 +76,7 @@ pub struct CameraNavigation {
 #[wasm_bindgen]
 impl CameraNavigation {
     /// The navigation for an element of `width` and `height` in pixels with the controls in
-    /// TOML, see [`CameraNavigation::default_controls`], or the default controls.
+    /// TOML, see `Controls` of `mucad-viewer-utils`, or the default controls.
     ///
     /// Throws an error with the reason for invalid controls.
     #[wasm_bindgen(constructor)]
@@ -93,12 +93,6 @@ impl CameraNavigation {
         Ok(Self {
             navigation: Navigation::new(DVec2::new(width, height), controls),
         })
-    }
-
-    /// The default controls as TOML with comments, e.g. to start a configuration.
-    #[wasm_bindgen(js_name = defaultControls)]
-    pub fn default_controls() -> String {
-        DEFAULT_CONTROLS_TOML.to_string()
     }
 
     /// Set the controls in TOML, missing entries are the defaults.
@@ -506,7 +500,8 @@ mod tests {
 
     #[test]
     fn controls() {
-        assert!(parse_controls(DEFAULT_CONTROLS_TOML).is_ok());
+        let toml = Controls::default().to_toml().expect("TOML");
+        assert!(parse_controls(&toml).is_ok());
         let error = parse_controls("[mouse]\npan = [\"Up\"]\n").expect_err("invalid");
         assert!(error.starts_with("invalid controls:"), "{error}");
     }

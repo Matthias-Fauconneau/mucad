@@ -109,7 +109,6 @@ fn controls() {
     };
     navigation.mouse_down(2, 0.0, 0.0, 0);
     assert_eq!(navigation.mouse_action().as_deref(), Some("pan"));
-    assert!(CameraNavigation::default_controls().contains("[keyboard]"));
 }
 
 #[test]

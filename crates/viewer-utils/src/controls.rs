@@ -7,13 +7,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{CameraControllerConfig, KeyBinding, Modifiers, MouseBinding, MouseButton};
 
-/// The default controls as TOML with comments, e.g. to start a configuration file.
-pub const DEFAULT_CONTROLS_TOML: &str = include_str!("../controls.toml");
-
-/// The controls of the camera with the mouse, the keys and touch, and their speeds.
+/// The controls of the camera in the µcad viewers with the mouse, the keys and touch.
 ///
-/// It is read from TOML like [`DEFAULT_CONTROLS_TOML`], which has the defaults. Missing
-/// entries are the defaults.
+/// Missing entries are the defaults, e.g. a file with only `[mouse]` and `pan = ["Middle"]`
+/// changes only panning with the mouse.
+///
+/// A binding is its modifiers and its input joined by `+`, e.g. `Ctrl+Shift+Right`.
+/// Modifiers: `Ctrl`, `Shift`, `Alt` (`Option`), `Meta` (`Cmd`, `Super`), which must be pressed
+/// exactly.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Controls {
@@ -61,8 +62,9 @@ impl Controls {
 
 /// The navigation style with the mouse: the bindings of the actions.
 ///
-/// Dragging with buttons orbits, pans or zooms, clicking selects. Only zooming is bound to
-/// the wheel.
+/// Buttons: `Left`, `Middle` (pressing the wheel) and `Right`, which are pressed in their
+/// order, e.g. `Middle+Right` is first the middle and then the right button. `Wheel` is turning
+/// the wheel, which only zooms.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MouseControls {
@@ -106,6 +108,10 @@ impl Default for MouseControls {
 }
 
 /// The bindings of the keys, which are available with any navigation style.
+///
+/// Keys are logical keys, like `KeyboardEvent.key` of the web: named keys like `ArrowLeft`,
+/// `PageUp`, or characters like `0` or `a`, with `Plus`, `Minus` and `Space` for `+`, `-` and
+/// ` `. Shift is ignored for characters, because keyboard layouts need it for some of them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct KeyboardControls {
@@ -201,12 +207,6 @@ pub struct TouchControls {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn defaults_are_documented() {
-        let controls = Controls::from_toml(DEFAULT_CONTROLS_TOML).expect("controls.toml");
-        assert_eq!(controls, Controls::default());
-    }
 
     #[test]
     fn round_trip() {

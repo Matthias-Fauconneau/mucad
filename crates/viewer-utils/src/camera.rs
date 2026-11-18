@@ -1,11 +1,11 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! A camera like `QCamera` of Qt 3D, which a viewer applies to its own camera.
+//! A camera which a viewer applies to its own camera.
 
 use glam::{DVec2, Mat4, Quat, Vec3, Vec3Swizzles};
 
-/// A camera looking from its position at its view center, like `QCamera` of Qt 3D.
+/// A camera looking from its position at its view center.
 ///
 /// The projection maps the coordinates of the camera to the normalized device coordinates of
 /// OpenGL, from -1 to 1 in x, y and z.
@@ -22,8 +22,6 @@ pub struct Camera {
 }
 
 impl Default for Camera {
-    /// The camera of Qt 3D: at the origin, looking to -z with y up, with a perspective
-    /// projection.
     fn default() -> Self {
         Self {
             position: Vec3::ZERO,

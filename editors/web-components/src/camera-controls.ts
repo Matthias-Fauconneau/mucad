@@ -90,7 +90,7 @@ export class CameraControls extends EventTarget {
 
   /**
    * Controls with the events of `element` and the controls in TOML or the defaults, see
-   * `CameraNavigation.defaultControls()`.
+   * `Controls` of `mucad-viewer-utils`.
    */
   constructor(
     private element: HTMLElement,
