@@ -9,14 +9,13 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { creaseAngle } from "mucad-wasm";
 import { CameraControls, type StandardView } from "./camera-controls";
 import type { Color, Geometry, MeshData, SketchData, Triangles } from "./compiler/types";
 import { theme } from "./generated/theme";
 import { Grid } from "./grid";
 import { ModelMaterial, modelGeometry, updateModelCamera } from "./model-material";
 
-/** The angle between faces, above which an edge is shown sharp instead of smooth. */
-const CREASE_ANGLE = THREE.MathUtils.degToRad(20);
 
 /** The width of the outlines of 2D sketches in pixels outside of them, like in the Bevy viewer. */
 const OUTLINE_WIDTH = 4;
@@ -128,7 +127,8 @@ export class Viewer {
           polygonOffsetUnits: 1,
         });
         const surface = new THREE.Mesh(
-          modelGeometry(toCreasedNormals(geometry(mesh), CREASE_ANGLE)),
+          // Sharp at the contour edges of the mesh, with the crease angle of the viewers.
+          modelGeometry(toCreasedNormals(geometry(mesh), THREE.MathUtils.degToRad(creaseAngle()))),
           material,
         );
         const contours = new THREE.LineSegments(

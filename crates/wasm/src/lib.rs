@@ -20,6 +20,14 @@ pub use literal::{LiteralRange, SteppedLiteral};
 pub use navigation::{ALT, CTRL, CameraNavigation, META, SHIFT, Selection};
 pub use share::SharedLink;
 
+/// The angle in degrees between the normals of two faces, above which their edge is sharp: it
+/// is a contour edge of a mesh, and the normals are not smoothed across it, e.g. with
+/// `toCreasedNormals` of three.js.
+#[wasm_bindgen(js_name = creaseAngle)]
+pub fn crease_angle() -> f64 {
+    mucad_viewer_utils::CREASE_ANGLE_DEGREES
+}
+
 use mu::{
     base::DiagRenderOptions,
     core::TriangleMesh,

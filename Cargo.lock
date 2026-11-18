@@ -5606,6 +5606,7 @@ dependencies = [
 name = "mucad-viewer-utils"
 version = "0.6.3"
 dependencies = [
+ "cgmath",
  "encase",
  "glam 0.30.10",
  "mucad-core",

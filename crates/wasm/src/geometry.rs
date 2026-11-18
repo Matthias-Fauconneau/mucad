@@ -56,8 +56,10 @@ impl Mesh {
     /// `positions` of this mesh.
     ///
     /// An edge is a contour, if the normals of its two triangles differ more than
-    /// `threshold_angle` (in radians), or if it has not exactly two triangles, e.g. at an open
-    /// border.
+    /// [`crease_angle`] in degrees, or if it has not exactly two triangles, e.g. at an open
+    /// border, see `contour_edges` of `mucad-viewer-utils`.
+    ///
+    /// [`crease_angle`]: crate::crease_angle
     pub fn edges(&self) -> js_sys::Uint32Array {
         js_sys::Uint32Array::from(self.edges.as_slice())
     }
@@ -99,7 +101,9 @@ impl Mesh {
 
 impl From<mu::core::TriangleMesh> for Mesh {
     fn from(mesh: mu::core::TriangleMesh) -> Self {
-        let edges = mesh.edges(cgmath::Rad(20.0)).into_flattened();
+        let edges =
+            mucad_viewer_utils::contour_edges(&mesh, mucad_viewer_utils::CREASE_ANGLE_DEGREES)
+                .into_flattened();
         Self {
             mesh: Rc::new(mesh),
             edges,

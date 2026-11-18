@@ -245,9 +245,9 @@ impl ToBevyMesh for mu::core::TriangleMesh {
     }
 
     /// The edges, where the normals of the faces differ more than `threshold_degrees`,
-    /// or which have not two faces, see [`mu::core::TriangleMesh::edges`].
+    /// or which have not two faces, see [`mucad_viewer_utils::contour_edges`].
     fn to_bevy_edge_mesh(&self, threshold_degrees: Self::Parameters) -> Option<Mesh> {
-        let edges = self.edges(cgmath::Rad(f64::from(threshold_degrees).to_radians()));
+        let edges = mucad_viewer_utils::contour_edges(self, f64::from(threshold_degrees));
         let mut mesh = Mesh::new(
             bevy::mesh::PrimitiveTopology::LineList,
             RenderAssetUsages::default(),

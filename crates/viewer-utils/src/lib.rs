@@ -13,6 +13,7 @@ mod bounding_sphere;
 mod camera;
 mod camera_controller;
 mod controls;
+mod edges;
 mod grid;
 mod input;
 mod lighting;
@@ -31,6 +32,7 @@ pub use camera_controller::{
 pub use controls::{
     Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls, TouchControls, TouchDrag,
 };
+pub use edges::{CREASE_ANGLE_DEGREES, contour_edges};
 pub use grid::GridConfig;
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
 pub use lighting::Lighting;
