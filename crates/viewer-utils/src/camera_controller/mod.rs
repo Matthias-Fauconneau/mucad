@@ -5,8 +5,10 @@
 //! [`CameraController`] of a viewer with its projection modes, which share [`CameraControl`].
 
 mod ortho;
+mod perspective;
 
 pub use ortho::{CameraState, OrthoCameraController};
+pub use perspective::PerspectiveCameraController;
 
 use std::time::Duration;
 
@@ -15,10 +17,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BoundingSphere, Camera, ProjectionType};
 
-/// The speeds of a camera controller with the mouse, e.g. from TOML.
+/// The projection mode of a [`CameraController`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProjectionMode {
+    /// An orthographic projection, e.g. to measure.
+    #[default]
+    Orthographic,
+    /// A perspective projection, e.g. to look at a model.
+    Perspective,
+}
+
+/// The projection and the speeds of a camera controller, e.g. from TOML.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CameraControllerConfig {
+    /// The projection mode at the start.
+    pub projection: ProjectionMode,
+    /// The vertical field of view of the perspective projection in degrees.
+    pub fov_y_degrees: f64,
     /// The speed of orbiting with the mouse.
     pub orbit_speed: f64,
     /// The speed of zooming by dragging the mouse, a negative speed inverts zooming.
@@ -33,6 +50,8 @@ pub struct CameraControllerConfig {
 impl Default for CameraControllerConfig {
     fn default() -> Self {
         Self {
+            projection: ProjectionMode::Orthographic,
+            fov_y_degrees: 30.0,
             orbit_speed: 25.0,
             zoom_speed: 25.0,
             wheel_speed: 8.0,
@@ -207,6 +226,10 @@ pub trait CameraControl {
 
     /// The ray through the screen coordinate in pixels.
     fn camera_ray(&self, pos: DVec2) -> Ray;
+
+    /// The center and the height of the visible area in the plane of the pivot parallel to the
+    /// view, which stays when the projection mode is changed.
+    fn visible_area(&self) -> (Vec3, f64);
 
     /// The changes since the last call.
     fn take_events(&mut self) -> Vec<CameraEvent> {
@@ -409,6 +432,8 @@ pub trait CameraControl {
 pub enum CameraController {
     /// An orthographic projection.
     Ortho(OrthoCameraController),
+    /// A perspective projection.
+    Perspective(PerspectiveCameraController),
 }
 
 impl CameraController {
@@ -418,10 +443,45 @@ impl CameraController {
         Self::Ortho(OrthoCameraController::new(window_size))
     }
 
+    /// The projection mode.
+    pub fn projection_mode(&self) -> ProjectionMode {
+        match self {
+            Self::Ortho(_) => ProjectionMode::Orthographic,
+            Self::Perspective(_) => ProjectionMode::Perspective,
+        }
+    }
+
+    /// Change the projection mode, the visible area in the plane of the pivot stays, see
+    /// [`CameraControl::visible_area`].
+    pub fn set_projection_mode(&mut self, mode: ProjectionMode) {
+        if mode == self.projection_mode() {
+            return;
+        }
+        let (center, height) = self.visible_area();
+        let state = self.state().clone();
+        *self = match mode {
+            ProjectionMode::Orthographic => Self::Ortho(OrthoCameraController::from_visible_area(
+                state, center, height,
+            )),
+            ProjectionMode::Perspective => Self::Perspective(
+                PerspectiveCameraController::from_visible_area(state, center, height),
+            ),
+        };
+    }
+
+    /// Change between the orthographic and the perspective projection.
+    pub fn toggle_projection(&mut self) {
+        self.set_projection_mode(match self.projection_mode() {
+            ProjectionMode::Orthographic => ProjectionMode::Perspective,
+            ProjectionMode::Perspective => ProjectionMode::Orthographic,
+        });
+    }
+
     /// The orthographic controller, if it is the projection mode.
     pub fn ortho(&self) -> Option<&OrthoCameraController> {
         match self {
             Self::Ortho(controller) => Some(controller),
+            Self::Perspective(_) => None,
         }
     }
 
@@ -429,6 +489,15 @@ impl CameraController {
     pub fn ortho_mut(&mut self) -> Option<&mut OrthoCameraController> {
         match self {
             Self::Ortho(controller) => Some(controller),
+            Self::Perspective(_) => None,
+        }
+    }
+
+    /// The perspective controller, if it is the projection mode.
+    pub fn perspective(&self) -> Option<&PerspectiveCameraController> {
+        match self {
+            Self::Perspective(controller) => Some(controller),
+            Self::Ortho(_) => None,
         }
     }
 
@@ -436,6 +505,7 @@ impl CameraController {
     fn control(&self) -> &dyn CameraControl {
         match self {
             Self::Ortho(controller) => controller,
+            Self::Perspective(controller) => controller,
         }
     }
 
@@ -443,6 +513,7 @@ impl CameraController {
     fn control_mut(&mut self) -> &mut dyn CameraControl {
         match self {
             Self::Ortho(controller) => controller,
+            Self::Perspective(controller) => controller,
         }
     }
 }
@@ -522,10 +593,65 @@ impl CameraControl for CameraController {
     fn camera_ray(&self, pos: DVec2) -> Ray {
         self.control().camera_ray(pos)
     }
+
+    fn visible_area(&self) -> (Vec3, f64) {
+        self.control().visible_area()
+    }
 }
 
 /// The movement `d` of the mouse or its wheel multiplied with the elapsed time in seconds,
 /// so that orbiting and zooming have the same speed at any frame rate.
 pub(crate) fn scaled_by_time(d: Vec2, elapsed: Duration) -> Vec2 {
     d * elapsed.as_secs_f32()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WINDOW: DVec2 = DVec2::new(400.0, 200.0);
+
+    /// Points in the plane of the pivot stay at their screen coordinates.
+    fn assert_same_view(before: &CameraController, after: &CameraController) {
+        for point in [
+            DVec2::new(200.0, 100.0),
+            DVec2::new(30.0, 40.0),
+            DVec2::new(350.0, 170.0),
+        ] {
+            let world = before.world_point(point);
+            let moved = after.screen_coord(world);
+            assert!(moved.abs_diff_eq(point, 0.5), "{point} -> {moved}");
+        }
+    }
+
+    #[test]
+    fn toggle_keeps_the_visible_area() {
+        let mut controller = CameraController::new(WINDOW);
+        controller.set_view(Vec3::new(-1.0, 1.0, -1.0), Vec3::Z);
+        controller.set_pivot(Vec3::new(20.0, -10.0, 5.0));
+        controller.zoom_at_screen_point(DVec2::new(120.0, 80.0), 0.4);
+        controller.translate(Vec2::new(25.0, -15.0));
+
+        let ortho = controller.clone();
+        controller.toggle_projection();
+        assert_eq!(controller.projection_mode(), ProjectionMode::Perspective);
+        assert!(controller.perspective().is_some());
+        assert_same_view(&ortho, &controller);
+        assert!((controller.visible_area().1 - ortho.visible_area().1).abs() < 1e-3);
+
+        let perspective = controller.clone();
+        controller.toggle_projection();
+        assert_eq!(controller.projection_mode(), ProjectionMode::Orthographic);
+        assert_same_view(&perspective, &controller);
+        // The same zoom level within the precision of `f32` world coordinates.
+        assert!((controller.zoom_level() - ortho.zoom_level()).abs() < 1e-4);
+    }
+
+    #[test]
+    fn same_mode_is_kept() {
+        let mut controller = CameraController::new(WINDOW);
+        controller.zoom_at_center(0.5);
+        controller.set_projection_mode(ProjectionMode::Orthographic);
+        assert!((controller.zoom_level() - 2.0).abs() < 1e-9);
+    }
 }

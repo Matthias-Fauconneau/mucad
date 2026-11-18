@@ -14,8 +14,12 @@ pan_step = 0.1
 # The angle in degrees, which a rotate key turns the view by.
 rotate_step = 90.0
 
-# The speeds of the camera with the mouse.
+# The projection and the speeds of the camera with the mouse.
 [camera]
+# The projection at the start: `orthographic` or `perspective`.
+projection = "orthographic"
+# The vertical field of view of the perspective projection in degrees.
+fov_y_degrees = 30.0
 # The speed of orbiting.
 orbit_speed = 25.0
 # The speed of zooming by dragging, a negative speed inverts zooming.
@@ -51,6 +55,8 @@ zoom_in = ["Ctrl+Plus", "PageUp"]
 zoom_out = ["Ctrl+Minus", "PageDown"]
 # Show the whole scene in the middle of the view.
 zoom_fit = ["f"]
+# Change between the orthographic and the perspective projection.
+toggle_projection = ["p"]
 pan_left = ["ArrowLeft"]
 pan_right = ["ArrowRight"]
 pan_up = ["ArrowUp"]

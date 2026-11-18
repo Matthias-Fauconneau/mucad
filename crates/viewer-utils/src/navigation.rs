@@ -164,8 +164,12 @@ impl Navigation {
     }
 
     /// Set the controls, e.g. after the configuration is changed.
+    ///
+    /// The projection mode becomes the one of the controls, e.g. at the start.
     pub fn set_controls(&mut self, controls: Controls) {
         self.controller.set_config(controls.camera);
+        self.controller
+            .set_projection_mode(controls.camera.projection);
         self.controls = controls;
     }
 
@@ -396,6 +400,8 @@ impl Navigation {
             self.controller.zoom_at_center(zoom_step);
         } else if bound(&keyboard.zoom_fit) {
             self.controller.show_all();
+        } else if bound(&keyboard.toggle_projection) {
+            self.controller.toggle_projection();
         } else if bound(&keyboard.pan_left) {
             self.controller.translate(Vec2::new(-pan.x, 0.0));
         } else if bound(&keyboard.pan_right) {
@@ -530,7 +536,7 @@ impl Navigation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Mode;
+    use crate::{Mode, ProjectionMode};
     use MouseButton::*;
 
     const WINDOW: DVec2 = DVec2::new(400.0, 200.0);
@@ -803,6 +809,29 @@ mod tests {
             assert!(view.up().dot(view.view_vector()).abs() < 1e-6, "{key}");
         }
         assert!(!navigation.key_pressed("7", Modifiers::NONE));
+    }
+
+    #[test]
+    fn toggle_projection() {
+        let mut navigation = navigation();
+        assert!(navigation.key_pressed("p", Modifiers::NONE));
+        assert_eq!(
+            navigation.controller().projection_mode(),
+            ProjectionMode::Perspective
+        );
+        assert!(navigation.key_pressed("p", Modifiers::NONE));
+        assert_eq!(
+            navigation.controller().projection_mode(),
+            ProjectionMode::Orthographic
+        );
+
+        let controls =
+            Controls::from_toml("[camera]\nprojection = \"perspective\"\n").expect("TOML");
+        let navigation = Navigation::new(WINDOW, controls);
+        assert_eq!(
+            navigation.controller().projection_mode(),
+            ProjectionMode::Perspective
+        );
     }
 
     #[test]

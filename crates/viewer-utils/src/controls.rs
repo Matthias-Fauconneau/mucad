@@ -115,6 +115,8 @@ pub struct KeyboardControls {
     pub zoom_out: Vec<KeyBinding>,
     /// Show the whole scene in the middle of the view.
     pub zoom_fit: Vec<KeyBinding>,
+    /// Change between the orthographic and the perspective projection.
+    pub toggle_projection: Vec<KeyBinding>,
     /// Pan the view to the left, i.e. the model moves to the right.
     pub pan_left: Vec<KeyBinding>,
     /// Pan the view to the right, i.e. the model moves to the left.
@@ -158,6 +160,7 @@ impl Default for KeyboardControls {
             zoom_in: keys(&[(Modifiers::CTRL, "+"), (none, "PageUp")]),
             zoom_out: keys(&[(Modifiers::CTRL, "-"), (none, "PageDown")]),
             zoom_fit: keys(&[(none, "f")]),
+            toggle_projection: keys(&[(none, "p")]),
             pan_left: keys(&[(none, "ArrowLeft")]),
             pan_right: keys(&[(none, "ArrowRight")]),
             pan_up: keys(&[(none, "ArrowUp")]),

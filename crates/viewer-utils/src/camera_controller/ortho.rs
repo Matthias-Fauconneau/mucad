@@ -59,6 +59,39 @@ impl OrthoCameraController {
         controller
     }
 
+    /// A controller with `state`, e.g. of another projection mode, which shows the area of
+    /// `height` around `center` in the plane of the pivot, see [`CameraControl::visible_area`].
+    ///
+    /// The view direction stays, the view center is the center of the bounds.
+    pub fn from_visible_area(state: CameraControllerState, center: Vec3, height: f64) -> Self {
+        let window_size = state.window_size;
+        let mut controller = Self {
+            state,
+            zoom_rect_model: ZoomRectModel::new(),
+        };
+        controller
+            .zoom_rect_model
+            .initialize(controller.state.bounds.radius, window_size);
+        // The view direction stays, the camera looks at the center of the bounds.
+        let bounds = controller.state.bounds;
+        let camera = &mut controller.state.camera;
+        let direction = camera.view_vector().normalize();
+        camera.set_view_center(bounds.pos);
+        camera.set_position(bounds.pos - direction * bounds.radius as f32 * 10.0);
+
+        // The detail around the center in the coordinates of the camera.
+        let p = controller.state.camera.transform_matrix().inverse() * center.extend(1.0);
+        let size = DVec2::new(height * window_size.x / window_size.y, height);
+        controller
+            .zoom_rect_model
+            .set_detail(Rect::from_top_left_size(
+                (p / p.w).xy().as_dvec2() - size / 2.0,
+                size,
+            ));
+        controller.handle_zoom_events();
+        controller
+    }
+
     /// The zoom of the view, which is the projection of the camera.
     pub fn zoom_model(&self) -> &ZoomRectModel {
         &self.zoom_rect_model
@@ -310,6 +343,19 @@ impl CameraControl for OrthoCameraController {
             origin: world,
             direction: camera.view_vector(),
         }
+    }
+
+    /// The center of the detail, moved along the view into the plane of the pivot.
+    fn visible_area(&self) -> (Vec3, f64) {
+        let detail = self.zoom_rect_model.detail();
+        let camera = &self.state.camera;
+        let center = detail.center().as_vec2();
+        let point = camera
+            .transform_matrix()
+            .transform_point3(center.extend(0.0));
+        let direction = camera.view_vector().normalize();
+        let center = point + direction * (self.state.pivot - point).dot(direction);
+        (center, detail.height)
     }
 }
 
