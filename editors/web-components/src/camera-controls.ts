@@ -76,6 +76,8 @@ export class CameraControls extends EventTarget {
   private contextMenuTimer?: number;
   /** The start of the frame, the time since it scales the movements, like a frame timer. */
   private frameStart = performance.now();
+  /** The last pointer position in client coordinates, whose movement drags. */
+  private lastPointer = { x: 0, y: 0 };
   private width = 1;
   private height = 1;
 
@@ -251,12 +253,20 @@ export class CameraControls extends EventTarget {
     this.pressed.add(event.button);
     // Like the timer at the start of an action.
     this.frameStart = performance.now();
+    this.lastPointer = { x: event.clientX, y: event.clientY };
     navigation.mouseDown(event.button, ...this.position(event), modifiers(event));
     this.updateCursor();
   };
 
+  /**
+   * Move by the movement of the pointer, so that panning follows it exactly, instead of
+   * `movementX`, which some browsers scale by the device pixel ratio.
+   */
   private onMouseMove = (event: MouseEvent) => {
-    this.navigation?.mouseMove(event.movementX, event.movementY, this.elapsed());
+    const dx = event.clientX - this.lastPointer.x;
+    const dy = event.clientY - this.lastPointer.y;
+    this.lastPointer = { x: event.clientX, y: event.clientY };
+    this.navigation?.mouseMove(dx, dy, this.elapsed());
   };
 
   /** Release the button and dispatch a `select` event after a click. */

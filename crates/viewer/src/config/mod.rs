@@ -38,6 +38,10 @@ pub struct Config {
     /// The viewer theme.
     pub theme: Theme,
 
+    /// The controls of the camera with the mouse, the keys and touch.
+    #[serde(default)]
+    pub controls: mucad_viewer_utils::Controls,
+
     /// The view of the camera at the start, e.g. from the command line.
     #[serde(skip)]
     pub camera_view: crate::scene::CameraView,
@@ -57,6 +61,7 @@ impl Default for Config {
             render_resolution: mu::RenderResolution::medium().linear,
             export_resolution: mu::RenderResolution::high().linear,
             theme: Theme::default(),
+            controls: Default::default(),
             camera_view: Default::default(),
             screenshot: None,
         }

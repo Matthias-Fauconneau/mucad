@@ -5580,6 +5580,7 @@ dependencies = [
  "miette",
  "mucad-driver",
  "mucad-viewer-ipc",
+ "mucad-viewer-utils",
  "notify",
  "percent-encoding",
  "rustc-hash 2.1.3",

@@ -18,8 +18,10 @@ rotate_step = 90.0
 [camera]
 # The speed of orbiting.
 orbit_speed = 25.0
-# The speed of zooming, a negative speed inverts zooming.
+# The speed of zooming by dragging, a negative speed inverts zooming.
 zoom_speed = 25.0
+# The speed of zooming with the wheel, a negative speed inverts zooming.
+wheel_speed = 8.0
 # The speed of translating, which is not used yet: translating follows the mouse.
 translate_speed = 15.0
 
@@ -29,14 +31,15 @@ translate_speed = 15.0
 # order, e.g. `Middle+Right` is first the middle and then the right button. `Wheel` is turning
 # the wheel, which only zooms.
 [mouse]
-# Click to select, also more than one object with the `multi_select` modifiers.
+# Click to select, also more than one object with the `multi_select` modifiers. A binding,
+# which also drags, e.g. `Left` of `pan`, drags when the mouse moves more than a few pixels.
 select = ["Left"]
 # Turn the wheel to zoom at the pointer, or drag upwards to zoom in and downwards to zoom out.
 zoom = ["Wheel", "Ctrl+Shift+Right"]
 # Drag to orbit around the point under the pointer.
 orbit = ["Middle+Right", "Middle+Left", "Right"]
-# Drag to pan.
-pan = ["Middle", "Ctrl+Right"]
+# Drag to pan, the model stays under the pointer.
+pan = ["Left", "Middle", "Ctrl+Right"]
 
 # The keys, which are available with any navigation style.
 #
@@ -46,6 +49,8 @@ pan = ["Middle", "Ctrl+Right"]
 [keyboard]
 zoom_in = ["Ctrl+Plus", "PageUp"]
 zoom_out = ["Ctrl+Minus", "PageDown"]
+# Show the whole scene in the middle of the view.
+zoom_fit = ["f"]
 pan_left = ["ArrowLeft"]
 pan_right = ["ArrowRight"]
 pan_up = ["ArrowUp"]

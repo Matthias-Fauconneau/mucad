@@ -111,6 +111,13 @@ pub struct Navigation {
     moved: f32,
     /// Whether only a select action has been started since the first button was pressed.
     clicking: bool,
+    /// The drag of the pressed buttons, which also select, until the mouse moves further than
+    /// a click, e.g. panning with the left button.
+    pending_drag: Option<MouseAction>,
+    /// The movement since the pending drag, which is applied when it starts.
+    pending_delta: Vec2,
+    /// The position, where the buttons were pressed, e.g. to orbit around.
+    press_position: DVec2,
     /// The touches with their positions in the order they started.
     touches: Vec<(TouchId, DVec2)>,
     /// The distance, which the touches moved since the first one started.
@@ -129,6 +136,9 @@ impl Navigation {
             action: None,
             moved: 0.0,
             clicking: false,
+            pending_drag: None,
+            pending_delta: Vec2::ZERO,
+            press_position: DVec2::ZERO,
             touches: Vec::new(),
             touch_moved: 0.0,
             tapping: false,
@@ -201,17 +211,35 @@ impl Navigation {
     }
 
     /// Move the mouse by `delta` in pixels within the time `elapsed`, since the last frame.
+    ///
+    /// The delta is the movement of the pointer, so that panning follows it exactly, or of the
+    /// mouse, while the pointer is pinned.
     pub fn mouse_moved(&mut self, delta: Vec2, elapsed: Duration) {
         if !self.pressed.is_empty() {
             self.moved += delta.length();
         }
+        if let Some(drag) = self.pending_drag {
+            self.pending_delta += delta;
+            if self.moved <= CLICK_TOLERANCE {
+                return;
+            }
+            // No click, the drag starts with the movement so far, e.g. the model stays under
+            // the pointer while panning.
+            self.pending_drag = None;
+            self.set_action(Some(drag), self.press_position);
+            let delta = std::mem::take(&mut self.pending_delta);
+            self.drag(delta, elapsed);
+            return;
+        }
+        self.drag(delta, elapsed);
+    }
+
+    /// Orbit, pan or zoom by `delta` with the action.
+    fn drag(&mut self, delta: Vec2, elapsed: Duration) {
         match self.action {
             Some(MouseAction::Orbit) => self.controller.orbit_by_mouse(delta, elapsed),
             Some(MouseAction::Pan) => self.controller.translate_by_mouse(delta),
-            // Dragging upwards zooms in, like turning the wheel away.
-            Some(MouseAction::Zoom) => self
-                .controller
-                .zoom_by_wheel(Vec2::new(0.0, -delta.y), elapsed),
+            Some(MouseAction::Zoom) => self.controller.zoom_by_mouse(delta, elapsed),
             Some(MouseAction::Select { .. }) | None => {}
         }
     }
@@ -365,6 +393,8 @@ impl Navigation {
             self.controller.zoom_at_center(1.0 / zoom_step);
         } else if bound(&keyboard.zoom_out) {
             self.controller.zoom_at_center(zoom_step);
+        } else if bound(&keyboard.zoom_fit) {
+            self.controller.show_all();
         } else if bound(&keyboard.pan_left) {
             self.controller.translate(Vec2::new(-pan.x, 0.0));
         } else if bound(&keyboard.pan_right) {
@@ -393,8 +423,25 @@ impl Navigation {
     }
 
     /// Start the action of the pressed buttons, and end the previous one.
+    ///
+    /// Buttons, which select and drag, select until the mouse moves further than a click,
+    /// unless they drag after another drag, e.g. after releasing a button of a chord.
     fn update_action(&mut self, modifiers: Modifiers, position: DVec2) {
-        let action = self.matching_action(modifiers);
+        let select = self.matching_select(modifiers);
+        let drag = self.matching_drag(modifiers);
+        let (action, pending_drag) = match (select, drag) {
+            (Some(select), Some(drag)) if self.clicking => (Some(select), Some(drag)),
+            (_, Some(drag)) => (Some(drag), None),
+            (select, None) => (select, None),
+        };
+        self.pending_drag = pending_drag;
+        self.pending_delta = Vec2::ZERO;
+        self.press_position = position;
+        self.set_action(action, position);
+    }
+
+    /// Start `action` at `position` and end the previous one.
+    fn set_action(&mut self, action: Option<MouseAction>, position: DVec2) {
         if action == self.action {
             return;
         }
@@ -426,26 +473,34 @@ impl Navigation {
         }
     }
 
-    /// The action, whose binding are the pressed buttons with `modifiers`.
-    fn matching_action(&self, modifiers: Modifiers) -> Option<MouseAction> {
+    /// The drag, whose binding are the pressed buttons with `modifiers`.
+    fn matching_drag(&self, modifiers: Modifiers) -> Option<MouseAction> {
         if self.pressed.is_empty() {
             return None;
         }
         let mouse = &self.controls.mouse;
         let buttons = MouseInput::Buttons(self.pressed.clone());
-        let drags = [
+        [
             (&mouse.orbit, MouseAction::Orbit),
             (&mouse.pan, MouseAction::Pan),
             (&mouse.zoom, MouseAction::Zoom),
-        ];
-        for (bindings, action) in drags {
-            if bindings
+        ]
+        .into_iter()
+        .find_map(|(bindings, action)| {
+            bindings
                 .iter()
                 .any(|binding| binding.input == buttons && binding.modifiers == modifiers)
-            {
-                return Some(action);
-            }
+                .then_some(action)
+        })
+    }
+
+    /// The selection, whose binding are the pressed buttons with `modifiers`.
+    fn matching_select(&self, modifiers: Modifiers) -> Option<MouseAction> {
+        if self.pressed.is_empty() {
+            return None;
         }
+        let mouse = &self.controls.mouse;
+        let buttons = MouseInput::Buttons(self.pressed.clone());
         // Selecting with the multi select modifiers adds to the selection.
         let multi_select = self.controls.keyboard.multi_select;
         mouse
@@ -483,6 +538,51 @@ mod tests {
 
     fn modifiers(s: &str) -> Modifiers {
         s.parse().expect("modifiers")
+    }
+
+    #[test]
+    fn left_button_pans_and_selects() {
+        let mut navigation = navigation();
+        let world = navigation.controller().world_point(CENTER);
+        navigation.mouse_pressed(Left, Modifiers::NONE, CENTER);
+        // Within the click tolerance, it selects.
+        navigation.mouse_moved(Vec2::new(2.0, 0.0), FRAME);
+        assert_eq!(navigation.controller().mode(), Mode::Inactive);
+        // Further, it pans, also by the movement so far.
+        navigation.mouse_moved(Vec2::new(10.0, 5.0), FRAME);
+        assert_eq!(navigation.controller().mode(), Mode::Translation);
+        navigation.mouse_moved(Vec2::new(-4.0, 3.0), FRAME);
+        let moved = navigation.controller().screen_coord(world);
+        assert!(
+            moved.abs_diff_eq(CENTER + DVec2::new(8.0, 8.0), 1e-2),
+            "{moved}"
+        );
+        assert_eq!(
+            navigation.mouse_released(Left, Modifiers::NONE, CENTER),
+            None
+        );
+        assert_eq!(navigation.controller().mode(), Mode::Inactive);
+
+        // A click selects without panning.
+        navigation.mouse_pressed(Left, Modifiers::NONE, CENTER);
+        navigation.mouse_moved(Vec2::new(1.0, 1.0), FRAME);
+        assert!(
+            navigation
+                .mouse_released(Left, Modifiers::NONE, CENTER)
+                .is_some()
+        );
+
+        // Middle and then left still orbits at once.
+        navigation.mouse_pressed(Middle, Modifiers::NONE, CENTER);
+        navigation.mouse_pressed(Left, Modifiers::NONE, CENTER);
+        assert_eq!(navigation.controller().mode(), Mode::Orbit);
+        // Releasing the middle button pans with the left one, without selecting.
+        navigation.mouse_released(Middle, Modifiers::NONE, CENTER);
+        assert_eq!(navigation.controller().mode(), Mode::Translation);
+        assert_eq!(
+            navigation.mouse_released(Left, Modifiers::NONE, CENTER),
+            None
+        );
     }
 
     #[test]
@@ -609,6 +709,12 @@ mod tests {
         assert!((navigation.controller().zoom_level() - 1.0).abs() < 1e-9);
         // Without Ctrl, `+` is not bound.
         assert!(!navigation.key_pressed("+", Modifiers::NONE));
+        // `f` shows the whole scene.
+        navigation.key_pressed("PageUp", Modifiers::NONE);
+        navigation.key_pressed("ArrowLeft", Modifiers::NONE);
+        assert!(navigation.key_pressed("f", Modifiers::NONE));
+        let model = navigation.controller().zoom_model();
+        assert_eq!(model.detail(), model.overview());
     }
 
     #[test]

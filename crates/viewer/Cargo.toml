@@ -49,6 +49,7 @@ url = "2.5.7"
 
 mucad-driver = { workspace = true }
 mucad-viewer-ipc = { workspace = true }
+mucad-viewer-utils = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"

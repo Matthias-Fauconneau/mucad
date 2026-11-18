@@ -67,6 +67,9 @@ impl Controls {
 #[serde(default, deny_unknown_fields)]
 pub struct MouseControls {
     /// Select an object by clicking.
+    ///
+    /// A binding, which also drags, e.g. `Left` of `pan`, selects by clicking and drags, when
+    /// the mouse moves more than a few pixels.
     pub select: Vec<MouseBinding>,
     /// Zoom with the wheel at the pointer, or by dragging upwards (in) and downwards (out).
     pub zoom: Vec<MouseBinding>,
@@ -94,6 +97,7 @@ impl Default for MouseControls {
                 MouseBinding::buttons(none, &[Right]),
             ],
             pan: vec![
+                MouseBinding::buttons(none, &[Left]),
                 MouseBinding::buttons(none, &[Middle]),
                 MouseBinding::buttons(ctrl, &[Right]),
             ],
@@ -109,6 +113,8 @@ pub struct KeyboardControls {
     pub zoom_in: Vec<KeyBinding>,
     /// Zoom out at the center of the view.
     pub zoom_out: Vec<KeyBinding>,
+    /// Show the whole scene in the middle of the view.
+    pub zoom_fit: Vec<KeyBinding>,
     /// Pan the view to the left, i.e. the model moves to the right.
     pub pan_left: Vec<KeyBinding>,
     /// Pan the view to the right, i.e. the model moves to the left.
@@ -151,6 +157,7 @@ impl Default for KeyboardControls {
         Self {
             zoom_in: keys(&[(Modifiers::CTRL, "+"), (none, "PageUp")]),
             zoom_out: keys(&[(Modifiers::CTRL, "-"), (none, "PageDown")]),
+            zoom_fit: keys(&[(none, "f")]),
             pan_left: keys(&[(none, "ArrowLeft")]),
             pan_right: keys(&[(none, "ArrowRight")]),
             pan_up: keys(&[(none, "ArrowUp")]),

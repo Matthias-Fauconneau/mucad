@@ -139,9 +139,10 @@ await init(); // Load the WebAssembly binary.
 const navigation = new CameraNavigation(element.clientWidth, element.clientHeight);
 const modifiers = (e) => e.ctrlKey | (e.shiftKey << 1) | (e.altKey << 2) | (e.metaKey << 3);
 
-element.addEventListener("pointerdown", (e) =>
+// Mouse events, because pointer events are not sent for a second button, e.g. of a chord.
+element.addEventListener("mousedown", (e) =>
   navigation.mouseDown(e.button, e.offsetX, e.offsetY, modifiers(e)));
-element.addEventListener("pointerup", (e) => {
+element.addEventListener("mouseup", (e) => {
   const selection = navigation.mouseUp(e.button, e.offsetX, e.offsetY, modifiers(e));
   if (selection) {
     // Pick the object at selection.x and selection.y, add it with selection.multi.
@@ -170,9 +171,9 @@ of orbiting and zooming the same at any frame rate.
 
 | Method | Event |
 |---|---|
-| `mouseDown(button, x, y, modifiers)` | `pointerdown` with `MouseEvent.button` |
-| `mouseUp(button, x, y, modifiers)` | `pointerup`, returns a `Selection` after a click |
-| `mouseMove(dx, dy, elapsedMs)` | `pointermove` with `movementX` and `movementY` |
+| `mouseDown(button, x, y, modifiers)` | `mousedown` with `MouseEvent.button` |
+| `mouseUp(button, x, y, modifiers)` | `mouseup`, returns a `Selection` after a click |
+| `mouseMove(dx, dy, elapsedMs)` | `mousemove` with the difference of `clientX` and `clientY` to the previous event, so that panning follows the pointer exactly |
 | `wheel(deltaY, deltaMode, x, y, modifiers, elapsedMs)` | `wheel`, returns whether it is bound to prevent scrolling |
 | `keyDown(key, modifiers)` | `keydown` with `KeyboardEvent.key`, returns whether it is bound to prevent e.g. zooming the page |
 | `touchStart(id, x, y)` | `touchstart` with `Touch.identifier`, for each changed touch |

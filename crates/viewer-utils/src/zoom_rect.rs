@@ -148,20 +148,9 @@ impl ZoomRectModel {
         .normalized()
     }
 
-    /// Move the detail by `d`, but not further out of the overview.
-    pub fn translate(&mut self, mut d: Vec2) {
-        if d.x < 0.0 && self.state.detail.left() < self.state.overview.left() {
-            d.x = 0.0;
-        }
-        if d.x > 0.0 && self.state.detail.right() > self.state.overview.right() {
-            d.x = 0.0;
-        }
-        if d.y < 0.0 && self.state.detail.top() < self.state.overview.top() {
-            d.y = 0.0;
-        }
-        if d.y > 0.0 && self.state.detail.bottom() > self.state.overview.bottom() {
-            d.y = 0.0;
-        }
+    /// Move the detail by `d`, also out of the overview, so that panning follows the mouse
+    /// exactly at any zoom level.
+    pub fn translate(&mut self, d: Vec2) {
         self.set_detail(self.state.detail.translated(d.as_dvec2()));
     }
 

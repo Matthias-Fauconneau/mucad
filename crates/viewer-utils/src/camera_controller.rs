@@ -16,8 +16,10 @@ use crate::{BoundingSphere, Camera, ProjectionType, Rect, ZoomEvent, ZoomRectMod
 pub struct CameraControllerConfig {
     /// The speed of orbiting with the mouse.
     pub orbit_speed: f64,
-    /// The speed of zooming with the mouse, a negative speed inverts zooming.
+    /// The speed of zooming by dragging the mouse, a negative speed inverts zooming.
     pub zoom_speed: f64,
+    /// The speed of zooming with the wheel, a negative speed inverts zooming.
+    pub wheel_speed: f64,
     /// The speed of translating with the mouse, which is not used yet: translating follows
     /// the mouse.
     pub translate_speed: f64,
@@ -28,6 +30,7 @@ impl Default for CameraControllerConfig {
         Self {
             orbit_speed: 25.0,
             zoom_speed: 25.0,
+            wheel_speed: 8.0,
             translate_speed: 15.0,
         }
     }
@@ -185,6 +188,12 @@ impl CameraController {
 
         self.camera.set_view_center(self.bounds.pos);
         self.camera.set_position(self.camera.position() - d);
+        // The camera stays outside of the bounds, like after orbiting, e.g. of a smaller or
+        // bigger model, so that the near and far plane of the projection enclose them.
+        self.camera.set_position(
+            self.camera.view_center()
+                - self.camera.view_vector().normalize() * self.bounds.radius as f32 * 10.0,
+        );
 
         self.zoom_rect_model.scale_overview(scale);
         self.handle_zoom_events();
@@ -296,12 +305,24 @@ impl CameraController {
         self.update_camera_lens();
     }
 
-    /// Zoom at the zoom point by the vertical delta of the mouse wheel within the time
-    /// `elapsed`, since the last frame or the start of zooming: a positive `y` zooms in, a
-    /// negative one out, with a positive zoom speed.
+    /// Zoom at the zoom point by the vertical delta of the mouse wheel in pixels within the
+    /// time `elapsed`, since the last frame: a positive `y` zooms in, a negative one out, with
+    /// a positive wheel speed.
     pub fn zoom_by_wheel(&mut self, wheel_delta: Vec2, elapsed: Duration) {
-        let d = scaled_by_time(wheel_delta, elapsed);
-        let delta = -d.y as f64 * self.config.zoom_speed;
+        self.zoom_by(wheel_delta, elapsed, self.config.wheel_speed);
+    }
+
+    /// Zoom at the zoom point by dragging the mouse by `delta` in pixels within the time
+    /// `elapsed`, since the last frame or the start of zooming: dragging upwards, i.e. a
+    /// negative `y`, zooms in, with a positive zoom speed.
+    pub fn zoom_by_mouse(&mut self, delta: Vec2, elapsed: Duration) {
+        self.zoom_by(-delta, elapsed, self.config.zoom_speed);
+    }
+
+    /// Zoom by `delta` within `elapsed` with `speed`: a positive `y` zooms in.
+    fn zoom_by(&mut self, delta: Vec2, elapsed: Duration, speed: f64) {
+        let d = scaled_by_time(delta, elapsed);
+        let delta = -d.y as f64 * speed;
         // Like `1 + delta / 100` for small deltas, but never 0 or negative, e.g. for a turn of
         // the wheel in a long frame, and zooming in and out by the same delta cancel out.
         let zoom_factor = (delta / 100.0).exp();
@@ -672,9 +693,10 @@ mod tests {
         let mut controller = CameraController::new(WINDOW);
         controller.set_zoom_point_from_screen_coordinates(WINDOW / 2.0);
         controller.start_zoom();
-        // A positive delta zooms in, a negative one out by the same factor.
+        // A positive delta zooms in, a negative one out by the same factor, with the wheel
+        // speed 8.
         controller.zoom_by_wheel(Vec2::new(0.0, 2.0), Duration::from_secs(1));
-        assert!((controller.zoom_level() - 0.5f64.exp()).abs() < 1e-9);
+        assert!((controller.zoom_level() - 0.16f64.exp()).abs() < 1e-6);
         controller.zoom_by_wheel(Vec2::new(0.0, -2.0), Duration::from_secs(1));
         assert!((controller.zoom_level() - 1.0).abs() < 1e-9);
         // A large delta in a long frame zooms in, but does not flip the view.
@@ -684,6 +706,41 @@ mod tests {
         assert_eq!(
             controller.camera().projection_matrix(),
             controller.zoom_model().detail_ortho_projection_matrix()
+        );
+    }
+
+    #[test]
+    fn zoom_by_mouse() {
+        let mut controller = CameraController::new(WINDOW);
+        controller.set_zoom_point_from_screen_coordinates(WINDOW / 2.0);
+        controller.start_zoom();
+        // Dragging upwards zooms in with the zoom speed 25.
+        controller.zoom_by_mouse(Vec2::new(0.0, -2.0), Duration::from_secs(1));
+        assert!((controller.zoom_level() - 0.5f64.exp()).abs() < 1e-6);
+    }
+
+    #[test]
+    fn camera_outside_of_bounds() {
+        let mut controller = CameraController::new(WINDOW);
+        // A small model, e.g. of 18mm, is between the near and the far plane.
+        controller.set_bounds(BoundingSphere::new(Vec3::ZERO, 18.0));
+        let distance = controller.camera().position().length();
+        assert!((distance - 180.0).abs() < 1e-3, "{distance}");
+    }
+
+    #[test]
+    fn pan_at_zoom_level_one() {
+        let mut controller = CameraController::new(WINDOW);
+        let point = DVec2::new(100.0, 50.0);
+        let world = controller.world_point(point);
+        // Panning is not limited by the overview, the point stays under the pointer.
+        for _ in 0..10 {
+            controller.translate_by_mouse(Vec2::new(-20.0, 10.0));
+        }
+        let moved = controller.screen_coord(world);
+        assert!(
+            moved.abs_diff_eq(point + DVec2::new(-200.0, 100.0), 1e-2),
+            "{moved}"
         );
     }
 

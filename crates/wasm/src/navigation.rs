@@ -178,8 +178,9 @@ impl CameraNavigation {
         self.navigation.touch_cancelled(id as TouchId);
     }
 
-    /// Move the mouse by `movementX` and `movementY` in pixels within `elapsed_ms`
-    /// milliseconds, since the last frame.
+    /// Move the mouse by `dx` and `dy` in pixels within `elapsed_ms` milliseconds, since the
+    /// last frame: the movement of the pointer, e.g. the difference of `clientX` and `clientY`,
+    /// so that panning follows it exactly.
     #[wasm_bindgen(js_name = mouseMove)]
     pub fn mouse_move(&mut self, dx: f32, dy: f32, elapsed_ms: f64) {
         self.navigation

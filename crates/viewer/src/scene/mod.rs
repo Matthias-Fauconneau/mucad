@@ -8,7 +8,12 @@ use bevy::prelude::*;
 
 mod angle;
 mod camera;
-pub use camera::CameraView;
+pub use camera::{
+    CameraView,
+    camera_controller::{
+        CameraControllerPlugin, CameraControllerSystems, CameraNavigation, SelectAt,
+    },
+};
 mod grid;
 mod lighting;
 mod overlay;
@@ -33,21 +38,6 @@ pub fn get_current_resolution(projection: &Projection, window: &Window) -> f32 {
     };
 
     area_size / window.width().max(window.height()) * 10.0
-}
-
-/// Set zoom level to 100%.
-pub fn zoom_to_fit(projection: &mut Projection, window: &Window) {
-    match projection {
-        Projection::Orthographic(ortho) => {
-            // Change the projection parameters
-            use bevy::camera::CameraProjection;
-            ortho.scale = 1.0;
-            ortho.update(window.width(), window.height());
-        }
-        _ => {
-            // Not an orthographic camera
-        }
-    }
 }
 
 /// A system that draws hit indicators for every pointer.
@@ -104,7 +94,11 @@ pub struct ScenePlugin;
 
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(camera::camera_controller::CameraControllerPlugin)
+        app.add_plugins(CameraControllerPlugin)
+            .add_systems(
+                Update,
+                camera::update_bounds.before(CameraControllerSystems),
+            )
             .add_systems(Update, lighting::spawn_lights)
             .add_systems(Startup, grid::spawn_grid_plane)
             //.add_systems(Startup, angle::spawn_angle_plane)

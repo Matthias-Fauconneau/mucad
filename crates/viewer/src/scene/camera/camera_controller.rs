@@ -1,275 +1,398 @@
 // Copyright © 2025-2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! A freecam-style camera controller plugin.
-//! To use in your own application:
-//! - Copy the code for the [`CameraControllerPlugin`] and add the plugin to your App.
-//! - Attach the [`CameraController`] component to an entity with a [`Camera3d`].
+//! The camera controller plugin: navigates an orthographic 3D camera with the mouse, the keys
+//! and touch by the [`Navigation`] of `mucad-viewer-utils`, configurable with [`Controls`].
 //!
-//! Unlike other examples, which demonstrate an application, this demonstrates a plugin library.
+//! To use it, add the [`CameraControllerPlugin`] and attach a [`CameraNavigation`] to an entity
+//! with a [`Camera3d`] and an orthographic [`Projection`]. The plugin sets the [`Transform`] and
+//! the projection of the camera in each frame. A click or a tap sends a [`SelectAt`] message.
 
-use crate::ViewModel;
 use bevy::{
-    input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit},
+    camera::{CameraProjection, ScalingMode},
+    input::{
+        ButtonState,
+        keyboard::{Key, KeyboardInput},
+        mouse::{AccumulatedMouseMotion, MouseButtonInput, MouseScrollUnit, MouseWheel},
+        touch::{TouchInput, TouchPhase},
+    },
     prelude::*,
-    window::{CursorGrabMode, CursorOptions},
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
+use mucad_viewer_utils::{CameraController, Command, Controls, Modifiers, Navigation, TouchId};
 
-/// A freecam-style camera controller plugin.
+/// The pixels of a line of the mouse wheel, e.g. of one notch, like one notch in browsers.
+const LINE_PIXELS: f32 = 100.0;
+
+/// The far plane of the projection in radii of the bounds, behind the camera at 10 radii.
+const FAR_RADII: f32 = 20.0;
+
+/// The camera controller plugin, see the [module](self).
 pub struct CameraControllerPlugin;
 
 impl Plugin for CameraControllerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (run_camera_controller, zoom_to_fit));
+        app.add_message::<SelectAt>().add_systems(
+            Update,
+            (
+                resize,
+                mouse_buttons,
+                mouse_motion,
+                mouse_wheel,
+                keys,
+                touches,
+                apply_camera,
+                grab_cursor,
+            )
+                .chain()
+                .in_set(CameraControllerSystems),
+        );
     }
 }
 
-/// Camera controller [`Component`].
-#[derive(Component)]
-pub struct CameraController {
-    /// Enables this [`CameraController`] when `true`.
-    pub enabled: bool,
-    /// Indicates if this controller has been initialized by the [`CameraControllerPlugin`].
-    pub initialized: bool,
+/// The systems of the [`CameraControllerPlugin`], e.g. to change the controller before them.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CameraControllerSystems;
 
-    /// [`KeyCode`] for forward translation.
-    pub key_forward: KeyCode,
-    /// [`KeyCode`] for backward translation.
-    pub key_back: KeyCode,
-    /// [`KeyCode`] for left translation.
-    pub key_left: KeyCode,
-    /// [`KeyCode`] for right translation.
-    pub key_right: KeyCode,
-    /// [`KeyCode`] for up translation.
-    pub key_up: KeyCode,
-    /// [`KeyCode`] for down translation.
-    pub key_down: KeyCode,
-    /// [`KeyCode`] to use [`run_speed`](CameraController::run_speed) instead of
-    /// [`walk_speed`](CameraController::walk_speed) for translation.
-    pub key_run: KeyCode,
-    /// [`MouseButton`] for grabbing the mouse focus.
-    pub mouse_key_cursor_grab: MouseButton,
-    /// [`KeyCode`] for grabbing the keyboard focus.
-    pub keyboard_key_toggle_cursor_grab: KeyCode,
-    /// Multiplier for unmodified translation speed.
-    pub walk_speed: f32,
-    /// Multiplier for running translation speed.
-    pub run_speed: f32,
-    /// Multiplier for how the mouse scroll wheel modifies [`walk_speed`](CameraController::walk_speed)
-    /// and [`run_speed`](CameraController::run_speed).
-    pub scroll_factor: f32,
-    /// Friction factor used to exponentially decay [`velocity`](CameraController::velocity) over time.
-    pub friction: f32,
-    /// This [`CameraController`]'s pitch rotation.
-    pub pitch: f32,
-    /// This [`CameraController`]'s yaw rotation.
-    pub yaw: f32,
-    /// This [`CameraController`]'s target point,
-    pub target: Vec3,
-    /// This [`CameraController`]'s translation velocity.
-    pub velocity: Vec3,
+/// The navigation of a camera, see the [module](self).
+#[derive(Component, Debug, Clone)]
+pub struct CameraNavigation(pub Navigation);
+
+impl CameraNavigation {
+    /// The navigation for a window of `window_size` in logical pixels with `controls`.
+    pub fn new(window_size: Vec2, controls: Controls) -> Self {
+        Self(Navigation::new(window_size.as_dvec2(), controls))
+    }
+
+    /// The camera controller.
+    pub fn controller(&self) -> &CameraController {
+        self.0.controller()
+    }
+
+    /// The camera controller, e.g. to set its bounds.
+    pub fn controller_mut(&mut self) -> &mut CameraController {
+        self.0.controller_mut()
+    }
 }
 
-impl Default for CameraController {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            initialized: false,
-            key_forward: KeyCode::KeyW,
-            key_back: KeyCode::KeyS,
-            key_left: KeyCode::KeyA,
-            key_right: KeyCode::KeyD,
-            key_up: KeyCode::KeyE,
-            key_down: KeyCode::KeyQ,
-            key_run: KeyCode::ShiftLeft,
-            mouse_key_cursor_grab: MouseButton::Left,
-            keyboard_key_toggle_cursor_grab: KeyCode::KeyM,
-            walk_speed: 5.0,
-            run_speed: 15.0,
-            scroll_factor: 0.1,
-            friction: 0.5,
-            pitch: 0.0,
-            yaw: 0.0,
-            target: Vec3::ZERO,
-            velocity: Vec3::ZERO,
+/// A click or a tap, which selects the object under it, e.g. with picking.
+#[derive(Message, Debug, Clone, Copy, PartialEq)]
+pub struct SelectAt {
+    /// The position in logical pixels from the top left of the window.
+    pub position: Vec2,
+    /// Whether the object is added to the selection, instead of replacing it.
+    pub multi: bool,
+}
+
+impl From<Command> for SelectAt {
+    fn from(command: Command) -> Self {
+        match command {
+            Command::Select { position, multi } => Self {
+                position: position.as_vec2(),
+                multi,
+            },
         }
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn run_camera_controller(
-    time: Res<Time>,
-    mut windows: Query<&mut Window>,
-    mut cursor_options: Query<&mut CursorOptions>,
-    accumulated_mouse_motion: Res<AccumulatedMouseMotion>,
-    accumulated_mouse_scroll: Res<AccumulatedMouseScroll>,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    key_input: Res<ButtonInput<KeyCode>>,
-    mut toggle_cursor_grab: Local<bool>,
-    mut mouse_cursor_grab: Local<bool>,
-    state: Res<ViewModel>,
-    mut query: Query<(&mut Projection, &mut Transform, &mut CameraController), With<Camera>>,
+/// The pressed modifier keys.
+fn modifiers(keys: &ButtonInput<KeyCode>) -> Modifiers {
+    Modifiers {
+        ctrl: keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]),
+        shift: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
+        alt: keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]),
+        meta: keys.any_pressed([KeyCode::SuperLeft, KeyCode::SuperRight]),
+    }
+}
+
+/// The button of the navigation.
+fn mouse_button(button: MouseButton) -> Option<mucad_viewer_utils::MouseButton> {
+    match button {
+        MouseButton::Left => Some(mucad_viewer_utils::MouseButton::Left),
+        MouseButton::Middle => Some(mucad_viewer_utils::MouseButton::Middle),
+        MouseButton::Right => Some(mucad_viewer_utils::MouseButton::Right),
+        _ => None,
+    }
+}
+
+/// The name of a logical key like `KeyboardEvent.key` of the web, e.g. `ArrowLeft` or `+`.
+fn key_name(key: &Key) -> Option<String> {
+    match key {
+        Key::Character(character) => Some(character.to_string()),
+        Key::Space => Some(" ".into()),
+        Key::Unidentified(_) | Key::Dead(_) => None,
+        // The names of the other keys are the ones of the web, e.g. `ArrowLeft` or `PageUp`.
+        named => Some(format!("{named:?}")).filter(|name| !name.contains('(')),
+    }
+}
+
+/// The position of the pointer in the window, or the last one, e.g. while it is locked.
+fn pointer_position(windows: &Query<&Window, With<PrimaryWindow>>, last: &mut Vec2) -> Vec2 {
+    if let Ok(window) = windows.single()
+        && let Some(position) = window.cursor_position()
+    {
+        *last = position;
+    }
+    *last
+}
+
+/// Set the size of the window, e.g. after resizing it.
+fn resize(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut navigations: Query<&mut CameraNavigation>,
 ) {
-    let dt = time.delta_secs();
-
-    let Ok((mut projection, mut transform, mut controller)) = query.single_mut() else {
-        return;
-    };
-
-    if !controller.initialized {
-        let (yaw, pitch, _roll) = transform.rotation.to_euler(EulerRot::YZX);
-        controller.yaw = yaw;
-        controller.pitch = pitch;
-        controller.initialized = true;
-    }
-    if !controller.enabled {
-        return;
-    }
-
-    let mut scroll = 0.0;
-
-    let amount = match accumulated_mouse_scroll.unit {
-        MouseScrollUnit::Line => accumulated_mouse_scroll.delta.y,
-        MouseScrollUnit::Pixel => accumulated_mouse_scroll.delta.y / 16.0,
-    };
-    scroll += amount;
-    controller.walk_speed += scroll * controller.scroll_factor * controller.walk_speed;
-    controller.run_speed = controller.walk_speed * 3.0;
-
-    // Handle key input
-    let mut axis_input = Vec3::ZERO;
-    if key_input.pressed(controller.key_right) {
-        axis_input.x += 1.0;
-    }
-    if key_input.pressed(controller.key_left) {
-        axis_input.x -= 1.0;
-    }
-    if key_input.pressed(controller.key_forward) {
-        axis_input.z += 1.0;
-    }
-    if key_input.pressed(controller.key_back) {
-        axis_input.z -= 1.0;
-    }
-    if key_input.pressed(controller.key_up) {
-        scroll += 1.0;
-    }
-    if key_input.pressed(controller.key_down) {
-        scroll -= 1.0;
-    }
-
-    let current_scale = match projection.as_mut() {
-        Projection::Orthographic(ortho) => {
-            // Change the projection parameters
-            use bevy::camera::CameraProjection;
-            ortho.scale *= 1.0 + scroll / 50.0;
-            ortho.far = state.scene.radius * 6.0;
-            ortho.scaling_mode = bevy::camera::ScalingMode::FixedVertical {
-                viewport_height: 2.0 * state.scene.radius,
-            };
-            match windows.single() {
-                Ok(window) => {
-                    ortho.update(window.width(), window.height());
-                }
-                Err(e) => log::error!("{e}"),
-            }
-            state.scene.radius * Vec2::new(ortho.scale, ortho.scale)
-        }
-        _ => {
-            unimplemented!("Only orthographic camera is supported")
-        }
-    };
-
-    let mut cursor_grab_change = false;
-    if key_input.just_pressed(controller.keyboard_key_toggle_cursor_grab) {
-        *toggle_cursor_grab = !*toggle_cursor_grab;
-        cursor_grab_change = true;
-    }
-    if mouse_button_input.just_pressed(controller.mouse_key_cursor_grab) {
-        *mouse_cursor_grab = true;
-        cursor_grab_change = true;
-    }
-    if mouse_button_input.just_released(controller.mouse_key_cursor_grab) {
-        *mouse_cursor_grab = false;
-        cursor_grab_change = true;
-    }
-    let cursor_grab = *mouse_cursor_grab || *toggle_cursor_grab;
-
-    // Apply movement update
-    if axis_input != Vec3::ZERO {
-        let max_speed = if key_input.pressed(controller.key_run) {
-            controller.run_speed
-        } else {
-            controller.walk_speed
-        };
-        controller.velocity = axis_input.normalize() * max_speed;
-    } else {
-        let friction = controller.friction.clamp(0.0, 1.0);
-        controller.velocity *= 1.0 - friction;
-        if controller.velocity.length_squared() < 1e-6 {
-            controller.velocity = Vec3::ZERO;
-        }
-    }
-    let forward = *transform.forward();
-    let right = *transform.right();
-    controller.target = controller.target
-        + controller.velocity.x * dt * right
-        + controller.velocity.z * dt * Vec3::Z
-        + controller.velocity.y * dt * forward;
-
-    // Handle cursor grab
-    if cursor_grab_change {
-        if cursor_grab {
-            for window in &mut windows {
-                if !window.focused {
-                    continue;
-                }
-                for mut cursor_option in &mut cursor_options {
-                    cursor_option.grab_mode = CursorGrabMode::Locked;
-                    cursor_option.visible = false;
-                }
-            }
-        } else {
-            for mut cursor_option in &mut cursor_options {
-                cursor_option.grab_mode = CursorGrabMode::None;
-                cursor_option.visible = true;
-            }
-        }
-    }
-
-    let delta = accumulated_mouse_motion.delta;
-    let orbit_distance = state.scene.radius * 3.0;
-
-    // Orbit.
-    if mouse_button_input.pressed(MouseButton::Left) {
-        let orbit_speed = 0.005;
-        let yaw_rot = Quat::from_rotation_z(delta.x * orbit_speed);
-        let pitch_rot = Quat::from_rotation_x(-delta.y * orbit_speed);
-        transform.rotation = yaw_rot * transform.rotation * pitch_rot;
-    }
-
-    // Strafe/translate.
-    if mouse_button_input.pressed(MouseButton::Right) {
-        let forward = *transform.up() * delta.y * current_scale.y;
-        let right = *transform.right() * delta.x * -current_scale.x;
-        controller.target = controller.target + dt * right + dt * Vec3::Z + dt * forward;
-    }
-    transform.translation = controller.target - transform.forward() * orbit_distance;
-}
-
-fn zoom_to_fit(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    windows: Query<&Window>,
-    mut query: Query<&mut Projection, With<Camera>>,
-) {
-    if !keyboard.just_pressed(KeyCode::KeyF) {
-        return;
-    }
-    let Ok(mut projection) = query.single_mut() else {
-        return;
-    };
     let Ok(window) = windows.single() else {
         return;
     };
+    let size = window.size().as_dvec2();
+    for mut navigation in &mut navigations {
+        if navigation.controller().window_size() != size {
+            navigation.0.resize(size);
+        }
+    }
+}
 
-    crate::scene::zoom_to_fit(projection.as_mut(), window);
+/// Press and release the buttons of the mouse, a click selects.
+fn mouse_buttons(
+    mut inputs: MessageReader<MouseButtonInput>,
+    keys: Res<ButtonInput<KeyCode>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut last_position: Local<Vec2>,
+    mut navigations: Query<&mut CameraNavigation>,
+    mut selections: MessageWriter<SelectAt>,
+) {
+    let modifiers = modifiers(&keys);
+    let position = pointer_position(&windows, &mut last_position).as_dvec2();
+    for input in inputs.read() {
+        let Some(button) = mouse_button(input.button) else {
+            continue;
+        };
+        for mut navigation in &mut navigations {
+            match input.state {
+                ButtonState::Pressed => navigation.0.mouse_pressed(button, modifiers, position),
+                ButtonState::Released => {
+                    if let Some(command) = navigation.0.mouse_released(button, modifiers, position)
+                    {
+                        selections.write(command.into());
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Move the mouse by the movement of the pointer in this frame, so that panning follows it
+/// exactly, or by the motion of the mouse, while the pointer is locked.
+///
+/// The motion of the mouse is not used otherwise, because it is without the acceleration of
+/// the pointer.
+fn mouse_motion(
+    motion: Res<AccumulatedMouseMotion>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut last_position: Local<Option<Vec2>>,
+    time: Res<Time>,
+    mut navigations: Query<&mut CameraNavigation>,
+) {
+    let position = windows
+        .single()
+        .ok()
+        .and_then(|window| window.cursor_position());
+    let previous = std::mem::replace(&mut *last_position, position);
+    let pointer_delta = match (previous, position) {
+        (Some(previous), Some(position)) => position - previous,
+        _ => Vec2::ZERO,
+    };
+    for mut navigation in &mut navigations {
+        let delta = if navigation.controller().pointer_pinned() {
+            motion.delta
+        } else {
+            pointer_delta
+        };
+        if delta != Vec2::ZERO {
+            navigation.0.mouse_moved(delta, time.delta());
+        }
+    }
+}
+
+/// Turn the wheel, a positive delta of Bevy is away from the user.
+fn mouse_wheel(
+    mut inputs: MessageReader<MouseWheel>,
+    keys: Res<ButtonInput<KeyCode>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut last_position: Local<Vec2>,
+    time: Res<Time>,
+    mut navigations: Query<&mut CameraNavigation>,
+) {
+    let modifiers = modifiers(&keys);
+    let position = pointer_position(&windows, &mut last_position).as_dvec2();
+    for input in inputs.read() {
+        let delta = match input.unit {
+            MouseScrollUnit::Line => input.y * LINE_PIXELS,
+            MouseScrollUnit::Pixel => input.y,
+        };
+        for mut navigation in &mut navigations {
+            navigation.0.wheel(delta, modifiers, position, time.delta());
+        }
+    }
+}
+
+/// Press the keys, also repeated ones, e.g. to pan with an arrow key.
+fn keys(
+    mut inputs: MessageReader<KeyboardInput>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut navigations: Query<&mut CameraNavigation>,
+) {
+    let modifiers = modifiers(&keys);
+    for input in inputs.read() {
+        if input.state != ButtonState::Pressed {
+            continue;
+        }
+        let Some(name) = key_name(&input.logical_key) else {
+            continue;
+        };
+        for mut navigation in &mut navigations {
+            navigation.0.key_pressed(&name, modifiers);
+        }
+    }
+}
+
+/// Start, move and end the touches, the moves of a frame together, so that moving two fingers
+/// in parallel pans without zooming. A tap selects.
+fn touches(
+    mut inputs: MessageReader<TouchInput>,
+    time: Res<Time>,
+    mut navigations: Query<&mut CameraNavigation>,
+    mut selections: MessageWriter<SelectAt>,
+) {
+    let mut moved: Vec<(TouchId, bevy::math::DVec2)> = Vec::new();
+    let move_touches = |moved: &mut Vec<_>, navigations: &mut Query<&mut CameraNavigation>| {
+        if moved.is_empty() {
+            return;
+        }
+        for mut navigation in navigations.iter_mut() {
+            navigation.0.touches_moved(moved, time.delta());
+        }
+        moved.clear();
+    };
+    for input in inputs.read() {
+        let id = input.id as TouchId;
+        let position = input.position.as_dvec2();
+        if input.phase == TouchPhase::Moved {
+            moved.retain(|(touch, _)| *touch != id);
+            moved.push((id, position));
+            continue;
+        }
+        move_touches(&mut moved, &mut navigations);
+        for mut navigation in &mut navigations {
+            match input.phase {
+                TouchPhase::Started => navigation.0.touch_started(id, position),
+                TouchPhase::Ended => {
+                    if let Some(command) = navigation.0.touch_ended(id, position) {
+                        selections.write(command.into());
+                    }
+                }
+                TouchPhase::Canceled => navigation.0.touch_cancelled(id),
+                TouchPhase::Moved => {}
+            }
+        }
+    }
+    move_touches(&mut moved, &mut navigations);
+}
+
+/// Apply the camera of the controller to the transform and the projection.
+fn apply_camera(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut cameras: Query<(&CameraNavigation, &mut Transform, &mut Projection)>,
+) {
+    let window_size = windows.single().map_or(Vec2::ONE, |window| window.size());
+    for (navigation, mut transform, mut projection) in &mut cameras {
+        let controller = navigation.controller();
+        *transform = Transform::from_matrix(controller.camera().transform_matrix());
+        if let Projection::Orthographic(ortho) = projection.as_mut() {
+            set_orthographic(ortho, controller);
+            ortho.update(window_size.x, window_size.y);
+        }
+    }
+}
+
+/// Set an orthographic projection of Bevy to the detail of the zoom of `controller`.
+///
+/// The area of the projection is the detail: its scale is the inverse zoom level, like
+/// before, its size the overview and its origin the offset of the detail.
+fn set_orthographic(ortho: &mut OrthographicProjection, controller: &CameraController) {
+    let zoom_level = controller.zoom_level() as f32;
+    let detail = controller.zoom_model().detail();
+    let (width, height) = (detail.width as f32, detail.height as f32);
+    ortho.scale = 1.0 / zoom_level;
+    ortho.scaling_mode = ScalingMode::Fixed {
+        width: width * zoom_level,
+        height: height * zoom_level,
+    };
+    ortho.viewport_origin = Vec2::new(-detail.left() as f32 / width, -detail.top() as f32 / height);
+    ortho.near = 0.0;
+    ortho.far = FAR_RADII * controller.bounds().radius as f32;
+}
+
+/// Lock and hide the pointer while orbiting or zooming with the mouse.
+fn grab_cursor(
+    navigations: Query<&CameraNavigation>,
+    mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    let pinned = navigations
+        .iter()
+        .any(|navigation| navigation.controller().pointer_pinned());
+    let grab_mode = if pinned {
+        CursorGrabMode::Locked
+    } else {
+        CursorGrabMode::None
+    };
+    for mut cursor in &mut cursors {
+        if cursor.grab_mode != grab_mode {
+            cursor.grab_mode = grab_mode;
+            cursor.visible = !pinned;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_names() {
+        assert_eq!(key_name(&Key::ArrowLeft).as_deref(), Some("ArrowLeft"));
+        assert_eq!(key_name(&Key::PageUp).as_deref(), Some("PageUp"));
+        assert_eq!(key_name(&Key::Character("+".into())).as_deref(), Some("+"));
+        assert_eq!(key_name(&Key::Space).as_deref(), Some(" "));
+        assert_eq!(key_name(&Key::Dead(None)), None);
+    }
+
+    /// The area of the projection is the detail of the zoom.
+    #[test]
+    fn orthographic() {
+        let mut navigation = CameraNavigation::new(Vec2::new(400.0, 200.0), Controls::default());
+        navigation.0.key_pressed("PageUp", Modifiers::NONE);
+        navigation.0.key_pressed("ArrowLeft", Modifiers::NONE);
+        let mut ortho = OrthographicProjection::default_3d();
+        set_orthographic(&mut ortho, navigation.controller());
+        ortho.update(400.0, 200.0);
+        let detail = navigation.controller().zoom_model().detail();
+        let area = ortho.area;
+        assert!((area.min.x as f64 - detail.left()).abs() < 1e-3);
+        assert!((area.max.x as f64 - detail.right()).abs() < 1e-3);
+        assert!((area.min.y as f64 - detail.top()).abs() < 1e-3);
+        assert!((area.max.y as f64 - detail.bottom()).abs() < 1e-3);
+        assert!((ortho.scale - 1.0 / 1.25).abs() < 1e-6);
+    }
+
+    /// The transform of the camera is the one of the controller.
+    #[test]
+    fn transform() {
+        let navigation = CameraNavigation::new(Vec2::new(400.0, 200.0), Controls::default());
+        let camera = navigation.controller().camera();
+        let transform = Transform::from_matrix(camera.transform_matrix());
+        assert!(transform.translation.abs_diff_eq(camera.position(), 1e-3));
+        let forward = *transform.forward();
+        assert!(forward.abs_diff_eq(camera.view_vector().normalize(), 1e-5));
+    }
 }

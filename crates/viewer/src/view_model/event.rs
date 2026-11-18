@@ -5,14 +5,11 @@
 
 use bevy::{
     asset::{Assets, uuid::Uuid},
-    camera::{Camera, Projection},
     ecs::{
         message::{Message, MessageReader},
-        query::With,
         system::{Query, ResMut},
     },
     pbr::{MeshMaterial3d, StandardMaterial},
-    window::Window,
 };
 
 use mucad_driver::prelude as mu;
@@ -67,8 +64,7 @@ impl ViewerEvent {
 pub fn handle_viewer_event(
     mut grid_materials: ResMut<Assets<material::Grid>>,
     mat_query: Query<&mut MeshMaterial3d<material::Grid>>,
-    windows: Query<&Window>,
-    mut projection: Query<&mut Projection, With<Camera>>,
+    mut navigations: Query<&mut crate::scene::CameraNavigation>,
     mut state: ResMut<ViewModel>,
     mut view_states: ResMut<Assets<ModelViewState>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -118,13 +114,9 @@ pub fn handle_viewer_event(
                 materials.as_mut(),
             ),
             ViewerEvent::ZoomToFit => {
-                let Ok(mut projection) = projection.single_mut() else {
-                    return;
-                };
-                let Ok(window) = windows.single() else {
-                    return;
-                };
-                crate::scene::zoom_to_fit(projection.as_mut(), window);
+                for mut navigation in &mut navigations {
+                    navigation.controller_mut().show_all();
+                }
             }
             ViewerEvent::ProcessingStateChanged(processing_state) => {
                 state.processing_state = processing_state.clone();
