@@ -4,6 +4,7 @@
 mod change_version;
 mod check_readme;
 mod doctest;
+mod generated;
 mod glsl;
 mod update_copyright;
 mod web;
@@ -87,15 +88,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         Commands::UpdateCopyright => {
             // Assign AGPLv3.0 license by default.
             CopyrightUpdater::new(".")
-                .extensions(&["rs", "slint", "ts", "wgsl"], "//")
-                .extensions_with_comment(&["css"], "/*", "*/")
+                .extensions(&["rs", "slint", "ts", "wgsl", "css"])
                 .exclude("target/*")
                 .with_git_exclusions()
                 .update()?;
 
             // Assign MIT license to .mu files.
             CopyrightUpdater::new(".")
-                .extensions(MUCAD_EXTENSIONS, "//")
+                .extensions(MUCAD_EXTENSIONS)
                 .license("MIT")
                 .exclude("target/*")
                 .exclude(format!("crates/*/tests/*.{MUCAD_EXTENSION}"))
