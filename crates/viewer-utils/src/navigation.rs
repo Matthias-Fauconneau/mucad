@@ -9,7 +9,7 @@ use std::time::Duration;
 use glam::{DVec2, Vec2, Vec3};
 
 use crate::{
-    CameraController, Controls, KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput,
+    CameraController, Controls, KeyCommand, Modifiers, MouseBinding, MouseButton, MouseInput,
     TouchDrag,
 };
 
@@ -383,53 +383,38 @@ impl Navigation {
     ///
     /// Returns whether the key is bound, otherwise the viewer can use it.
     pub fn key_pressed(&mut self, key: &str, modifiers: Modifiers) -> bool {
-        let keyboard = &self.controls.keyboard;
-        let bound = |bindings: &[KeyBinding]| {
-            bindings
-                .iter()
-                .any(|binding| binding.matches(key, modifiers))
+        use KeyCommand::*;
+        let Some(command) = self.controls.keyboard.command(key, modifiers) else {
+            return false;
         };
         let zoom_step = self.controls.zoom_step;
         let pan = self.controls.pan_step as f32 * self.controller.window_size().as_vec2();
         let rotate_step = self.controls.rotate_step;
-        let view = [
-            (&keyboard.view_isometric, StandardView::Isometric),
-            (&keyboard.view_front, StandardView::Front),
-            (&keyboard.view_top, StandardView::Top),
-            (&keyboard.view_right, StandardView::Right),
-            (&keyboard.view_rear, StandardView::Rear),
-            (&keyboard.view_bottom, StandardView::Bottom),
-            (&keyboard.view_left, StandardView::Left),
-        ]
-        .into_iter()
-        .find_map(|(bindings, view)| bound(bindings).then_some(view));
-
-        if bound(&keyboard.zoom_in) {
-            self.controller.zoom_at_center(1.0 / zoom_step);
-        } else if bound(&keyboard.zoom_out) {
-            self.controller.zoom_at_center(zoom_step);
-        } else if bound(&keyboard.zoom_fit) {
-            self.controller.show_all();
-        } else if bound(&keyboard.toggle_projection) {
-            self.controller.toggle_projection();
-        } else if bound(&keyboard.pan_left) {
-            self.controller.translate(Vec2::new(-pan.x, 0.0));
-        } else if bound(&keyboard.pan_right) {
-            self.controller.translate(Vec2::new(pan.x, 0.0));
-        } else if bound(&keyboard.pan_up) {
-            self.controller.translate(Vec2::new(0.0, pan.y));
-        } else if bound(&keyboard.pan_down) {
-            self.controller.translate(Vec2::new(0.0, -pan.y));
-        } else if bound(&keyboard.rotate_left) {
-            self.rotate(-rotate_step);
-        } else if bound(&keyboard.rotate_right) {
-            self.rotate(rotate_step);
-        } else if let Some(view) = view {
-            self.controller.set_view(view.view_vector(), view.up());
-        } else {
-            return false;
+        match command {
+            ZoomIn => self.controller.zoom_at_center(1.0 / zoom_step),
+            ZoomOut => self.controller.zoom_at_center(zoom_step),
+            ZoomFit => self.controller.show_all(),
+            ToggleProjection => self.controller.toggle_projection(),
+            PanLeft => self.controller.translate(Vec2::new(-pan.x, 0.0)),
+            PanRight => self.controller.translate(Vec2::new(pan.x, 0.0)),
+            PanUp => self.controller.translate(Vec2::new(0.0, pan.y)),
+            PanDown => self.controller.translate(Vec2::new(0.0, -pan.y)),
+            RotateLeft => self.rotate(-rotate_step),
+            RotateRight => self.rotate(rotate_step),
+            ViewIsometric => self.show_view(StandardView::Isometric),
+            ViewFront => self.show_view(StandardView::Front),
+            ViewTop => self.show_view(StandardView::Top),
+            ViewRight => self.show_view(StandardView::Right),
+            ViewRear => self.show_view(StandardView::Rear),
+            ViewBottom => self.show_view(StandardView::Bottom),
+            ViewLeft => self.show_view(StandardView::Left),
         }
         true
+    }
+
+    /// Show the standard `view`.
+    fn show_view(&mut self, view: StandardView) {
+        self.controller.set_view(view.view_vector(), view.up());
     }
 
     /// Orbit around the pivot by `pan` in degrees like dragging the mouse to the right, and

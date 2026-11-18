@@ -29,7 +29,9 @@ pub use camera_controller::{
     CameraControl, CameraController, CameraControllerConfig, CameraControllerState, CameraEvent,
     Mode, OrthoCameraController, PerspectiveCameraController, ProjectionMode, Ray,
 };
-pub use controls::{Controls, KeyboardControls, MouseControls, TouchControls, TouchDrag};
+pub use controls::{
+    Controls, KeyCommand, KeyboardControls, MouseControls, TouchControls, TouchDrag,
+};
 pub use edges::{CREASE_ANGLE_DEGREES, EdgeLines, edge_lines};
 pub use grid::GridConfig;
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};

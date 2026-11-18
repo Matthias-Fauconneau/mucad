@@ -3,7 +3,10 @@
 
 //! The configuration of the mouse, the keys and touch to control the camera, e.g. from TOML.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 
 use crate::{CameraControllerConfig, KeyBinding, Modifiers, MouseBinding, MouseButton};
 
@@ -107,81 +110,158 @@ impl Default for MouseControls {
     }
 }
 
+/// A command of the keys, written in snake case in TOML, e.g. `zoom_in`.
+///
+/// Its doc comment describes it, e.g. for a help of the viewers, see
+/// [`strum::EnumMessage::get_documentation`].
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumIter,
+    strum::EnumMessage,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum KeyCommand {
+    /// Zoom in at the center of the view.
+    ZoomIn,
+    /// Zoom out at the center of the view.
+    ZoomOut,
+    /// Show the whole scene in the middle of the view.
+    ZoomFit,
+    /// Change between the orthographic and the perspective projection.
+    ToggleProjection,
+    /// Pan the view to the left, i.e. the model moves to the right.
+    PanLeft,
+    /// Pan the view to the right, i.e. the model moves to the left.
+    PanRight,
+    /// Pan the view upwards, i.e. the model moves downwards.
+    PanUp,
+    /// Pan the view downwards, i.e. the model moves upwards.
+    PanDown,
+    /// Rotate the view to the left around the vertical axis of the view.
+    RotateLeft,
+    /// Rotate the view to the right around the vertical axis of the view.
+    RotateRight,
+    /// Show the isometric view.
+    ViewIsometric,
+    /// Show the front view.
+    ViewFront,
+    /// Show the top view.
+    ViewTop,
+    /// Show the right view.
+    ViewRight,
+    /// Show the rear view.
+    ViewRear,
+    /// Show the bottom view.
+    ViewBottom,
+    /// Show the left view.
+    ViewLeft,
+}
+
+impl KeyCommand {
+    /// The default bindings of the command.
+    pub fn default_bindings(self) -> Vec<KeyBinding> {
+        use KeyCommand::*;
+        let (ctrl, shift, none) = (Modifiers::CTRL, Modifiers::SHIFT, Modifiers::NONE);
+        let bindings: &[(Modifiers, &str)] = match self {
+            ZoomIn => &[(ctrl, "+"), (none, "PageUp")],
+            ZoomOut => &[(ctrl, "-"), (none, "PageDown")],
+            ZoomFit => &[(none, "f")],
+            ToggleProjection => &[(none, "p")],
+            PanLeft => &[(none, "ArrowLeft")],
+            PanRight => &[(none, "ArrowRight")],
+            PanUp => &[(none, "ArrowUp")],
+            PanDown => &[(none, "ArrowDown")],
+            RotateLeft => &[(shift, "ArrowLeft")],
+            RotateRight => &[(shift, "ArrowRight")],
+            ViewIsometric => &[(none, "0")],
+            ViewFront => &[(none, "1")],
+            ViewTop => &[(none, "2")],
+            ViewRight => &[(none, "3")],
+            ViewRear => &[(none, "4")],
+            ViewBottom => &[(none, "5")],
+            ViewLeft => &[(none, "6")],
+        };
+        bindings
+            .iter()
+            .map(|(modifiers, key)| KeyBinding::new(*modifiers, key))
+            .collect()
+    }
+}
+
 /// The bindings of the keys, which are available with any navigation style.
 ///
 /// Keys are logical keys, like `KeyboardEvent.key` of the web: named keys like `ArrowLeft`,
 /// `PageUp`, or characters like `0` or `a`, with `Plus`, `Minus` and `Space` for `+`, `-` and
 /// ` `. Shift is ignored for characters, because keyboard layouts need it for some of them.
+///
+/// In TOML, the bindings of each command are an entry, e.g. `zoom_in = ["Ctrl+Plus"]`, the
+/// missing commands have their defaults.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(from = "PartialKeyboardControls")]
 pub struct KeyboardControls {
-    /// Zoom in at the center of the view.
-    pub zoom_in: Vec<KeyBinding>,
-    /// Zoom out at the center of the view.
-    pub zoom_out: Vec<KeyBinding>,
-    /// Show the whole scene in the middle of the view.
-    pub zoom_fit: Vec<KeyBinding>,
-    /// Change between the orthographic and the perspective projection.
-    pub toggle_projection: Vec<KeyBinding>,
-    /// Pan the view to the left, i.e. the model moves to the right.
-    pub pan_left: Vec<KeyBinding>,
-    /// Pan the view to the right, i.e. the model moves to the left.
-    pub pan_right: Vec<KeyBinding>,
-    /// Pan the view upwards, i.e. the model moves downwards.
-    pub pan_up: Vec<KeyBinding>,
-    /// Pan the view downwards, i.e. the model moves upwards.
-    pub pan_down: Vec<KeyBinding>,
-    /// Rotate the view to the left around the vertical axis of the view.
-    pub rotate_left: Vec<KeyBinding>,
-    /// Rotate the view to the right around the vertical axis of the view.
-    pub rotate_right: Vec<KeyBinding>,
-    /// Show the isometric view.
-    pub view_isometric: Vec<KeyBinding>,
-    /// Show the front view.
-    pub view_front: Vec<KeyBinding>,
-    /// Show the top view.
-    pub view_top: Vec<KeyBinding>,
-    /// Show the right view.
-    pub view_right: Vec<KeyBinding>,
-    /// Show the rear view.
-    pub view_rear: Vec<KeyBinding>,
-    /// Show the bottom view.
-    pub view_bottom: Vec<KeyBinding>,
-    /// Show the left view.
-    pub view_left: Vec<KeyBinding>,
+    /// The bindings of the commands, all commands have an entry.
+    #[serde(flatten)]
+    pub commands: BTreeMap<KeyCommand, Vec<KeyBinding>>,
     /// The modifiers, which select more than one object, when they are pressed while selecting.
     pub multi_select: Modifiers,
 }
 
-impl Default for KeyboardControls {
-    fn default() -> Self {
-        let none = Modifiers::NONE;
-        let keys = |bindings: &[(Modifiers, &str)]| -> Vec<KeyBinding> {
+impl KeyboardControls {
+    /// The bindings of `command`.
+    pub fn bindings(&self, command: KeyCommand) -> &[KeyBinding] {
+        self.commands.get(&command).map_or(&[], Vec::as_slice)
+    }
+
+    /// The command of `key` pressed with `modifiers`, the first one in the order of
+    /// [`KeyCommand`], if it is bound.
+    pub fn command(&self, key: &str, modifiers: Modifiers) -> Option<KeyCommand> {
+        self.commands.iter().find_map(|(command, bindings)| {
             bindings
                 .iter()
-                .map(|(modifiers, key)| KeyBinding::new(*modifiers, key))
-                .collect()
-        };
+                .any(|binding| binding.matches(key, modifiers))
+                .then_some(*command)
+        })
+    }
+}
+
+impl Default for KeyboardControls {
+    fn default() -> Self {
         Self {
-            zoom_in: keys(&[(Modifiers::CTRL, "+"), (none, "PageUp")]),
-            zoom_out: keys(&[(Modifiers::CTRL, "-"), (none, "PageDown")]),
-            zoom_fit: keys(&[(none, "f")]),
-            toggle_projection: keys(&[(none, "p")]),
-            pan_left: keys(&[(none, "ArrowLeft")]),
-            pan_right: keys(&[(none, "ArrowRight")]),
-            pan_up: keys(&[(none, "ArrowUp")]),
-            pan_down: keys(&[(none, "ArrowDown")]),
-            rotate_left: keys(&[(Modifiers::SHIFT, "ArrowLeft")]),
-            rotate_right: keys(&[(Modifiers::SHIFT, "ArrowRight")]),
-            view_isometric: keys(&[(none, "0")]),
-            view_front: keys(&[(none, "1")]),
-            view_top: keys(&[(none, "2")]),
-            view_right: keys(&[(none, "3")]),
-            view_rear: keys(&[(none, "4")]),
-            view_bottom: keys(&[(none, "5")]),
-            view_left: keys(&[(none, "6")]),
+            commands: KeyCommand::iter()
+                .map(|command| (command, command.default_bindings()))
+                .collect(),
             multi_select: Modifiers::CTRL,
         }
+    }
+}
+
+/// The keyboard controls in TOML, whose missing entries are the defaults.
+#[derive(Deserialize)]
+struct PartialKeyboardControls {
+    #[serde(flatten)]
+    commands: BTreeMap<KeyCommand, Vec<KeyBinding>>,
+    multi_select: Option<Modifiers>,
+}
+
+impl From<PartialKeyboardControls> for KeyboardControls {
+    fn from(partial: PartialKeyboardControls) -> Self {
+        let mut controls = Self::default();
+        controls.commands.extend(partial.commands);
+        if let Some(multi_select) = partial.multi_select {
+            controls.multi_select = multi_select;
+        }
+        controls
     }
 }
 
@@ -230,6 +310,19 @@ mod tests {
         assert_eq!(controls.keyboard.multi_select, Modifiers::SHIFT);
         assert_eq!(controls.touch, TouchControls::default());
 
+        // A command replaces only its own bindings.
+        let controls = Controls::from_toml("[keyboard]\nzoom_in = [\"i\"]\n").expect("TOML");
+        let keyboard = &controls.keyboard;
+        assert_eq!(
+            keyboard.bindings(KeyCommand::ZoomIn),
+            ["i".parse().expect("binding")]
+        );
+        assert_eq!(
+            keyboard.command("PageDown", Modifiers::NONE),
+            Some(KeyCommand::ZoomOut)
+        );
+        assert_eq!(keyboard.multi_select, Modifiers::CTRL);
+
         let controls = Controls::from_toml("[touch]\none_finger = \"pan\"\n").expect("TOML");
         assert_eq!(controls.touch.one_finger, TouchDrag::Pan);
     }
@@ -239,5 +332,6 @@ mod tests {
         assert!(Controls::from_toml("[mouse]\npan = [\"Middle+Up\"]\n").is_err());
         assert!(Controls::from_toml("[mouse]\nspin = [\"Middle\"]\n").is_err());
         assert!(Controls::from_toml("[touch]\none_finger = \"spin\"\n").is_err());
+        assert!(Controls::from_toml("[keyboard]\nzoom_sideways = [\"x\"]\n").is_err());
     }
 }
