@@ -12,8 +12,8 @@ use std::time::Duration;
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mucad_viewer_utils::{
     BoundingSphere, CameraControl, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML,
-    GridConfig, Modifiers, MouseAction, MouseButton, Navigation, ProjectionMode, Scalar,
-    StandardView, Theme, TouchId,
+    GridConfig, Modifiers, MouseButton, Navigation, ProjectionMode, Scalar, StandardView, Theme,
+    TouchId,
 };
 use wasm_bindgen::prelude::*;
 
@@ -223,13 +223,7 @@ impl CameraNavigation {
     /// `zoom`, or none.
     #[wasm_bindgen(js_name = mouseAction)]
     pub fn mouse_action(&self) -> Option<String> {
-        let action = match self.navigation.mouse_action()? {
-            MouseAction::Select { .. } => "select",
-            MouseAction::Orbit => "orbit",
-            MouseAction::Pan => "pan",
-            MouseAction::Zoom => "zoom",
-        };
-        Some(action.to_string())
+        Some(self.navigation.mouse_action()?.to_string())
     }
 
     /// Whether the pointer is locked while orbiting or zooming, e.g. with
@@ -251,8 +245,9 @@ impl CameraNavigation {
     /// Throws an error for another name.
     #[wasm_bindgen(js_name = setView)]
     pub fn set_view(&mut self, name: &str) -> Result<(), JsError> {
-        let view = standard_view(name)
-            .ok_or_else(|| JsError::new(&format!("unknown standard view `{name}`")))?;
+        let view: StandardView = name
+            .parse()
+            .map_err(|_| JsError::new(&format!("unknown standard view `{name}`")))?;
         self.navigation
             .controller_mut()
             .set_view(view.view_vector(), view.up());
@@ -456,20 +451,6 @@ fn wheel_delta(delta_y: f32, delta_mode: u32, height: f32) -> f32 {
     -pixels
 }
 
-/// The standard view of `name`, e.g. `front`.
-fn standard_view(name: &str) -> Option<StandardView> {
-    Some(match name {
-        "isometric" => StandardView::Isometric,
-        "front" => StandardView::Front,
-        "top" => StandardView::Top,
-        "right" => StandardView::Right,
-        "rear" => StandardView::Rear,
-        "bottom" => StandardView::Bottom,
-        "left" => StandardView::Left,
-        _ => return None,
-    })
-}
-
 /// The duration of `ms` milliseconds, 0 for negative or invalid times.
 fn duration(ms: f64) -> Duration {
     Duration::try_from_secs_f64(ms / 1000.0).unwrap_or_default()
@@ -521,12 +502,6 @@ mod tests {
             to_touches(&[1.0, 10.0, 20.0, 2.0, 30.0, 40.0, 3.0]),
             [(1, DVec2::new(10.0, 20.0)), (2, DVec2::new(30.0, 40.0))]
         );
-    }
-
-    #[test]
-    fn views() {
-        assert_eq!(standard_view("front"), Some(StandardView::Front));
-        assert_eq!(standard_view("Front"), None);
     }
 
     #[test]

@@ -16,8 +16,11 @@ use crate::{
 /// The distance in pixels, which the mouse can move while clicking.
 const CLICK_TOLERANCE: f32 = 4.0;
 
-/// A standard view of the scene with Z upwards.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A standard view of the scene with Z upwards, written in lower case, e.g. `front`.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, strum::Display, strum::EnumString, strum::IntoStaticStr,
+)]
+#[strum(serialize_all = "lowercase")]
 pub enum StandardView {
     /// From the front, the right and the top.
     Isometric,
@@ -73,8 +76,9 @@ pub enum Command {
     },
 }
 
-/// The action of the pressed mouse buttons.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The action of the pressed mouse buttons, written in lower case, e.g. `orbit`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display, strum::IntoStaticStr)]
+#[strum(serialize_all = "lowercase")]
 pub enum MouseAction {
     /// Select by clicking, `multi` adds to the selection.
     Select {
