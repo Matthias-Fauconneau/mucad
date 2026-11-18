@@ -6,7 +6,9 @@
 use std::fmt;
 use std::str::FromStr;
 
-use super::{Modifiers, ParseError, split};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
+
+use super::{Modifiers, ParseError, join, split};
 
 /// A button of the mouse, written by its name in a binding, e.g. `Left`.
 #[derive(
@@ -34,8 +36,7 @@ pub enum MouseInput {
 /// A binding of the mouse, e.g. `Ctrl+Shift+Right`, `Middle+Right` or `Wheel`.
 ///
 /// The modifiers must be pressed exactly, and the buttons in their order.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "String", into = "String")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, SerializeDisplay, DeserializeFromStr)]
 pub struct MouseBinding {
     /// The modifiers, which are pressed.
     pub modifiers: Modifiers,
@@ -63,12 +64,11 @@ impl MouseBinding {
 
 impl fmt::Display for MouseBinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut names: Vec<&str> = self.modifiers.names().collect();
-        match &self.input {
-            MouseInput::Wheel => names.push("Wheel"),
-            MouseInput::Buttons(buttons) => names.extend(buttons.iter().map(|&b| <&str>::from(b))),
-        }
-        f.write_str(&names.join("+"))
+        let input: Vec<&str> = match &self.input {
+            MouseInput::Wheel => vec!["Wheel"],
+            MouseInput::Buttons(buttons) => buttons.iter().map(|&b| b.into()).collect(),
+        };
+        f.write_str(&join(self.modifiers, &input))
     }
 }
 
@@ -76,49 +76,33 @@ impl FromStr for MouseBinding {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut modifiers = Modifiers::NONE;
-        let mut buttons = Vec::new();
-        let mut wheel = false;
-        for name in split(s) {
-            if let Ok(button) = name.parse::<MouseButton>() {
-                if buttons.contains(&button) {
-                    return Err(ParseError(format!("button `{name}` twice in `{s}`")));
-                }
-                buttons.push(button);
-            } else if name == "Wheel" {
-                wheel = true;
-            } else if !buttons.is_empty() || wheel || !modifiers.set(name) {
-                return Err(ParseError(format!(
-                    "unknown or misplaced `{name}` in mouse binding `{s}`, \
-                     expected modifiers and then `Left`, `Middle`, `Right` or `Wheel`"
-                )));
-            }
+        let names: Vec<&str> = split(s).collect();
+        // The modifiers come first, then the wheel or the buttons.
+        let is_input = |name: &&str| *name == "Wheel" || name.parse::<MouseButton>().is_ok();
+        let start = names
+            .iter()
+            .position(is_input)
+            .ok_or_else(|| ParseError(format!("no button or wheel in `{s}`")))?;
+        let (modifier_names, inputs) = names.split_at(start);
+        let modifiers = Modifiers::from_names(modifier_names.iter().copied(), s)?;
+        if inputs == ["Wheel"] {
+            return Ok(Self::wheel(modifiers));
         }
-        let input = match (wheel, buttons.is_empty()) {
-            (true, true) => MouseInput::Wheel,
-            (false, false) => MouseInput::Buttons(buttons),
-            (true, false) => {
-                return Err(ParseError(format!("wheel and buttons in `{s}`")));
-            }
-            (false, true) => {
-                return Err(ParseError(format!("no button or wheel in `{s}`")));
-            }
-        };
-        Ok(Self { modifiers, input })
-    }
-}
-
-impl TryFrom<String> for MouseBinding {
-    type Error = ParseError;
-
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        s.parse()
-    }
-}
-
-impl From<MouseBinding> for String {
-    fn from(binding: MouseBinding) -> Self {
-        binding.to_string()
+        let buttons: Vec<MouseButton> = inputs
+            .iter()
+            .map(|name| {
+                name.parse().map_err(|_| {
+                    ParseError(format!(
+                        "misplaced `{name}` in mouse binding `{s}`, expected modifiers and \
+                         then `Left`, `Middle`, `Right` or `Wheel`"
+                    ))
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        if (1..buttons.len()).any(|i| buttons[..i].contains(&buttons[i])) {
+            return Err(ParseError(format!("a button twice in `{s}`")));
+        }
+        Ok(Self::buttons(modifiers, &buttons))
     }
 }
 

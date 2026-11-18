@@ -25,6 +25,8 @@ naga = { version = "27", features = ["wgsl-in", "glsl-out"], optional = true }
 naga_oil = { version = "0.20", optional = true }
 regex = { version = "1.10", optional = true }
 serde = { version = "1.0", features = ["derive"] }
+# Bindings are serialized as their strings, e.g. `Ctrl+Right`.
+serde_with = { version = "3", default-features = false, features = ["macros"] }
 strum = { version = "0.28", features = ["derive"] }
 toml = { version = "1.1.2", features = ["serde"] }
 

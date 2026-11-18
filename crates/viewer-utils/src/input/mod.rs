@@ -28,6 +28,13 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
+/// The names of `modifiers` and of `input` joined by `+`, e.g. `Ctrl+Right`.
+fn join(modifiers: Modifiers, input: &[&str]) -> String {
+    let mut names: Vec<&str> = modifiers.names().collect();
+    names.extend(input);
+    names.join("+")
+}
+
 /// The names of a binding joined by `+`, without spaces around them.
 fn split(s: &str) -> impl Iterator<Item = &str> {
     s.split('+').map(str::trim).filter(|name| !name.is_empty())

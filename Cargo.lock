@@ -5614,6 +5614,7 @@ dependencies = [
  "naga_oil",
  "regex",
  "serde",
+ "serde_with",
  "strum",
  "toml 1.2.1+spec-1.1.0",
 ]

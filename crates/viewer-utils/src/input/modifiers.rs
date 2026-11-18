@@ -6,13 +6,14 @@
 use std::fmt;
 use std::str::FromStr;
 
-use super::{ParseError, split};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
+
+use super::{ParseError, join, split};
 
 /// The pressed modifier keys, written like `Ctrl+Shift`.
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, SerializeDisplay, DeserializeFromStr,
 )]
-#[serde(try_from = "String", into = "String")]
 pub struct Modifiers {
     /// Control.
     pub ctrl: bool,
@@ -65,16 +66,27 @@ impl Modifiers {
         }
     }
 
-    /// Set the modifier `name`, returns `false` if it is no modifier.
-    pub(super) fn set(&mut self, name: &str) -> bool {
-        match name {
-            "Ctrl" | "Control" => self.ctrl = true,
-            "Shift" => self.shift = true,
-            "Alt" | "Option" => self.alt = true,
-            "Meta" | "Cmd" | "Command" | "Super" => self.meta = true,
-            _ => return false,
-        }
-        true
+    /// The modifiers of `names`, e.g. of the binding `s` for errors.
+    pub(super) fn from_names<'a>(
+        names: impl IntoIterator<Item = &'a str>,
+        s: &str,
+    ) -> Result<Self, ParseError> {
+        names.into_iter().try_fold(Self::NONE, |modifiers, name| {
+            let modifier = match name {
+                "Ctrl" | "Control" => Self::CTRL,
+                "Shift" => Self::SHIFT,
+                "Alt" | "Option" => Self {
+                    alt: true,
+                    ..Self::NONE
+                },
+                "Meta" | "Cmd" | "Command" | "Super" => Self {
+                    meta: true,
+                    ..Self::NONE
+                },
+                _ => return Err(ParseError(format!("unknown modifier `{name}` in `{s}`"))),
+            };
+            Ok(modifiers.union(modifier))
+        })
     }
 
     /// The names of the pressed modifiers.
@@ -93,7 +105,7 @@ impl Modifiers {
 /// Modifiers are written like `Ctrl+Shift`, no modifiers as an empty string.
 impl fmt::Display for Modifiers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.names().collect::<Vec<_>>().join("+"))
+        f.write_str(&join(*self, &[]))
     }
 }
 
@@ -101,27 +113,7 @@ impl FromStr for Modifiers {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut modifiers = Self::NONE;
-        for name in split(s) {
-            if !modifiers.set(name) {
-                return Err(ParseError(format!("unknown modifier `{name}` in `{s}`")));
-            }
-        }
-        Ok(modifiers)
-    }
-}
-
-impl TryFrom<String> for Modifiers {
-    type Error = ParseError;
-
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        s.parse()
-    }
-}
-
-impl From<Modifiers> for String {
-    fn from(modifiers: Modifiers) -> Self {
-        modifiers.to_string()
+        Self::from_names(split(s), s)
     }
 }
 
