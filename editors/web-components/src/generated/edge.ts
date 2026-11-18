@@ -127,4 +127,6 @@ void main() {
     camera: { name: "Camera_block_0Vertex", members: [["clip_from_world", 16], ["position", 3], ["pixel_size", 1], ["back", 3], ["orthographic", 1]] },
     edge: { name: "Edge_block_0Fragment", members: [["color", 4]] },
   },
+  /** The default values of uniform blocks by the names of their members. */
+  defaults: {},
 } as const;

@@ -144,6 +144,8 @@ void main() {
     lighting: { name: "LightingX_naga_oil_mod_XNV2WGYLEL53GSZLXMVZF65LUNFWHGOR2NRUWO2DUNFXGOX_block_0Fragment", members: [["key_direction", 3], ["key", 1], ["fill_direction", 3], ["fill", 1], ["sky", 1], ["ground", 1], ["specular", 1], ["shininess", 1]] },
     surface: { name: "Surface_block_1Fragment", members: [["color", 4]] },
   },
-  /** The floats of `Lighting::default()` for the uniform block `lighting`. */
-  lighting: [-0.40824828, 0.40824828, 0.81649655, 0.55, 0.69171447, -0.20751435, 0.69171447, 0.2, 0.35, 0.15, 0.1, 32.0],
+  /** The default values of uniform blocks by the names of their members. */
+  defaults: {
+    lighting: { key_direction: [-0.40824828, 0.40824828, 0.81649655], key: 0.55, fill_direction: [0.69171447, -0.20751435, 0.69171447], fill: 0.2, sky: 0.35, ground: 0.15, specular: 0.1, shininess: 32.0 },
+  },
 } as const;

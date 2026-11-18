@@ -4,6 +4,7 @@
 //! The lighting of the models in the viewers, see [`crate::shaders::Lighting`].
 
 use glam::Vec3;
+use serde::Serialize;
 
 /// The parameters of the lighting, `Lighting` of [`crate::shaders::Lighting`] with the same layout.
 ///
@@ -11,8 +12,10 @@ use glam::Vec3;
 /// space follow the camera, so that the faces towards the viewer are always lit. The default
 /// intensities add up to about 1, so that the brightest faces have their base color.
 ///
-/// With the feature `encase`, it is a uniform of Bevy, e.g. `#[uniform(100)]` of a material.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// With the feature `encase`, it is a uniform of Bevy, e.g. `#[uniform(100)]` of a material. It
+/// is serialized with the names of the members, e.g. for the default of the web viewer, which
+/// `cargo xtask web` generates.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[cfg_attr(feature = "encase", derive(encase::ShaderType))]
 pub struct Lighting {
     /// The direction towards the key light in view space, e.g. from the upper left.

@@ -51,6 +51,24 @@ export function setUniforms(
   });
 }
 
+/**
+ * Set the uniforms of `group` of `block` to `values` by the names of its members, e.g. the
+ * `defaults` of a generated shader, with a number or the floats of a vector or matrix each.
+ */
+export function setNamedUniforms(
+  group: THREE.UniformsGroup,
+  block: UniformBlock,
+  values: Readonly<Record<string, number | readonly number[]>>,
+) {
+  block.members.forEach(([name], index) => {
+    const value = values[name];
+    if (value === undefined) throw new Error(`No value of ${name} in ${block.name}`);
+    const uniform = group.uniforms[index] as THREE.Uniform;
+    if (typeof uniform.value === "number") uniform.value = value;
+    else uniform.value.fromArray(value);
+  });
+}
+
 /** The float of `member` of `block` in `values`, the floats of its members one after another. */
 export function member(block: UniformBlock, values: ArrayLike<number>, name: string): number {
   let offset = 0;

@@ -9,7 +9,7 @@
 use std::error::Error;
 use std::path::Path;
 
-use mucad_viewer_utils::shaders::{ModelWeb, Shader, ShaderSource, WEB_SHADERS, WebGlShader};
+use mucad_viewer_utils::shaders::{ModelWeb, Shader, ShaderSource, UniformBlock, WEB_SHADERS};
 use mucad_viewer_utils::{Lighting, Theme};
 
 use crate::generated::Generated;
@@ -89,61 +89,72 @@ fn shader_files(dir: &Path) -> Result<Vec<Generated>, Box<dyn Error>> {
         .collect()
 }
 
-/// The default values of the uniform blocks of `shader` as entries of its TypeScript constant,
-/// with the sources of the values, e.g. of the lighting of the models.
-fn uniform_defaults(
-    shader: &ShaderSource,
-    glsl: &WebGlShader,
-) -> Result<(String, Vec<&'static str>), Box<dyn Error>> {
-    if shader.name != ModelWeb::NAME {
-        return Ok((String::new(), Vec::new()));
+/// The default values of a uniform block of a shader, e.g. for the web viewer.
+struct UniformDefaults {
+    /// The name of the shader, e.g. `model_web.wgsl`.
+    shader: &'static str,
+    /// The variable of the uniform block in WGSL, e.g. `lighting`.
+    block: &'static str,
+    /// Where the values come from, e.g. `` `Lighting::default()` ``.
+    source: &'static str,
+    /// The values, an object with the names of the members of the WGSL struct.
+    values: serde_json::Value,
+}
+
+/// The default values of uniform blocks of the shaders, e.g. of the lighting of the models.
+fn uniform_defaults() -> Result<Vec<UniformDefaults>, Box<dyn Error>> {
+    Ok(vec![UniformDefaults {
+        shader: ModelWeb::NAME,
+        block: "lighting",
+        source: "`Lighting::default()`",
+        values: serde_json::to_value(Lighting::default())?,
+    }])
+}
+
+/// `defaults` of `block` as TypeScript object with the floats of its members in the order of
+/// their layout, e.g. `{ key: 0.55, … }`, after checking that they have the same members.
+fn defaults_ts(defaults: &UniformDefaults, block: &UniformBlock) -> Result<String, Box<dyn Error>> {
+    let values = defaults.values.as_object().ok_or(format!(
+        "The defaults of `{}` are no struct",
+        defaults.block
+    ))?;
+    let error = |message: &str| format!("The defaults of `{}`: {message}", defaults.block);
+    if values.len() != block.members.len() {
+        let names: Vec<&String> = values.keys().collect();
+        return Err(error(&format!("other members than the WGSL struct: {names:?}")).into());
     }
-    // The floats of `Lighting::default()` in the order of the members of the WGSL struct.
-    let lighting = Lighting::default();
-    let values: [(&str, Vec<f32>); 8] = [
-        ("key_direction", lighting.key_direction.to_array().to_vec()),
-        ("key", vec![lighting.key]),
-        (
-            "fill_direction",
-            lighting.fill_direction.to_array().to_vec(),
-        ),
-        ("fill", vec![lighting.fill]),
-        ("sky", vec![lighting.sky]),
-        ("ground", vec![lighting.ground]),
-        ("specular", vec![lighting.specular]),
-        ("shininess", vec![lighting.shininess]),
-    ];
-    let block = glsl
-        .uniform_blocks
-        .get("lighting")
-        .ok_or("No uniform block `lighting`")?;
-    let names: Vec<&str> = block
+    let float = |value: &serde_json::Value| -> Result<String, String> {
+        let float = value
+            .as_f64()
+            .ok_or(error(&format!("{value} is no float")))?;
+        // The shortest representation of the `f32`, e.g. `0.55`.
+        Ok(format!("{:?}", float as f32))
+    };
+    let members: Vec<String> = block
         .members
         .iter()
-        .map(|(name, _)| name.as_str())
-        .collect();
-    let expected: Vec<&str> = values.iter().map(|(name, _)| *name).collect();
-    if names != expected {
-        return Err(format!("The members of `Lighting` changed: {names:?}").into());
-    }
-    let floats: Vec<String> = values
-        .iter()
-        .flat_map(|(_, floats)| floats.iter().map(|float| format!("{float:?}")))
-        .collect();
-    Ok((
-        format!(
-            "\x20 /** The floats of `Lighting::default()` for the uniform block `lighting`. */\n\
-             \x20 lighting: [{}],\n",
-            floats.join(", ")
-        ),
-        vec!["`Lighting::default()`"],
-    ))
+        .map(|(name, floats)| {
+            let value = values
+                .get(name)
+                .ok_or(error(&format!("no member `{name}`")))?;
+            let floats_ts = match value.as_array() {
+                Some(array) if array.len() == *floats as usize => {
+                    let array: Vec<String> = array.iter().map(float).collect::<Result<_, _>>()?;
+                    format!("[{}]", array.join(", "))
+                }
+                None if *floats == 1 => float(value)?,
+                _ => return Err(error(&format!("`{name}` has not {floats} floats"))),
+            };
+            Ok(format!("{name}: {floats_ts}"))
+        })
+        .collect::<Result<_, String>>()?;
+    Ok(format!("{{ {} }}", members.join(", ")))
 }
 
 /// A TypeScript module of `shader`, which exports the constant `name` with the shaders without
 /// `#version`, which three.js writes with `glslVersion: THREE.GLSL3`, with the names of the
 /// attributes and of the uniform blocks, which naga generated, and with the default values of
-/// uniform blocks.
+/// uniform blocks of [`uniform_defaults`].
 fn shader_ts(name: &str, shader: &ShaderSource) -> Result<String, Box<dyn Error>> {
     let glsl = shader.to_webgl()?;
     // three.js writes `#version 300 es` itself with `glslVersion: THREE.GLSL3`, before its defines.
@@ -176,7 +187,28 @@ fn shader_ts(name: &str, shader: &ShaderSource) -> Result<String, Box<dyn Error>
             )
         })
         .collect();
-    let (defaults, default_sources) = uniform_defaults(shader, &glsl)?;
+    let mut default_sources = Vec::new();
+    let mut defaults = String::new();
+    for block_defaults in uniform_defaults()?
+        .iter()
+        .filter(|defaults| defaults.shader == shader.name)
+    {
+        let block = glsl
+            .uniform_blocks
+            .get(block_defaults.block)
+            .ok_or(format!("No uniform block `{}`", block_defaults.block))?;
+        defaults += &format!(
+            "    {}: {},\n",
+            block_defaults.block,
+            defaults_ts(block_defaults, block)?
+        );
+        default_sources.push(block_defaults.source);
+    }
+    let defaults = if defaults.is_empty() {
+        "{}".to_string()
+    } else {
+        format!("{{\n{defaults}  }}")
+    };
     // E.g. `` `grid_web.wgsl` and `grid.wgsl` ``.
     let sources: Vec<String> = std::iter::once(shader)
         .chain(shader.imports)
@@ -210,7 +242,8 @@ fn shader_ts(name: &str, shader: &ShaderSource) -> Result<String, Box<dyn Error>
          \x20 uniformBlocks: {{\n\
          {blocks}\
          \x20 }},\n\
-         {defaults}\
+         \x20 /** The default values of uniform blocks by the names of their members. */\n\
+         \x20 defaults: {defaults},\n\
          }} as const;\n",
         note = note(&format!("{sources} of `mucad-viewer-utils`")),
         shader_name = shader.name,

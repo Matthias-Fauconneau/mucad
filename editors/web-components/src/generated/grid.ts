@@ -130,4 +130,6 @@ void main() {
     camera: { name: "Camera_block_0Vertex", members: [["clip_from_world", 16], ["z_offset", 1]] },
     config: { name: "GridConfigX_naga_oil_mod_XNV2WGYLEL53GSZLXMVZF65LUNFWHGOR2M5ZGSZAX_block_0Fragment", members: [["radius", 1], ["zoom_level", 1], ["view_angle", 3], ["grid_color", 3], ["x_axis_color", 3], ["y_axis_color", 3]] },
   },
+  /** The default values of uniform blocks by the names of their members. */
+  defaults: {},
 } as const;

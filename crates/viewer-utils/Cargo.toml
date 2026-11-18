@@ -20,7 +20,7 @@ glsl = ["dep:naga", "dep:naga_oil", "dep:regex"]
 
 [dependencies]
 encase = { version = "0.12", optional = true }
-glam = "0.30"
+glam = { version = "0.30", features = ["serde"] }
 naga = { version = "27", features = ["wgsl-in", "glsl-out"], optional = true }
 naga_oil = { version = "0.20", optional = true }
 regex = { version = "1.10", optional = true }

@@ -3,14 +3,14 @@
 
 import * as THREE from "three";
 import { model } from "./generated/model";
-import { setUniforms, uniformsGroup } from "./uniforms";
+import { setNamedUniforms, setUniforms, uniformsGroup } from "./uniforms";
 
 /** The camera of the model materials, which they all share. */
 const cameraUniforms = uniformsGroup(model.uniformBlocks.camera);
 
 /** The lighting of the model materials, which they all share, the default of the Bevy viewer. */
 const lightingUniforms = uniformsGroup(model.uniformBlocks.lighting);
-setUniforms(lightingUniforms, model.uniformBlocks.lighting, model.lighting);
+setNamedUniforms(lightingUniforms, model.uniformBlocks.lighting, model.defaults.lighting);
 
 /** Set the camera of all model materials, e.g. in each frame after the camera is updated. */
 export function updateModelCamera(camera: THREE.Camera) {

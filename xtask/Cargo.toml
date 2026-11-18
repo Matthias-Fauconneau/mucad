@@ -16,6 +16,7 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 glob = "0.3"
 regex = "1.10"
+serde_json = "1"
 semver = "1"
 toml_edit = "0.25"
 walkdir = "2.5"
