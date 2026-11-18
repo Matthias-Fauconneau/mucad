@@ -14,6 +14,7 @@ import { CameraControls, type StandardView } from "./camera-controls";
 import type { Color, Geometry, MeshData, SketchData, Triangles } from "./compiler/types";
 import { theme } from "./generated/theme";
 import { Grid } from "./grid";
+import { EdgeMaterial, edgeGeometry, updateEdgeCamera } from "./edge-material";
 import { ModelMaterial, modelGeometry, updateModelCamera } from "./model-material";
 
 
@@ -94,6 +95,7 @@ export class Viewer {
     updateModelCamera(camera);
     // The widths of the outlines are pixels of the render target.
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    updateEdgeCamera(camera, size.y);
     this.model.traverse((object) => {
       if (object instanceof LineSegments2) object.material.resolution.copy(size);
     });
@@ -114,30 +116,24 @@ export class Viewer {
     }
   }
 
-  /** Show 3D triangle meshes in their colors with contours at their sharp edges. */
+  /** Show 3D triangle meshes in their colors with contours and silhouettes. */
   show3d(meshes: MeshData[]) {
     this.replace(
       meshes.flatMap((mesh) => {
         const { color, opacity = 1 } = colorParameters(mesh.color, theme.brighter);
         // The lighting of the Bevy viewer.
-        const material = new ModelMaterial(new THREE.Color(color), opacity, {
-          // Move the faces back a little, so that the contours on their edges stay visible.
-          polygonOffset: true,
-          polygonOffsetFactor: 1,
-          polygonOffsetUnits: 1,
-        });
+        const material = new ModelMaterial(new THREE.Color(color), opacity);
         const surface = new THREE.Mesh(
           // Sharp at the contour edges of the mesh, with the crease angle of the viewers.
           modelGeometry(toCreasedNormals(geometry(mesh), THREE.MathUtils.degToRad(creaseAngle()))),
           material,
         );
-        const contours = new THREE.LineSegments(
-          new THREE.BufferGeometry()
-            .setAttribute("position", new THREE.BufferAttribute(mesh.positions, 3))
-            .setIndex(new THREE.BufferAttribute(mesh.edges, 1)),
-          new THREE.LineBasicMaterial({ color: theme.primary }),
+        // The contour edges and the smooth edges on the silhouette like in the Bevy viewer.
+        const edges = new THREE.LineSegments(
+          edgeGeometry(mesh.edges),
+          new EdgeMaterial(new THREE.Color(theme.primary)),
         );
-        return [surface, contours];
+        return [surface, edges];
       }),
     );
     this.update("3d");

@@ -14,7 +14,6 @@ use mucad_driver::prelude as mu;
 #[derive(Clone, Default)]
 pub struct Mesh {
     mesh: Rc<mu::core::TriangleMesh>,
-    edges: Vec<u32>,
     color: Option<[f32; 4]>,
 }
 
@@ -52,16 +51,12 @@ impl Mesh {
         js_sys::Uint32Array::from(self.mesh.indices())
     }
 
-    /// The contour edges as pairs of vertex indices, e.g. for a `THREE.LineSegments` with the
-    /// `positions` of this mesh.
-    ///
-    /// An edge is a contour, if the normals of its two triangles differ more than
-    /// [`crease_angle`] in degrees, or if it has not exactly two triangles, e.g. at an open
-    /// border, see `contour_edges` of `mucad-viewer-utils`.
+    /// The edge lines with the crease angle of the viewers, see [`EdgeLines`] and
+    /// [`crease_angle`].
     ///
     /// [`crease_angle`]: crate::crease_angle
-    pub fn edges(&self) -> js_sys::Uint32Array {
-        js_sys::Uint32Array::from(self.edges.as_slice())
+    pub fn edges(&self) -> EdgeLines {
+        mucad_viewer_utils::edge_lines(&self.mesh, mucad_viewer_utils::CREASE_ANGLE_DEGREES).into()
     }
 }
 
@@ -101,14 +96,61 @@ impl Mesh {
 
 impl From<mu::core::TriangleMesh> for Mesh {
     fn from(mesh: mu::core::TriangleMesh) -> Self {
-        let edges =
-            mucad_viewer_utils::contour_edges(&mesh, mucad_viewer_utils::CREASE_ANGLE_DEGREES)
-                .into_flattened();
         Self {
             mesh: Rc::new(mesh),
-            edges,
             color: None,
         }
+    }
+}
+
+/// The edge lines of a mesh, e.g. for a `THREE.LineSegments` with the edge shader of
+/// `cargo xtask web`: the contour edges, which are always drawn, and the smooth edges, which are
+/// drawn on the silhouette, see `EdgeLines` of `mucad-viewer-utils`.
+///
+/// Each line has two vertices, which both have the normals of the two triangles of its edge and
+/// its midpoint, all as `x, y, z` triples. The normals of contour edges are zero.
+#[wasm_bindgen]
+pub struct EdgeLines(mucad_viewer_utils::EdgeLines);
+
+/// The vectors as `x, y, z` triples.
+fn triples(vectors: &[glam::Vec3]) -> js_sys::Float32Array {
+    let floats: Vec<f32> = vectors
+        .iter()
+        .flat_map(|vector| vector.to_array())
+        .collect();
+    js_sys::Float32Array::from(floats.as_slice())
+}
+
+#[wasm_bindgen]
+impl EdgeLines {
+    /// The positions of the vertices, two of each line.
+    #[wasm_bindgen(getter)]
+    pub fn positions(&self) -> js_sys::Float32Array {
+        triples(&self.0.positions)
+    }
+
+    /// The normal of the first triangle of the edge of each vertex.
+    #[wasm_bindgen(getter, js_name = normalsA)]
+    pub fn normals_a(&self) -> js_sys::Float32Array {
+        triples(&self.0.normals_a)
+    }
+
+    /// The normal of the second triangle of the edge of each vertex.
+    #[wasm_bindgen(getter, js_name = normalsB)]
+    pub fn normals_b(&self) -> js_sys::Float32Array {
+        triples(&self.0.normals_b)
+    }
+
+    /// The midpoint of the edge of each vertex.
+    #[wasm_bindgen(getter)]
+    pub fn midpoints(&self) -> js_sys::Float32Array {
+        triples(&self.0.midpoints)
+    }
+}
+
+impl From<mucad_viewer_utils::EdgeLines> for EdgeLines {
+    fn from(lines: mucad_viewer_utils::EdgeLines) -> Self {
+        Self(lines)
     }
 }
 

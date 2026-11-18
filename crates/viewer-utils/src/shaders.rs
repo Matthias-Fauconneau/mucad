@@ -23,3 +23,7 @@ pub const GRID_WEB_WGSL: &str = include_str!("../shaders/grid_web.wgsl");
 /// The lit models for WebGL2, e.g. three.js, with their vertex and fragment shader, which import
 /// [`LIGHTING_WGSL`] and which `cargo xtask web` converts to GLSL.
 pub const MODEL_WEB_WGSL: &str = include_str!("../shaders/model_web.wgsl");
+
+/// The edge lines for WebGL2, e.g. three.js, with their vertex and fragment shader, which import
+/// [`SILHOUETTE_WGSL`] and which `cargo xtask web` converts to GLSL.
+pub const EDGE_WEB_WGSL: &str = include_str!("../shaders/edge_web.wgsl");

@@ -1,8 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The contour and silhouette edges of triangle meshes, which the viewers draw, and the crease
-//! angle.
+//! The edge lines of triangle meshes, which the viewers draw, and the crease angle.
 
 use std::collections::HashMap;
 
@@ -63,7 +62,7 @@ impl Edges {
     }
 }
 
-/// The edges of `mesh` with the normals of their triangles, see [`contour_edges`]: vertices at
+/// The edges of `mesh` with the normals of their triangles, see [`edge_lines`]: vertices at
 /// the same position are the same, triangles without area bridge their neighbors.
 fn adjacency(mesh: &TriangleMesh) -> Edges {
     // The first vertex at each position, so that equal vertices of triangles are found.
@@ -126,32 +125,6 @@ fn position(mesh: &TriangleMesh, vertex: u32) -> Vec3 {
     Vec3::new(p.x, p.y, p.z)
 }
 
-/// The contour edges of `mesh` as pairs of vertex indices, e.g. to draw its outlines.
-///
-/// An edge is a contour, if the normals of its two triangles differ more than
-/// `crease_angle_degrees`, or if it has not exactly two triangles, e.g. at an open border.
-/// Vertices at the same position are the same.
-///
-/// A triangle without area, e.g. with three points on a line, has no normal of its own. If it
-/// bridges its neighbors, i.e. its longest edge has one triangle and its other edges are next
-/// to other triangles, it gets the normal of the triangle at its longest edge. Then its edges
-/// are no open borders, which would be drawn as stray lines, e.g. across a flat face. Other
-/// triangles without area are ignored.
-pub fn contour_edges(mesh: &TriangleMesh, crease_angle_degrees: f64) -> Vec<[u32; 2]> {
-    let edges = adjacency(mesh);
-    let cos_threshold = crease_angle_degrees.to_radians().cos() as f32;
-    let normals = &edges.normals;
-    edges
-        .edges
-        .iter()
-        .filter(|edge| {
-            let [n1, n2] = edge.triangles.map(|t| normals[t as usize]);
-            edge.count != 2 || n1.dot(n2) < cos_threshold
-        })
-        .map(|edge| edge.vertices)
-        .collect()
-}
-
 /// The edge lines of a mesh, which the viewers draw, see [`edge_lines`]: the contour edges,
 /// which are always drawn, and the smooth edges, which are drawn on the silhouette, if one of
 /// their two triangles faces the viewer and the other one faces away.
@@ -197,9 +170,19 @@ impl EdgeLines {
 /// silhouette, except seen exactly from the side.
 const FLAT_COS: f32 = 0.9999;
 
-/// The edge lines of `mesh`: the contour edges of [`contour_edges`] and the smooth edges, whose
-/// two triangles differ less than `crease_angle_degrees`, but are not flat, which are on the
+/// The edge lines of `mesh`: the contour edges and the smooth edges, which are on the
 /// silhouette depending on the view, e.g. the left and right side of a cylinder.
+///
+/// An edge is a contour, if the normals of its two triangles differ more than
+/// `crease_angle_degrees`, or if it has not exactly two triangles, e.g. at an open border. An
+/// edge is smooth, if its two triangles differ less, but are not flat. Vertices at the same
+/// position are the same.
+///
+/// A triangle without area, e.g. with three points on a line, has no normal of its own. If it
+/// bridges its neighbors, i.e. its longest edge has one triangle and its other edges are next
+/// to other triangles, it gets the normal of the triangle at its longest edge. Then its edges
+/// are no open borders, which would be drawn as stray lines, e.g. across a flat face. Other
+/// triangles without area are ignored.
 pub fn edge_lines(mesh: &TriangleMesh, crease_angle_degrees: f64) -> EdgeLines {
     let edges = adjacency(mesh);
     let cos_threshold = crease_angle_degrees.to_radians().cos() as f32;
@@ -234,6 +217,24 @@ mod tests {
                 .map(|t| Triangle(t[0], t[1], t[2]))
                 .collect(),
         }
+    }
+
+    /// The contour edges of `mesh` as pairs of positions, the edge lines with zero normals.
+    fn contour_edges(mesh: &TriangleMesh, crease_angle_degrees: f64) -> Vec<[Vec3; 2]> {
+        let lines = edge_lines(mesh, crease_angle_degrees);
+        lines
+            .positions
+            .chunks(2)
+            .zip(lines.normals_a.chunks(2))
+            .filter(|(_, normals)| normals[0] == Vec3::ZERO)
+            .map(|(points, _)| [points[0], points[1]])
+            .collect()
+    }
+
+    /// Whether `edges` contain the edge between the vertices `a` and `b` of `mesh`.
+    fn contains(mesh: &TriangleMesh, edges: &[[Vec3; 2]], [a, b]: [u32; 2]) -> bool {
+        let [a, b] = [a, b].map(|v| position(mesh, v));
+        edges.contains(&[a, b]) || edges.contains(&[b, a])
     }
 
     #[test]
@@ -293,11 +294,12 @@ mod tests {
 
     #[test]
     fn no_stray_lines_across_flat_faces() {
-        let edges = contour_edges(&strip_with_triangle_without_area(0.0), 20.0);
+        let strip = strip_with_triangle_without_area(0.0);
+        let edges = contour_edges(&strip, 20.0);
         // Only the open border: 0-4, 4-2, 0-3, 3-2, and not 0-1, 1-2 or 0-2 across the strip.
         assert_eq!(edges.len(), 4, "{edges:?}");
         for inner in [[0, 1], [1, 2], [0, 2]] {
-            assert!(!edges.contains(&inner), "{inner:?} in {edges:?}");
+            assert!(!contains(&strip, &edges, inner), "{inner:?} in {edges:?}");
         }
     }
 
@@ -305,12 +307,13 @@ mod tests {
     fn creases_at_triangles_without_area() {
         // The top half is bent upwards, the edges along the bend are drawn at the vertices of
         // the bottom half, the long edge of the triangle without area is not.
-        let edges = contour_edges(&strip_with_triangle_without_area(2.0), 20.0);
+        let strip = strip_with_triangle_without_area(2.0);
+        let edges = contour_edges(&strip, 20.0);
         assert!(
-            edges.contains(&[0, 1]) && edges.contains(&[1, 2]),
+            contains(&strip, &edges, [0, 1]) && contains(&strip, &edges, [1, 2]),
             "{edges:?}"
         );
-        assert!(!edges.contains(&[0, 2]), "{edges:?}");
+        assert!(!contains(&strip, &edges, [0, 2]), "{edges:?}");
     }
 
     #[test]

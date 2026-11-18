@@ -74,12 +74,19 @@ function color(color: Float32Array | number[] | undefined): Color | undefined {
 
 /** A mesh of WebAssembly as plain data, the mesh is freed. */
 function meshData(mesh: Mesh): MeshData {
+  const edges = mesh.edges();
   const data = {
     positions: mesh.positions,
     indices: mesh.indices,
-    edges: mesh.edges(),
+    edges: {
+      positions: edges.positions,
+      normalsA: edges.normalsA,
+      normalsB: edges.normalsB,
+      midpoints: edges.midpoints,
+    },
     color: color(mesh.color),
   };
+  edges.free();
   mesh.free();
   return data;
 }

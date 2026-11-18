@@ -11,7 +11,8 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 
 use mucad_viewer_utils::{
-    GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, Lighting, MODEL_WEB_WGSL, Theme,
+    EDGE_WEB_WGSL, GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, Lighting, MODEL_WEB_WGSL,
+    SILHOUETTE_WGSL, Theme,
 };
 
 use crate::change_version::workspace_root;
@@ -29,6 +30,9 @@ const GRID_SOURCE: &str = "`GRID_WEB_WGSL` and `GRID_WGSL` of `mucad-viewer-util
 /// The source of the generated model shader.
 const MODEL_SOURCE: &str =
     "`MODEL_WEB_WGSL`, `LIGHTING_WGSL` and `Lighting::default()` of `mucad-viewer-utils`";
+
+/// The source of the generated edge shader.
+const EDGE_SOURCE: &str = "`EDGE_WEB_WGSL` and `SILHOUETTE_WGSL` of `mucad-viewer-utils`";
 
 /// The note of a generated file, which says where it comes from, e.g. [`THEME_SOURCE`].
 fn note(source: &str) -> String {
@@ -122,6 +126,11 @@ fn generated_files() -> Result<Vec<Generated>, Box<dyn Error>> {
             path: dir.join("model.ts"),
             comment: ("//", ""),
             content: model_ts()?,
+        },
+        Generated {
+            path: dir.join("edge.ts"),
+            comment: ("//", ""),
+            content: edge_ts()?,
         },
     ])
 }
@@ -221,6 +230,24 @@ fn model_ts() -> Result<String, Box<dyn Error>> {
             floats.join(", ")
         ),
         MODEL_SOURCE,
+    )
+}
+
+/// The shader of the edge lines in GLSL ES 3.00 for three.js.
+fn edge_ts() -> Result<String, Box<dyn Error>> {
+    let shader = crate::glsl::to_webgl(
+        EDGE_WEB_WGSL,
+        "edge_web.wgsl",
+        &[("silhouette.wgsl", SILHOUETTE_WGSL)],
+    )?;
+    shader_ts(
+        "edge",
+        "The shader of the edge lines of the 3D models of the µcad viewers",
+        "the position at location 0, the normals of the two triangles of the edge at locations 1 \
+         and 2 and its midpoint at location 3",
+        &shader,
+        "",
+        EDGE_SOURCE,
     )
 }
 

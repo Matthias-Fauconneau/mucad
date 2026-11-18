@@ -18,9 +18,20 @@ export interface Triangles {
   indices: Uint32Array;
 }
 
-/** A 3D mesh with the pairs of indices of its sharp edges, e.g. to draw contours. */
+/**
+ * The edge lines of a 3D mesh, two vertices per line, all as `x, y, z`: the positions, the
+ * normals of the two triangles of the edge of each vertex, zero at contours, and its midpoint.
+ */
+export interface EdgeData {
+  positions: Float32Array;
+  normalsA: Float32Array;
+  normalsB: Float32Array;
+  midpoints: Float32Array;
+}
+
+/** A 3D mesh with its edge lines, e.g. to draw contours and silhouettes. */
 export interface MeshData extends Triangles {
-  edges: Uint32Array;
+  edges: EdgeData;
   color?: Color;
 }
 
