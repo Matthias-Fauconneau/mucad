@@ -4,6 +4,7 @@
 mod change_version;
 mod check_readme;
 mod doctest;
+mod glsl;
 mod update_copyright;
 mod web;
 

@@ -10849,6 +10849,8 @@ dependencies = [
  "glob",
  "mucad-driver",
  "mucad-viewer-utils",
+ "naga",
+ "naga_oil",
  "regex",
  "semver",
  "tempfile",
