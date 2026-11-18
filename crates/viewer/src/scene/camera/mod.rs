@@ -48,6 +48,8 @@ pub fn setup_camera(
 
     commands.spawn((
         Camera3d::default(),
+        // The colors are shown as they are, e.g. of the theme, like in the web viewer.
+        bevy::core_pipeline::tonemapping::Tonemapping::None,
         navigation,
         Projection::from(OrthographicProjection::default_3d()),
         Transform::default(),

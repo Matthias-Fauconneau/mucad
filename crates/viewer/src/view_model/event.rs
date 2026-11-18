@@ -9,13 +9,13 @@ use bevy::{
         message::{Message, MessageReader},
         system::{Query, ResMut},
     },
-    pbr::StandardMaterial,
 };
 
 use mucad_driver::prelude as mu;
 
 use crate::{
     ViewModel,
+    material::ModelMaterial,
     processor::ProcessingState,
     view_model::{Cursor, ModelViewState},
 };
@@ -43,7 +43,7 @@ impl ViewerEvent {
     fn for_each_view_state(
         f: impl Fn(&Uuid, &mut ModelViewState),
         view_states: &mut Assets<ModelViewState>,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<ModelMaterial>,
     ) {
         view_states
             .iter_mut()
@@ -65,7 +65,7 @@ pub fn handle_viewer_event(
     mut navigations: Query<&mut crate::scene::CameraNavigation>,
     mut state: ResMut<ViewModel>,
     mut view_states: ResMut<Assets<ModelViewState>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<ModelMaterial>>,
     mut events: MessageReader<ViewerEvent>,
 ) {
     for event in events.read() {

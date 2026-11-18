@@ -26,4 +26,5 @@ export * from "./services/documents";
 export * as share from "./services/share";
 export * from "./generated/theme";
 export * from "./grid";
+export * from "./model-material";
 export * from "./viewer";

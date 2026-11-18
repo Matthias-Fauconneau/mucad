@@ -3,52 +3,7 @@
 
 import * as THREE from "three";
 import { grid } from "./generated/grid";
-
-/** A uniform block of the generated grid shader: its name and its members with their floats. */
-type UniformBlock = { readonly name: string; readonly members: readonly (readonly [string, number])[] };
-
-/** The value of a uniform of `floats` floats: a number, a `Vector3` or a `Matrix4`. */
-function uniformValue(floats: number): number | THREE.Vector3 | THREE.Matrix4 {
-  switch (floats) {
-    case 1:
-      return 0;
-    case 3:
-      return new THREE.Vector3();
-    case 16:
-      return new THREE.Matrix4();
-    default:
-      throw new Error(`A uniform of ${floats} floats is not supported`);
-  }
-}
-
-/** The uniforms group of `block`, whose uniforms are in the order of its std140 layout. */
-function uniformsGroup(block: UniformBlock): THREE.UniformsGroup {
-  const group = new THREE.UniformsGroup();
-  group.setName(block.name);
-  for (const [, floats] of block.members) group.add(new THREE.Uniform(uniformValue(floats)));
-  return group;
-}
-
-/** Set the uniforms of `group` of `block` to `values`, the floats of its members one after another. */
-function setUniforms(group: THREE.UniformsGroup, block: UniformBlock, values: ArrayLike<number>) {
-  let offset = 0;
-  block.members.forEach(([, floats], index) => {
-    const uniform = group.uniforms[index] as THREE.Uniform;
-    if (typeof uniform.value === "number") uniform.value = values[offset];
-    else uniform.value.fromArray(values, offset);
-    offset += floats;
-  });
-}
-
-/** The float of `member` of `block` in `values`, the floats of its members one after another. */
-function member(block: UniformBlock, values: ArrayLike<number>, name: string): number {
-  let offset = 0;
-  for (const [memberName, floats] of block.members) {
-    if (memberName === name) return values[offset];
-    offset += floats;
-  }
-  throw new Error(`No member ${name} in ${block.name}`);
-}
+import { member, setUniforms, uniformsGroup } from "./uniforms";
 
 /**
  * The grid of the µcad viewers in the plane Z = 0, from the WGSL shader which
@@ -68,7 +23,7 @@ export class Grid {
     this.positions = new THREE.BufferAttribute(new Float32Array(4 * 3), 3);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", this.positions);
-    geometry.setAttribute(grid.positionAttribute, this.positions);
+    geometry.setAttribute(grid.attributes[0], this.positions);
     geometry.setIndex([0, 1, 2, 0, 2, 3]);
     const material = new THREE.RawShaderMaterial({
       glslVersion: THREE.GLSL3,

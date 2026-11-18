@@ -15,10 +15,12 @@ use bevy::{
 
 mod angle;
 mod grid;
+mod model;
 mod ruler;
 
 pub use angle::Angle;
 pub use grid::Grid;
+pub use model::{ModelLighting, ModelMaterial, model_material};
 pub use ruler::Ruler;
 
 /// Common types to be used from bevy.
@@ -102,6 +104,7 @@ impl Plugin for MaterialPlugin {
     fn build(&self, app: &mut App) {
         type Material<T> = bevy::prelude::MaterialPlugin<T>;
         app.add_plugins(Material::<Grid>::default())
+            .add_plugins(Material::<ModelMaterial>::default())
             .add_plugins(Material::<Angle>::default())
             .add_plugins(Material::<Ruler>::default())
             .add_systems(Startup, load_materials);
@@ -128,6 +131,15 @@ fn load_materials(mut shaders: ResMut<Assets<Shader>>) {
             Shader::from_wgsl(mucad_viewer_utils::GRID_WGSL, grid_library),
         )
         .ok();
+    // The lighting library of `mucad_viewer_utils::lighting`, which `model.wgsl` imports.
+    let lighting_library = "mucad_viewer_utils/lighting.wgsl";
+    shaders
+        .insert(
+            asset_uuid_from_str(lighting_library),
+            Shader::from_wgsl(mucad_viewer_utils::LIGHTING_WGSL, lighting_library),
+        )
+        .ok();
+    add_shader_asset!(shaders, "model.wgsl");
     //add_shader_asset!(shaders, "angle.wgsl");
     //add_shader_asset!(shaders, "arrow.wgsl");
     add_shader_asset!(shaders, "grid.wgsl");

@@ -14,6 +14,7 @@ use bevy::{
 };
 use bevy_mod_outline::{OutlineMode, OutlineVolume};
 
+use crate::material::ModelMaterial;
 use crate::stdin::StdinMessageReceiver;
 use crate::view_model::ModelViewState;
 use crate::*;
@@ -145,6 +146,7 @@ pub struct ContourEdges;
 pub fn handle_processor_responses(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut model_materials: ResMut<Assets<ModelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut model_view_states: ResMut<Assets<ModelViewState>>,
     mut view_model: ResMut<ViewModel>,
@@ -157,7 +159,7 @@ pub fn handle_processor_responses(
         match response {
             ProcessorResponse::RemoveModelInstances(uuids) => uuids.iter().for_each(|uuid| {
                 model_view_states.remove(*uuid);
-                materials.remove(*uuid);
+                model_materials.remove(*uuid);
             }),
             ProcessorResponse::NewMeshAsset(uuid, mesh, edges) => {
                 log::info!("New mesh: {uuid}");
@@ -173,7 +175,7 @@ pub fn handle_processor_responses(
             ProcessorResponse::UpdateMaterials(uuids) => {
                 uuids.iter().for_each(|uuid| {
                     let view_state = model_view_states.get(*uuid).expect("Model info");
-                    let _ = materials.insert(*uuid, view_state.generate_material());
+                    let _ = model_materials.insert(*uuid, view_state.generate_material());
                 });
             }
             ProcessorResponse::SpawnModelInstances(uuids) => {
@@ -195,7 +197,7 @@ pub fn handle_processor_responses(
                     for mesh_uuid in &view_state.info().mesh_uuids {
                         let mut entity = commands.spawn((
                             Mesh3d(Handle::Uuid(*mesh_uuid, PhantomData)),
-                            MeshMaterial3d::<StandardMaterial>(Handle::Uuid(uuid, PhantomData)),
+                            MeshMaterial3d::<ModelMaterial>(Handle::Uuid(uuid, PhantomData)),
                             view_state.info().transform,
                             view_state.outline_volume.clone(),
                             OutlineMode::FloodFlat,
@@ -248,7 +250,7 @@ pub fn handle_pick_event(
     buttons: Res<ButtonInput<MouseButton>>,
     mut query: Query<(
         &ModelViewState,
-        &mut MeshMaterial3d<StandardMaterial>,
+        &mut MeshMaterial3d<ModelMaterial>,
         &mut OutlineVolume,
     )>,
     mut events: MessageWriter<ViewerEvent>,

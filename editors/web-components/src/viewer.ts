@@ -5,14 +5,21 @@ import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CameraControls, type StandardView } from "./camera-controls";
 import type { Color, Geometry, MeshData, SketchData, Triangles } from "./compiler/types";
 import { theme } from "./generated/theme";
 import { Grid } from "./grid";
+import { ModelMaterial, modelGeometry, updateModelCamera } from "./model-material";
 
 /** The angle between faces, above which an edge is shown sharp instead of smooth. */
 const CREASE_ANGLE = THREE.MathUtils.degToRad(20);
+
+/** The width of the outlines of 2D sketches in pixels outside of them, like in the Bevy viewer. */
+const OUTLINE_WIDTH = 4;
 
 /** The views of 3D models (from the front, the right and the top) and 2D models (from above). */
 const VIEWS = {
@@ -57,10 +64,7 @@ export class Viewer {
 
     this.scene.background = new THREE.Color(theme.primary);
     this.scene.add(this.model);
-    this.scene.add(new THREE.HemisphereLight(theme.brighter, theme.darker, 1.5));
-    const light = new THREE.DirectionalLight(theme.brighter, 2);
-    light.position.set(1, -2, 3);
-    this.camera.add(light);
+    // The models are lit by their material like in the Bevy viewer, the scene has no lights.
     this.scene.add(this.camera);
     this.grid.mesh.visible = false;
     this.scene.add(this.grid.mesh);
@@ -84,6 +88,12 @@ export class Viewer {
   /** Render the scene with the camera of the controls and the grid for it. */
   private render() {
     this.controls.update();
+    updateModelCamera(this.camera);
+    // The widths of the outlines are pixels of the render target.
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.model.traverse((object) => {
+      if (object instanceof LineSegments2) object.material.resolution.copy(size);
+    });
     const gridConfig = this.controls.gridConfig();
     if (gridConfig) this.grid.update(this.camera, gridConfig);
     this.composer.render();
@@ -105,16 +115,18 @@ export class Viewer {
   show3d(meshes: MeshData[]) {
     this.replace(
       meshes.flatMap((mesh) => {
-        const material = new THREE.MeshStandardMaterial({
-          ...colorParameters(mesh.color, theme.bright),
-          metalness: 0.1,
-          roughness: 0.6,
+        const { color, opacity = 1 } = colorParameters(mesh.color, theme.brighter);
+        // The lighting of the Bevy viewer.
+        const material = new ModelMaterial(new THREE.Color(color), opacity, {
           // Move the faces back a little, so that the contours on their edges stay visible.
           polygonOffset: true,
           polygonOffsetFactor: 1,
           polygonOffsetUnits: 1,
         });
-        const surface = new THREE.Mesh(toCreasedNormals(geometry(mesh), CREASE_ANGLE), material);
+        const surface = new THREE.Mesh(
+          modelGeometry(toCreasedNormals(geometry(mesh), CREASE_ANGLE)),
+          material,
+        );
         const contours = new THREE.LineSegments(
           new THREE.BufferGeometry()
             .setAttribute("position", new THREE.BufferAttribute(mesh.positions, 3))
@@ -130,7 +142,9 @@ export class Viewer {
   /**
    * Show 2D sketches as filled triangles with outlines.
    *
-   * Sketches without a color are filled in the darker color with outlines in the signal color.
+   * Sketches without a color are filled in the brighter color. Their outlines are outside of them
+   * in the darker color with half opacity, like `bevy_mod_outline` in the Bevy viewer: the lines
+   * are drawn before the fill, which covers their inner half.
    */
   show2d(sketches: SketchData[]) {
     this.replace(
@@ -138,18 +152,28 @@ export class Viewer {
         const fill = new THREE.Mesh(
           geometry(sketch.triangles),
           new THREE.MeshBasicMaterial({
-            ...colorParameters(sketch.color, theme.darker),
+            ...colorParameters(sketch.color, theme.brighter),
             side: THREE.DoubleSide,
+            // Drawn after the outline in the transparent objects, also when it is opaque.
+            transparent: true,
           }),
         );
+        fill.renderOrder = 1;
         const positions = sketch.lines;
         const points = new Float32Array((positions.length / 2) * 3);
         positions.forEach(
           (value, index) => (points[Math.floor(index / 2) * 3 + (index % 2)] = value),
         );
-        const outline = new THREE.LineSegments(
-          new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(points, 3)),
-          new THREE.LineBasicMaterial(colorParameters(sketch.color, theme.signal)),
+        // The lines are twice as wide, the fill covers their inner half.
+        const outline = new LineSegments2(
+          new LineSegmentsGeometry().setPositions(points),
+          new LineMaterial({
+            color: theme.darker,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+            linewidth: 2 * OUTLINE_WIDTH * this.renderer.getPixelRatio(),
+          }),
         );
         return [fill, outline];
       }),

@@ -10,7 +10,9 @@
 use std::error::Error;
 use std::path::{Path, PathBuf};
 
-use mucad_viewer_utils::{GRID_WEB_WGSL, GRID_WGSL, Theme};
+use mucad_viewer_utils::{
+    GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, Lighting, MODEL_WEB_WGSL, Theme,
+};
 
 use crate::change_version::workspace_root;
 use crate::update_copyright::copyright_header;
@@ -23,6 +25,10 @@ const THEME_SOURCE: &str = "`Theme::default()` of `mucad-viewer-utils`";
 
 /// The source of the generated grid shader.
 const GRID_SOURCE: &str = "`GRID_WEB_WGSL` and `GRID_WGSL` of `mucad-viewer-utils`";
+
+/// The source of the generated model shader.
+const MODEL_SOURCE: &str =
+    "`MODEL_WEB_WGSL`, `LIGHTING_WGSL` and `Lighting::default()` of `mucad-viewer-utils`";
 
 /// The note of a generated file, which says where it comes from, e.g. [`THEME_SOURCE`].
 fn note(source: &str) -> String {
@@ -112,6 +118,11 @@ fn generated_files() -> Result<Vec<Generated>, Box<dyn Error>> {
             comment: ("//", ""),
             content: grid_ts()?,
         },
+        Generated {
+            path: dir.join("model.ts"),
+            comment: ("//", ""),
+            content: model_ts()?,
+        },
     ])
 }
 
@@ -146,11 +157,84 @@ fn theme_ts(theme: &Theme) -> Result<String, Box<dyn Error>> {
     ))
 }
 
-/// The grid shader in GLSL ES 3.00 for three.js, with the names of its attribute and of its
-/// uniform blocks, which naga generated.
+/// The grid shader in GLSL ES 3.00 for three.js.
 fn grid_ts() -> Result<String, Box<dyn Error>> {
     let shader =
         crate::glsl::to_webgl(GRID_WEB_WGSL, "grid_web.wgsl", &[("grid.wgsl", GRID_WGSL)])?;
+    shader_ts(
+        "grid",
+        "The grid shader of the µcad viewers",
+        "the position at location 0",
+        &shader,
+        "",
+        GRID_SOURCE,
+    )
+}
+
+/// The shader of the lit models in GLSL ES 3.00 for three.js, with the default lighting.
+fn model_ts() -> Result<String, Box<dyn Error>> {
+    let shader = crate::glsl::to_webgl(
+        MODEL_WEB_WGSL,
+        "model_web.wgsl",
+        &[("lighting.wgsl", LIGHTING_WGSL)],
+    )?;
+    // The floats of `Lighting::default()` in the order of the members of the WGSL struct.
+    let lighting = Lighting::default();
+    let values: [(&str, Vec<f32>); 8] = [
+        ("key_direction", lighting.key_direction.to_array().to_vec()),
+        ("key", vec![lighting.key]),
+        (
+            "fill_direction",
+            lighting.fill_direction.to_array().to_vec(),
+        ),
+        ("fill", vec![lighting.fill]),
+        ("sky", vec![lighting.sky]),
+        ("ground", vec![lighting.ground]),
+        ("specular", vec![lighting.specular]),
+        ("shininess", vec![lighting.shininess]),
+    ];
+    let block = shader
+        .uniform_blocks
+        .get("lighting")
+        .ok_or("No uniform block `lighting`")?;
+    let names: Vec<&str> = block
+        .members
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
+    let expected: Vec<&str> = values.iter().map(|(name, _)| *name).collect();
+    if names != expected {
+        return Err(format!("The members of `Lighting` changed: {names:?}").into());
+    }
+    let floats: Vec<String> = values
+        .iter()
+        .flat_map(|(_, floats)| floats.iter().map(|float| format!("{float:?}")))
+        .collect();
+    shader_ts(
+        "model",
+        "The shader of the lit 3D models of the µcad viewers",
+        "the position at location 0 and the normal at location 1",
+        &shader,
+        &format!(
+            "\x20 /** The floats of `Lighting::default()` for the uniform block `lighting`. */\n\
+             \x20 lighting: [{}],\n",
+            floats.join(", ")
+        ),
+        MODEL_SOURCE,
+    )
+}
+
+/// A TypeScript module, which exports the constant `name` with the shaders without `#version`,
+/// which three.js writes with `glslVersion: THREE.GLSL3`, with the names of the attributes and of
+/// the uniform blocks, which naga generated, and with `extra` entries.
+fn shader_ts(
+    name: &str,
+    description: &str,
+    attributes_description: &str,
+    shader: &crate::glsl::WebGlShader,
+    extra: &str,
+    source: &str,
+) -> Result<String, Box<dyn Error>> {
     // three.js writes `#version 300 es` itself with `glslVersion: THREE.GLSL3`, before its defines.
     let without_version = |glsl: &str| -> Result<String, Box<dyn Error>> {
         let glsl = glsl
@@ -160,10 +244,19 @@ fn grid_ts() -> Result<String, Box<dyn Error>> {
     };
     let vertex_shader = template_literal(&without_version(&shader.vertex)?);
     let fragment_shader = template_literal(&without_version(&shader.fragment)?);
-    let position = shader
+    // The attributes by their locations from 0.
+    let attributes: Vec<String> = shader
         .attributes
-        .get(&0)
-        .ok_or("No vertex attribute at location 0")?;
+        .iter()
+        .enumerate()
+        .map(|(index, (location, attribute))| {
+            if *location as usize == index {
+                Ok(format!("\"{attribute}\""))
+            } else {
+                Err(format!("No vertex attribute at location {index}"))
+            }
+        })
+        .collect::<Result<_, _>>()?;
     let blocks: String = shader
         .uniform_blocks
         .iter()
@@ -184,14 +277,14 @@ fn grid_ts() -> Result<String, Box<dyn Error>> {
         "// {note}\n\
          \n\
          /**\n \
-          * The grid shader of the µcad viewers in GLSL ES 3.00 for WebGL2, without `#version`,\n \
-          * which three.js writes with `glslVersion: THREE.GLSL3`.\n \
+          * {description} in GLSL ES 3.00 for WebGL2, without `#version`, which three.js writes\n \
+          * with `glslVersion: THREE.GLSL3`.\n \
           */\n\
-         export const grid = {{\n\
+         export const {name} = {{\n\
          \x20 vertexShader: {vertex_shader},\n\
          \x20 fragmentShader: {fragment_shader},\n\
-         \x20 /** The vertex attribute of the positions. */\n\
-         \x20 positionAttribute: \"{position}\",\n\
+         \x20 /** The vertex attributes by their locations: {attributes_description}. */\n\
+         \x20 attributes: [{attributes}],\n\
          \x20 /**\n\
          \x20  * The uniform blocks by the names of their variables in WGSL, with the names and the numbers\n\
          \x20  * of floats of the members in the order of their std140 layout, e.g. for\n\
@@ -200,8 +293,10 @@ fn grid_ts() -> Result<String, Box<dyn Error>> {
          \x20 uniformBlocks: {{\n\
          {blocks}\
          \x20 }},\n\
+         {extra}\
          }} as const;\n",
-        note = note(GRID_SOURCE)
+        note = note(source),
+        attributes = attributes.join(", "),
     ))
 }
 

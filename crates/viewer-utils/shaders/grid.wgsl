@@ -72,6 +72,7 @@ fn grid_opacity(pos: vec2<f32>, zoom: f32, config: GridConfig) -> vec4<f32> {
 /// The color of the grid at `p` in world coordinates with its opacity, faded out at the radius.
 fn grid_color(p: vec2<f32>, config: GridConfig) -> vec4<f32> {
     let grid = grid_opacity(p, 8.0 / config.zoom_level, config);
-    let fade = min(2.0 - length(p) / config.radius, 1.0);
+    // Not negative beyond the double radius, e.g. in a float render target, which does not clamp.
+    let fade = clamp(2.0 - length(p) / config.radius, 0.0, 1.0);
     return vec4(grid.xyz, grid.w * fade);
 }

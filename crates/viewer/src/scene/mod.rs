@@ -15,7 +15,6 @@ pub use camera::{
     },
 };
 mod grid;
-mod lighting;
 mod overlay;
 mod ruler;
 
@@ -67,8 +66,6 @@ pub struct Scene {
     pub radius: f32,
     /// The scene grid (will be `Some` after the grid has been spawned).
     pub grid_entity: Option<Entity>,
-    /// Light entities.
-    pub light_entities: Vec<Entity>,
     /// Model entities.
     pub model_entities: Vec<Entity>,
 }
@@ -83,7 +80,6 @@ impl Default for Scene {
         Self {
             radius: 100.0,
             grid_entity: Default::default(),
-            light_entities: Default::default(),
             model_entities: Default::default(),
         }
     }
@@ -99,7 +95,6 @@ impl Plugin for ScenePlugin {
                 Update,
                 camera::update_bounds.before(CameraControllerSystems),
             )
-            .add_systems(Update, lighting::spawn_lights)
             .add_systems(Startup, grid::spawn_grid_plane)
             //.add_systems(Startup, angle::spawn_angle_plane)
             //.add_systems(Startup, ruler::spawn_ruler_plane)

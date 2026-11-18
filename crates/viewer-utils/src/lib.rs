@@ -15,6 +15,7 @@ mod camera_controller;
 mod controls;
 mod grid;
 mod input;
+mod lighting;
 mod navigation;
 mod rect;
 mod shaders;
@@ -31,8 +32,9 @@ pub use controls::{
 };
 pub use grid::GridConfig;
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
+pub use lighting::Lighting;
 pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
 pub use rect::Rect;
-pub use shaders::{GRID_WEB_WGSL, GRID_WGSL};
+pub use shaders::{GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, MODEL_WEB_WGSL};
 pub use theme::Theme;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};
