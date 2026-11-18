@@ -16,6 +16,7 @@ mod controls;
 mod input;
 mod navigation;
 mod rect;
+mod theme;
 mod zoom_rect;
 
 pub use bounding_sphere::BoundingSphere;
@@ -29,4 +30,5 @@ pub use controls::{
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
 pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
 pub use rect::Rect;
+pub use theme::Theme;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};
