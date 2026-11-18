@@ -27,8 +27,9 @@ pub struct WebGlShader {
 pub struct UniformBlock {
     /// The name of the block in GLSL, e.g. `GridConfig_block_1Fragment`.
     pub name: String,
-    /// The names of the members of the struct in the order of their layout.
-    pub members: Vec<String>,
+    /// The names and the number of floats of the members of the struct in the order of their
+    /// layout, e.g. `("view_angle", 3)` of a `vec3<f32>`.
+    pub members: Vec<(String, u32)>,
 }
 
 /// Convert `source` with the entry points `vertex` and `fragment`, which imports `libraries`,
@@ -113,7 +114,12 @@ pub fn to_webgl(
             let members = match &module.types[variable.ty].inner {
                 naga::TypeInner::Struct { members, .. } => members
                     .iter()
-                    .map(|member| member.name.clone().ok_or("A member without name"))
+                    .map(|member| {
+                        let member_name = member.name.clone().ok_or("A member without name")?;
+                        let floats = floats(&module.types[member.ty].inner)
+                            .ok_or(format!("The member `{member_name}` is no float type"))?;
+                        Ok::<_, Box<dyn Error>>((member_name, floats))
+                    })
                     .collect::<Result<_, _>>()?,
                 _ => return Err(format!("The uniform `{name}` is no struct").into()),
             };
@@ -145,6 +151,21 @@ pub fn to_webgl(
     Ok(shader)
 }
 
+/// The number of floats of a float, a float vector or a float matrix, e.g. 3 of `vec3<f32>`.
+fn floats(ty: &naga::TypeInner) -> Option<u32> {
+    let float = |scalar: &naga::Scalar| scalar.kind == naga::ScalarKind::Float;
+    match ty {
+        naga::TypeInner::Scalar(scalar) if float(scalar) => Some(1),
+        naga::TypeInner::Vector { size, scalar } if float(scalar) => Some(*size as u32),
+        naga::TypeInner::Matrix {
+            columns,
+            rows,
+            scalar,
+        } if float(scalar) => Some(*columns as u32 * *rows as u32),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,20 +183,27 @@ mod tests {
         assert_eq!(shader.attributes[&0], "_p2vs_location0");
         let config = &shader.uniform_blocks["config"];
         assert!(config.name.ends_with("Fragment"), "{}", config.name);
+        fn members(block: &UniformBlock) -> Vec<(&str, u32)> {
+            block
+                .members
+                .iter()
+                .map(|(name, floats)| (name.as_str(), *floats))
+                .collect()
+        }
         assert_eq!(
-            config.members,
+            members(config),
             [
-                "radius",
-                "zoom_level",
-                "view_angle",
-                "grid_color",
-                "x_axis_color",
-                "y_axis_color"
+                ("radius", 1),
+                ("zoom_level", 1),
+                ("view_angle", 3),
+                ("grid_color", 3),
+                ("x_axis_color", 3),
+                ("y_axis_color", 3)
             ]
         );
         assert_eq!(
-            shader.uniform_blocks["camera"].members,
-            ["clip_from_world", "z_offset"]
+            members(&shader.uniform_blocks["camera"]),
+            [("clip_from_world", 16), ("z_offset", 1)]
         );
     }
 }

@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CameraControls, type StandardView } from "./camera-controls";
 import type { Color, Geometry, MeshData, SketchData, Triangles } from "./compiler/types";
 import { theme } from "./generated/theme";
+import { Grid } from "./grid";
 
 /** The angle between faces, above which an edge is shown sharp instead of smooth. */
 const CREASE_ANGLE = THREE.MathUtils.degToRad(20);
@@ -22,9 +26,13 @@ type ModelKind = keyof typeof VIEWS;
  * A three.js view of µcad models, the Z axis points up like in µcad.
  *
  * The orthographic camera is navigated with the mouse and the keys by {@link CameraControls}.
+ *
+ * The scene is rendered into a linear render target and converted to sRGB afterwards, so that
+ * transparent objects are blended in linear colors like in the Bevy viewer, e.g. the grid.
  */
 export class Viewer {
   private renderer: THREE.WebGLRenderer;
+  private composer: EffectComposer;
   private scene = new THREE.Scene();
   private camera = new THREE.OrthographicCamera();
   /** The camera navigation, e.g. to listen to its `select` events or to set its controls. */
@@ -32,14 +40,20 @@ export class Viewer {
   /** The radius of the bounds of the camera, which a bigger model increases. */
   private boundsRadius = 0;
   private model = new THREE.Group();
-  private grid?: THREE.GridHelper;
+  /** The grid of the Bevy viewer, which is shown with a model. */
+  private grid = new Grid();
   /** The kind of the shown model, whose direction the camera was reset to. */
   private kind?: ModelKind;
 
   constructor(private element: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer();
     this.renderer.setPixelRatio(window.devicePixelRatio);
     element.appendChild(this.renderer.domElement);
+    // A linear float render target, which is antialiased, and its conversion to sRGB.
+    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+    this.composer = new EffectComposer(this.renderer, target);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.composer.addPass(new OutputPass());
 
     this.scene.background = new THREE.Color(theme.primary);
     this.scene.add(this.model);
@@ -48,6 +62,8 @@ export class Viewer {
     light.position.set(1, -2, 3);
     this.camera.add(light);
     this.scene.add(this.camera);
+    this.grid.mesh.visible = false;
+    this.scene.add(this.grid.mesh);
 
     THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
     this.controls = new CameraControls(this.camera, this.renderer.domElement);
@@ -62,10 +78,15 @@ export class Viewer {
     element.appendChild(resetButton);
 
     new ResizeObserver(() => this.resize()).observe(element);
-    this.renderer.setAnimationLoop(() => {
-      this.controls.update();
-      this.renderer.render(this.scene, this.camera);
-    });
+    this.renderer.setAnimationLoop(() => this.render());
+  }
+
+  /** Render the scene with the camera of the controls and the grid for it. */
+  private render() {
+    this.controls.update();
+    const gridConfig = this.controls.gridConfig();
+    if (gridConfig) this.grid.update(this.camera, gridConfig);
+    this.composer.render();
   }
 
   /** Show the geometry of a model, or remove the model without geometry. */
@@ -148,7 +169,7 @@ export class Viewer {
   }
 
   /**
-   * Update the grid for a new model of `kind`, the camera stays, unless it is the first model or
+   * Show the grid for a new model of `kind`, the camera stays, unless it is the first model or
    * the kind changes, e.g. from a 3D to a 2D model.
    */
   private update(kind: ModelKind) {
@@ -166,7 +187,7 @@ export class Viewer {
         this.controls.setBounds(center, radius);
       }
     }
-    this.updateGrid(box);
+    this.grid.mesh.visible = true;
   }
 
   /** Move the camera to see the whole model in the standard view of its kind. */
@@ -187,30 +208,13 @@ export class Viewer {
     return box.isEmpty() ? undefined : box;
   }
 
-  /** Add a grid below the model in `box`. */
-  private updateGrid(box: THREE.Box3) {
-    const center = box.getCenter(new THREE.Vector3());
-    const radius = box.getBoundingSphere(new THREE.Sphere()).radius || 1;
-    if (this.grid) {
-      this.scene.remove(this.grid);
-      this.grid.dispose();
-    }
-    // Cells of a power of ten, e.g. 10mm for a model of 50mm.
-    const cell = Math.pow(10, Math.floor(Math.log10(radius / 2)));
-    const divisions = 2 * Math.ceil((radius * 1.5) / cell);
-    this.grid = new THREE.GridHelper(divisions * cell, divisions, theme.guide, theme.darker);
-    this.grid.rotation.x = Math.PI / 2;
-    this.grid.position.set(center.x, center.y, box.min.z - radius / 1000);
-    this.scene.add(this.grid);
-  }
-
   private resize() {
     const { clientWidth: width, clientHeight: height } = this.element;
     this.renderer.setSize(width, height);
+    this.composer.setSize(width, height);
     this.controls.resize(width, height);
     // Resizing clears the canvas, render at once to avoid flickering while a panel is resized.
-    this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    this.render();
   }
 }
 

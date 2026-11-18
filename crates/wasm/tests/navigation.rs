@@ -131,3 +131,16 @@ fn touch() {
     assert!(navigation.touch_end(2.0, 300.0, 100.0).is_none());
     navigation.touch_cancel(1.0);
 }
+
+#[test]
+fn grid_config() {
+    let mut navigation = navigation();
+    navigation.set_bounds(0.0, 0.0, 0.0, 50.0);
+    let config = navigation.grid_config();
+    // radius, zoom level and 4 vectors.
+    assert_eq!(config.len(), 2 + 4 * 3);
+    assert_eq!(config[0], 50.0);
+    // The view direction is normalized.
+    let view = glam::Vec3::from_slice(&config[2..5]);
+    assert!((view.length() - 1.0).abs() < 1e-5);
+}

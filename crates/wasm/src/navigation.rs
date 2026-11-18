@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mucad_viewer_utils::{
-    BoundingSphere, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, Modifiers, MouseAction,
-    MouseButton, Navigation, Scalar, StandardView, TouchId,
+    BoundingSphere, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, GridConfig, Modifiers,
+    MouseAction, MouseButton, Navigation, Scalar, StandardView, Theme, TouchId,
 };
 use wasm_bindgen::prelude::*;
 
@@ -287,6 +287,18 @@ impl CameraNavigation {
         self.navigation.controller_mut().reset_pivot();
     }
 
+    /// The parameters of the grid shader for the camera with the colors of the default theme,
+    /// like in the Bevy viewer: the members of `GridConfig` as floats one after another, e.g.
+    /// `[radius, zoom_level, view_angle.x, view_angle.y, …]`, see `grid.uniformBlocks` of the
+    /// generated `grid.ts` of the web components.
+    #[wasm_bindgen(js_name = gridConfig)]
+    pub fn grid_config(&self) -> Vec<f32> {
+        grid_floats(&GridConfig::new(
+            self.navigation.controller(),
+            &Theme::default(),
+        ))
+    }
+
     /// The changes since the last call: `zoomLevelChanged` and `pivotChanged`.
     #[wasm_bindgen(js_name = takeEvents)]
     pub fn take_events(&mut self) -> Vec<String> {
@@ -346,6 +358,21 @@ impl CameraNavigation {
     fn camera(&self) -> &mucad_viewer_utils::Camera {
         self.navigation.controller().camera()
     }
+}
+
+/// The fields of `config` as floats one after another in their order, which is the one of the
+/// WGSL struct.
+fn grid_floats(config: &GridConfig) -> Vec<f32> {
+    let mut floats = vec![config.radius, config.zoom_level];
+    for vector in [
+        config.view_angle,
+        config.grid_color,
+        config.x_axis_color,
+        config.y_axis_color,
+    ] {
+        floats.extend(vector.to_array());
+    }
+    floats
 }
 
 /// The selection of a command.

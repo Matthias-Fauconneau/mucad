@@ -120,11 +120,12 @@ void main() {
   /** The vertex attribute of the positions. */
   positionAttribute: "_p2vs_location0",
   /**
-   * The uniform blocks by the names of their variables in WGSL, with the members in the
-   * order of their std140 layout, e.g. for `THREE.UniformsGroup`.
+   * The uniform blocks by the names of their variables in WGSL, with the names and the numbers
+   * of floats of the members in the order of their std140 layout, e.g. for
+   * `THREE.UniformsGroup`.
    */
   uniformBlocks: {
-    camera: { name: "Camera_block_0Vertex", members: ["clip_from_world", "z_offset"] },
-    config: { name: "GridConfigX_naga_oil_mod_XNV2WGYLEL53GSZLXMVZF65LUNFWHGOR2M5ZGSZAX_block_0Fragment", members: ["radius", "zoom_level", "view_angle", "grid_color", "x_axis_color", "y_axis_color"] },
+    camera: { name: "Camera_block_0Vertex", members: [["clip_from_world", 16], ["z_offset", 1]] },
+    config: { name: "GridConfigX_naga_oil_mod_XNV2WGYLEL53GSZLXMVZF65LUNFWHGOR2M5ZGSZAX_block_0Fragment", members: [["radius", 1], ["zoom_level", 1], ["view_angle", 3], ["grid_color", 3], ["x_axis_color", 3], ["y_axis_color", 3]] },
   },
 } as const;

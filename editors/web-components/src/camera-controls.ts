@@ -146,6 +146,14 @@ export class CameraControls extends EventTarget {
     this.navigation?.setControls(toml);
   }
 
+  /**
+   * The parameters of the grid shader for the camera, the floats of the members of `GridConfig`,
+   * or `undefined`, until the WebAssembly module is loaded.
+   */
+  gridConfig(): Float32Array | undefined {
+    return this.navigation?.gridConfig();
+  }
+
   /** Set the size of the element in pixels, e.g. after resizing it. */
   resize(width: number, height: number) {
     this.width = width;

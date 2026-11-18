@@ -168,7 +168,11 @@ fn grid_ts() -> Result<String, Box<dyn Error>> {
         .uniform_blocks
         .iter()
         .map(|(variable, block)| {
-            let members: Vec<String> = block.members.iter().map(|m| format!("\"{m}\"")).collect();
+            let members: Vec<String> = block
+                .members
+                .iter()
+                .map(|(name, floats)| format!("[\"{name}\", {floats}]"))
+                .collect();
             format!(
                 "    {variable}: {{ name: \"{}\", members: [{}] }},\n",
                 block.name,
@@ -189,8 +193,9 @@ fn grid_ts() -> Result<String, Box<dyn Error>> {
          \x20 /** The vertex attribute of the positions. */\n\
          \x20 positionAttribute: \"{position}\",\n\
          \x20 /**\n\
-         \x20  * The uniform blocks by the names of their variables in WGSL, with the members in the\n\
-         \x20  * order of their std140 layout, e.g. for `THREE.UniformsGroup`.\n\
+         \x20  * The uniform blocks by the names of their variables in WGSL, with the names and the numbers\n\
+         \x20  * of floats of the members in the order of their std140 layout, e.g. for\n\
+         \x20  * `THREE.UniformsGroup`.\n\
          \x20  */\n\
          \x20 uniformBlocks: {{\n\
          {blocks}\
