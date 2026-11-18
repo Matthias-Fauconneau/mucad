@@ -15,7 +15,7 @@ use std::time::Duration;
 use glam::{DVec2, Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
 use serde::{Deserialize, Serialize};
 
-use crate::{BoundingSphere, Camera, ProjectionType};
+use crate::{BoundingSphere, Camera};
 
 /// The projection mode of a [`CameraController`], written in lower case, e.g. `perspective`.
 #[derive(
@@ -131,12 +131,13 @@ impl CameraControllerState {
     /// origin, the camera looks at it from the front.
     pub(crate) fn new(window_size: DVec2) -> Self {
         let bounds = BoundingSphere::new(Vec3::ZERO, 100.0);
-        let mut camera = Camera::default();
-        camera.up_vector = Vec3::Y;
-        camera.view_center = bounds.pos;
-        camera.position = bounds.pos + Vec3::Z * 2.0 * bounds.radius as f32;
         Self {
-            camera,
+            camera: Camera {
+                position: bounds.pos + Vec3::Z * 2.0 * bounds.radius as f32,
+                view_center: bounds.pos,
+                up_vector: Vec3::Y,
+                ..Camera::default()
+            },
             bounds,
             pivot: Vec3::ZERO,
             window_size,
@@ -307,11 +308,6 @@ pub trait CameraControl {
         self.set_pivot(center);
     }
 
-    /// The kind of the projection of the camera.
-    fn projection_type(&self) -> ProjectionType {
-        self.camera().projection_type()
-    }
-
     /// What the mouse moves at the moment.
     fn mode(&self) -> Mode {
         self.state().mode
@@ -400,7 +396,7 @@ pub trait CameraControl {
     /// The screen coordinate in pixels of a point in world coordinates.
     fn screen_coord(&self, world_point: Vec3) -> DVec2 {
         let camera = self.camera();
-        let point_in_screen_space = camera.projection_matrix()
+        let point_in_screen_space = camera.projection_matrix
             * camera.transform_matrix().inverse()
             * world_point.extend(1.0);
         let ndc = point_in_screen_space.xy().as_dvec2() / point_in_screen_space.w as f64;

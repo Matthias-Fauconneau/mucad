@@ -369,7 +369,7 @@ impl CameraNavigation {
     /// columns.
     #[wasm_bindgen(js_name = projectionMatrix)]
     pub fn projection_matrix(&self) -> Vec<f32> {
-        columns(self.camera().projection_matrix())
+        columns(self.camera().projection_matrix)
     }
 }
 

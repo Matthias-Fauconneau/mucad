@@ -5,19 +5,6 @@
 
 use glam::{Mat4, Quat, Vec3};
 
-/// The kind of the projection of a [`Camera`], like `QCameraLens::ProjectionType` of Qt 3D.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProjectionType {
-    /// An orthographic projection.
-    Orthographic,
-    /// A perspective projection with a field of view.
-    Perspective,
-    /// A perspective projection with a frustum.
-    Frustum,
-    /// A projection set as matrix.
-    Custom,
-}
-
 /// A camera looking from its position at its view center, like `QCamera` of Qt 3D.
 ///
 /// The projection maps the coordinates of the camera to the normalized device coordinates of
@@ -30,8 +17,8 @@ pub struct Camera {
     pub view_center: Vec3,
     /// The direction, which is upwards in the view.
     pub up_vector: Vec3,
-    projection_type: ProjectionType,
-    projection_matrix: Mat4,
+    /// The projection from the coordinates of the camera to normalized device coordinates.
+    pub projection_matrix: Mat4,
 }
 
 impl Default for Camera {
@@ -42,7 +29,6 @@ impl Default for Camera {
             position: Vec3::ZERO,
             view_center: Vec3::new(0.0, 0.0, -100.0),
             up_vector: Vec3::Y,
-            projection_type: ProjectionType::Perspective,
             projection_matrix: Mat4::perspective_rh_gl(25f32.to_radians(), 1.0, 0.1, 1024.0),
         }
     }
@@ -52,22 +38,6 @@ impl Camera {
     /// The vector from the position to the view center.
     pub fn view_vector(&self) -> Vec3 {
         self.view_center - self.position
-    }
-
-    /// The kind of the projection.
-    pub fn projection_type(&self) -> ProjectionType {
-        self.projection_type
-    }
-
-    /// The projection from the coordinates of the camera to normalized device coordinates.
-    pub fn projection_matrix(&self) -> Mat4 {
-        self.projection_matrix
-    }
-
-    /// Set the projection, which makes it a [`ProjectionType::Custom`] one.
-    pub fn set_projection_matrix(&mut self, projection_matrix: Mat4) {
-        self.projection_matrix = projection_matrix;
-        self.projection_type = ProjectionType::Custom;
     }
 
     /// The transformation from world coordinates to the coordinates of the camera.
@@ -136,12 +106,5 @@ mod tests {
         // Tilting upwards turns the view vector upwards.
         let v = camera.tilt_rotation(90.0) * camera.view_vector();
         assert!(v.abs_diff_eq(Vec3::new(0.0, 10.0, 0.0), 1e-5));
-    }
-
-    #[test]
-    fn custom_projection() {
-        let mut camera = camera();
-        camera.set_projection_matrix(Mat4::IDENTITY);
-        assert_eq!(camera.projection_type(), ProjectionType::Custom);
     }
 }

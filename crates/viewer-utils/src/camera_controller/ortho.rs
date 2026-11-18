@@ -132,9 +132,7 @@ impl OrthoCameraController {
 
     /// Apply the orthographic projection of the detail to the camera.
     fn update_camera_lens(&mut self) {
-        self.state
-            .camera
-            .set_projection_matrix(self.zoom_rect_model.detail_ortho_projection_matrix());
+        self.state.camera.projection_matrix = self.zoom_rect_model.detail_ortho_projection_matrix();
     }
 
     /// React to the changes of the zoom, like the connected signals of Qt.
@@ -296,7 +294,7 @@ impl CameraControl for OrthoCameraController {
         let ndc = Vec4::new(x, y, -1.0, 1.0);
 
         // Eye coordinates
-        let mut eye = camera.projection_matrix().inverse() * ndc;
+        let mut eye = camera.projection_matrix.inverse() * ndc;
         eye /= eye.w;
 
         // World coordinates
@@ -325,7 +323,6 @@ impl CameraControl for OrthoCameraController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ProjectionType;
     use glam::Mat4;
 
     const WINDOW: DVec2 = DVec2::new(400.0, 200.0);
@@ -341,9 +338,8 @@ mod tests {
                 .abs_diff_eq(Vec3::new(0.0, 0.0, 1000.0), 1e-3)
         );
         assert_eq!(camera.view_center, Vec3::ZERO);
-        assert_eq!(camera.projection_type(), ProjectionType::Custom);
         assert_eq!(
-            camera.projection_matrix(),
+            camera.projection_matrix,
             controller.zoom_model().detail_ortho_projection_matrix()
         );
         assert_eq!(controller.take_events(), [CameraEvent::ZoomLevelChanged]);
@@ -400,7 +396,7 @@ mod tests {
         assert!(controller.zoom_model().detail().width > 0.0);
         assert!(controller.zoom_level() > 1.0);
         assert_eq!(
-            controller.camera().projection_matrix(),
+            controller.camera().projection_matrix,
             controller.zoom_model().detail_ortho_projection_matrix()
         );
     }
@@ -507,7 +503,7 @@ mod tests {
         let corner = controller.world_point(DVec2::ZERO);
         assert!(corner.abs_diff_eq(Vec3::new(-100.0, 100.0, 0.0), 1e-3));
         assert_eq!(
-            controller.camera().projection_matrix(),
+            controller.camera().projection_matrix,
             controller.zoom_model().detail_ortho_projection_matrix()
         );
         // A hidden window is ignored.

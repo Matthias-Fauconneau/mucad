@@ -137,7 +137,7 @@ impl PerspectiveCameraController {
         let aspect = (self.state.window_size.x / self.state.window_size.y) as f32;
         let (near, far) = self.near_far();
         let projection = Mat4::perspective_rh_gl(self.fov(), aspect, near, far);
-        self.state.camera.set_projection_matrix(projection);
+        self.state.camera.projection_matrix = projection;
     }
 
     /// The distance of the plane of the pivot from the camera along the view direction.
@@ -262,7 +262,7 @@ impl CameraControl for PerspectiveCameraController {
         let window_size = self.state.window_size;
         let x = (2.0 * pos.x as f32) / window_size.x as f32 - 1.0;
         let y = 1.0 - (2.0 * pos.y as f32) / window_size.y as f32;
-        let world_from_clip = camera.transform_matrix() * camera.projection_matrix().inverse();
+        let world_from_clip = camera.transform_matrix() * camera.projection_matrix.inverse();
         let unproject = |z: f32| {
             let p = world_from_clip * Vec4::new(x, y, z, 1.0);
             (p / p.w).xyz()

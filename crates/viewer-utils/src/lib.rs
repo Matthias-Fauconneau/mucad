@@ -24,7 +24,7 @@ mod theme;
 mod zoom_rect;
 
 pub use bounding_sphere::BoundingSphere;
-pub use camera::{Camera, ProjectionType};
+pub use camera::Camera;
 pub use camera_controller::{
     CameraControl, CameraController, CameraControllerConfig, CameraControllerState, CameraEvent,
     Mode, OrthoCameraController, PerspectiveCameraController, ProjectionMode, Ray,
