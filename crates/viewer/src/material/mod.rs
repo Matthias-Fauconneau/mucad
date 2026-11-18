@@ -14,11 +14,13 @@ use bevy::{
 };
 
 mod angle;
+mod edge;
 mod grid;
 mod model;
 mod ruler;
 
 pub use angle::Angle;
+pub use edge::{ATTRIBUTE_MIDPOINT, ATTRIBUTE_NORMAL_A, ATTRIBUTE_NORMAL_B, EdgeMaterial};
 pub use grid::Grid;
 pub use model::{ModelLighting, ModelMaterial, model_material};
 pub use ruler::Ruler;
@@ -83,19 +85,8 @@ pub fn create_3d_material(base_color: bevy::prelude::Color) -> bevy_types::Stand
     }
 }
 
-/// The uuid of the material of the contour edges of 3D models, which all models share.
+/// The uuid of the material of the edge lines of 3D models, which all models share.
 pub const EDGE_MATERIAL_UUID: Uuid = Uuid::from_u64_pair(BUILTIN_MATERIAL_ASSET_ID, 0xED6E);
-
-/// Create the material of contour edges (unlit), which are drawn in front of their faces.
-pub fn create_edge_material(color: bevy::prelude::Color) -> bevy_types::StandardMaterial {
-    bevy_types::StandardMaterial {
-        base_color: color,
-        unlit: true,
-        // The edges lie on the faces, so they are moved closer to the camera to stay visible.
-        depth_bias: 100.0,
-        ..Default::default()
-    }
-}
 
 /// Material plugin.
 pub struct MaterialPlugin;
@@ -105,6 +96,7 @@ impl Plugin for MaterialPlugin {
         type Material<T> = bevy::prelude::MaterialPlugin<T>;
         app.add_plugins(Material::<Grid>::default())
             .add_plugins(Material::<ModelMaterial>::default())
+            .add_plugins(Material::<EdgeMaterial>::default())
             .add_plugins(Material::<Angle>::default())
             .add_plugins(Material::<Ruler>::default())
             .add_systems(Startup, load_materials);
@@ -139,7 +131,16 @@ fn load_materials(mut shaders: ResMut<Assets<Shader>>) {
             Shader::from_wgsl(mucad_viewer_utils::LIGHTING_WGSL, lighting_library),
         )
         .ok();
+    // The silhouette library of `mucad_viewer_utils::silhouette`, which `edge.wgsl` imports.
+    let silhouette_library = "mucad_viewer_utils/silhouette.wgsl";
+    shaders
+        .insert(
+            asset_uuid_from_str(silhouette_library),
+            Shader::from_wgsl(mucad_viewer_utils::SILHOUETTE_WGSL, silhouette_library),
+        )
+        .ok();
     add_shader_asset!(shaders, "model.wgsl");
+    add_shader_asset!(shaders, "edge.wgsl");
     //add_shader_asset!(shaders, "angle.wgsl");
     //add_shader_asset!(shaders, "arrow.wgsl");
     add_shader_asset!(shaders, "grid.wgsl");

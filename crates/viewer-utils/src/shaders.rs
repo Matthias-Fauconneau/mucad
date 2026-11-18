@@ -11,6 +11,11 @@ pub const GRID_WGSL: &str = include_str!("../shaders/grid.wgsl");
 /// and `shade()`, without bindings, which the viewers import for the models.
 pub const LIGHTING_WGSL: &str = include_str!("../shaders/lighting.wgsl");
 
+/// The silhouette library with `#define_import_path mucad_viewer_utils::silhouette`:
+/// `is_silhouette()`, `to_viewer()`, `in_front()` and `HIDDEN`, without bindings, which the vertex shaders of
+/// the edge lines of the viewers import, see [`crate::EdgeLines`].
+pub const SILHOUETTE_WGSL: &str = include_str!("../shaders/silhouette.wgsl");
+
 /// The grid for WebGL2, e.g. three.js, with its vertex and fragment shader, which imports
 /// [`GRID_WGSL`] and which `cargo xtask web` converts to GLSL.
 pub const GRID_WEB_WGSL: &str = include_str!("../shaders/grid_web.wgsl");

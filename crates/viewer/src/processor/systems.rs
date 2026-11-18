@@ -9,12 +9,11 @@ use bevy::{
     asset::Assets,
     ecs::system::{Commands, Res, ResMut},
     mesh::{Mesh, Mesh3d},
-    pbr::StandardMaterial,
     prelude::*,
 };
 use bevy_mod_outline::{OutlineMode, OutlineVolume};
 
-use crate::material::ModelMaterial;
+use crate::material::{EdgeMaterial, ModelMaterial};
 use crate::stdin::StdinMessageReceiver;
 use crate::view_model::ModelViewState;
 use crate::*;
@@ -138,14 +137,14 @@ pub fn file_reload(state: ResMut<crate::view_model::ViewModel>) {
     }
 }
 
-/// A marker for the contour edges of a mesh, e.g. to toggle their visibility.
+/// A marker for the edge lines of a mesh, e.g. to toggle their visibility.
 #[derive(Component)]
 pub struct ContourEdges;
 
 /// This system handles responses coming from the processor and fills the Bevy command pipeline.
 pub fn handle_processor_responses(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut edge_materials: ResMut<Assets<EdgeMaterial>>,
     mut model_materials: ResMut<Assets<ModelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut model_view_states: ResMut<Assets<ModelViewState>>,
@@ -179,11 +178,11 @@ pub fn handle_processor_responses(
                 });
             }
             ProcessorResponse::SpawnModelInstances(uuids) => {
-                let _ = materials.insert(
+                let _ = edge_materials.insert(
                     crate::material::EDGE_MATERIAL_UUID,
-                    crate::material::create_edge_material(
-                        view_model.config.theme.primary.to_bevy(),
-                    ),
+                    EdgeMaterial {
+                        color: ToBevy::<Color>::to_bevy(view_model.config.theme.primary).into(),
+                    },
                 );
                 // A model is spawned as one entity per mesh, which share the model's material.
                 for (uuid, view_state) in uuids
@@ -203,7 +202,7 @@ pub fn handle_processor_responses(
                             OutlineMode::FloodFlat,
                             view_state.clone(),
                         ));
-                        // The contour edges are a child of their mesh's entity: they share its
+                        // The edge lines are a child of their mesh's entity: they share its
                         // transform and are despawned with it, but can be hidden on their own.
                         let edge_mesh_uuid = registry::edge_mesh_uuid(*mesh_uuid);
                         if meshes.contains(AssetId::<Mesh>::Uuid {
@@ -211,7 +210,7 @@ pub fn handle_processor_responses(
                         }) {
                             entity.with_child((
                                 Mesh3d(Handle::Uuid(edge_mesh_uuid, PhantomData)),
-                                MeshMaterial3d::<StandardMaterial>(Handle::Uuid(
+                                MeshMaterial3d::<EdgeMaterial>(Handle::Uuid(
                                     crate::material::EDGE_MATERIAL_UUID,
                                     PhantomData,
                                 )),

@@ -32,12 +32,12 @@ pub use camera_controller::{
 pub use controls::{
     Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls, TouchControls, TouchDrag,
 };
-pub use edges::{CREASE_ANGLE_DEGREES, contour_edges};
+pub use edges::{CREASE_ANGLE_DEGREES, EdgeLines, contour_edges, edge_lines};
 pub use grid::GridConfig;
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
 pub use lighting::Lighting;
 pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
 pub use rect::Rect;
-pub use shaders::{GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, MODEL_WEB_WGSL};
+pub use shaders::{GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, MODEL_WEB_WGSL, SILHOUETTE_WGSL};
 pub use theme::Theme;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};
