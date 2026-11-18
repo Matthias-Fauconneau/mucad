@@ -25,7 +25,8 @@ mod zoom_rect;
 pub use bounding_sphere::BoundingSphere;
 pub use camera::{Camera, ProjectionType};
 pub use camera_controller::{
-    CameraController, CameraControllerConfig, CameraEvent, CameraState, Mode, Ray,
+    CameraControl, CameraController, CameraControllerConfig, CameraControllerState, CameraEvent,
+    CameraState, Mode, OrthoCameraController, Ray,
 };
 pub use controls::{
     Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls, TouchControls, TouchDrag,

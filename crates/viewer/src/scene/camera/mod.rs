@@ -5,7 +5,7 @@ pub mod camera_controller;
 
 use bevy::{prelude::*, window::PrimaryWindow};
 use camera_controller::CameraNavigation;
-use mucad_viewer_utils::BoundingSphere;
+use mucad_viewer_utils::{BoundingSphere, CameraControl};
 
 use crate::ViewModel;
 

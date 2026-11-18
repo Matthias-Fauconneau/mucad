@@ -9,7 +9,8 @@ use std::time::Duration;
 use glam::{DVec2, Vec2, Vec3};
 
 use crate::{
-    CameraController, Controls, KeyBinding, Modifiers, MouseButton, MouseInput, TouchDrag,
+    CameraControl, CameraController, Controls, KeyBinding, Modifiers, MouseButton, MouseInput,
+    TouchDrag,
 };
 
 /// The distance in pixels, which the mouse can move while clicking.
@@ -419,7 +420,11 @@ impl Navigation {
     /// move the view center back to the center of the bounds like after orbiting with the mouse.
     fn rotate(&mut self, pan: f64) {
         self.controller.orbit(pan, 0.0);
-        self.controller.readjust_camera_position_and_detail();
+        // The orthographic view center goes back to the center of the bounds like after
+        // orbiting with the mouse, without ending a drag.
+        if let Some(ortho) = self.controller.ortho_mut() {
+            ortho.readjust_camera_position_and_detail();
+        }
     }
 
     /// Start the action of the pressed buttons, and end the previous one.
@@ -673,11 +678,25 @@ mod tests {
         assert!(view.angle_between(turned) > 0.01);
 
         // Panning moves the view.
-        let detail = navigation.controller().zoom_model().detail();
+        let detail = navigation
+            .controller()
+            .ortho()
+            .expect("Orthographic")
+            .zoom_model()
+            .detail();
         navigation.mouse_pressed(Middle, Modifiers::NONE, CENTER);
         navigation.mouse_moved(Vec2::new(10.0, 0.0), FRAME);
         navigation.mouse_released(Middle, Modifiers::NONE, CENTER);
-        assert!(navigation.controller().zoom_model().detail().x < detail.x);
+        assert!(
+            navigation
+                .controller()
+                .ortho()
+                .expect("Orthographic")
+                .zoom_model()
+                .detail()
+                .x
+                < detail.x
+        );
 
         // Dragging upwards zooms in.
         let zoom_level = navigation.controller().zoom_level();
@@ -713,7 +732,11 @@ mod tests {
         navigation.key_pressed("PageUp", Modifiers::NONE);
         navigation.key_pressed("ArrowLeft", Modifiers::NONE);
         assert!(navigation.key_pressed("f", Modifiers::NONE));
-        let model = navigation.controller().zoom_model();
+        let model = navigation
+            .controller()
+            .ortho()
+            .expect("Orthographic")
+            .zoom_model();
         assert_eq!(model.detail(), model.overview());
     }
 
@@ -721,13 +744,32 @@ mod tests {
     fn pan_keys() {
         let mut navigation = navigation();
         navigation.key_pressed("PageUp", Modifiers::NONE);
-        let detail = navigation.controller().zoom_model().detail();
+        let detail = navigation
+            .controller()
+            .ortho()
+            .expect("Orthographic")
+            .zoom_model()
+            .detail();
         assert!(navigation.key_pressed("ArrowLeft", Modifiers::NONE));
-        let moved = navigation.controller().zoom_model().detail();
+        let moved = navigation
+            .controller()
+            .ortho()
+            .expect("Orthographic")
+            .zoom_model()
+            .detail();
         // A tenth of the window.
         assert!((moved.x - (detail.x - 0.1 * detail.width)).abs() < 1e-3);
         assert!(navigation.key_pressed("ArrowUp", Modifiers::NONE));
-        assert!(navigation.controller().zoom_model().detail().y > moved.y);
+        assert!(
+            navigation
+                .controller()
+                .ortho()
+                .expect("Orthographic")
+                .zoom_model()
+                .detail()
+                .y
+                > moved.y
+        );
     }
 
     #[test]

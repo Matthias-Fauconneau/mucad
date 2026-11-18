@@ -11,8 +11,9 @@ use std::time::Duration;
 
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mucad_viewer_utils::{
-    BoundingSphere, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, GridConfig, Modifiers,
-    MouseAction, MouseButton, Navigation, Scalar, StandardView, Theme, TouchId,
+    BoundingSphere, CameraControl, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML,
+    GridConfig, Modifiers, MouseAction, MouseButton, Navigation, Scalar, StandardView, Theme,
+    TouchId,
 };
 use wasm_bindgen::prelude::*;
 

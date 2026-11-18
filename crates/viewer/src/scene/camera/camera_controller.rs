@@ -19,7 +19,10 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use mucad_viewer_utils::{CameraController, Command, Controls, Modifiers, Navigation, TouchId};
+use mucad_viewer_utils::{
+    CameraControl, CameraController, Command, Controls, Modifiers, Navigation,
+    OrthoCameraController, TouchId,
+};
 
 /// The pixels of a line of the mouse wheel, e.g. of one notch, like one notch in browsers.
 const LINE_PIXELS: f32 = 100.0;
@@ -308,7 +311,9 @@ fn apply_camera(
     for (navigation, mut transform, mut projection) in &mut cameras {
         let controller = navigation.controller();
         *transform = Transform::from_matrix(controller.camera().transform_matrix());
-        if let Projection::Orthographic(ortho) = projection.as_mut() {
+        if let Projection::Orthographic(ortho) = projection.as_mut()
+            && let Some(controller) = controller.ortho()
+        {
             set_orthographic(ortho, controller);
             ortho.update(window_size.x, window_size.y);
         }
@@ -319,7 +324,7 @@ fn apply_camera(
 ///
 /// The area of the projection is the detail: its scale is the inverse zoom level, like
 /// before, its size the overview and its origin the offset of the detail.
-fn set_orthographic(ortho: &mut OrthographicProjection, controller: &CameraController) {
+fn set_orthographic(ortho: &mut OrthographicProjection, controller: &OrthoCameraController) {
     let zoom_level = controller.zoom_level() as f32;
     let detail = controller.zoom_model().detail();
     let (width, height) = (detail.width as f32, detail.height as f32);
@@ -374,9 +379,10 @@ mod tests {
         navigation.0.key_pressed("PageUp", Modifiers::NONE);
         navigation.0.key_pressed("ArrowLeft", Modifiers::NONE);
         let mut ortho = OrthographicProjection::default_3d();
-        set_orthographic(&mut ortho, navigation.controller());
+        let controller = navigation.controller().ortho().expect("Orthographic");
+        set_orthographic(&mut ortho, controller);
         ortho.update(400.0, 200.0);
-        let detail = navigation.controller().zoom_model().detail();
+        let detail = controller.zoom_model().detail();
         let area = ortho.area;
         assert!((area.min.x as f64 - detail.left()).abs() < 1e-3);
         assert!((area.max.x as f64 - detail.right()).abs() < 1e-3);
