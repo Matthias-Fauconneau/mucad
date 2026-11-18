@@ -8,33 +8,22 @@ use glam::{DVec2, Mat4, Vec2};
 use crate::Rect;
 
 /// `rect` scaled by `zoom_factor` around `pivot`, which stays in place.
-pub fn zoomed_rect(rect: &Rect, zoom_factor: f64, pivot: DVec2) -> Rect {
-    // Translate the rectangle so that the pivot point is at the origin
-    let zoomed_rect = Rect::from_corners(
-        (rect.top_left() - pivot) * zoom_factor,
-        (rect.bottom_right() - pivot) * zoom_factor,
-    );
-    zoomed_rect.translated(pivot)
+fn zoomed_rect(rect: &Rect, zoom_factor: f64, pivot: DVec2) -> Rect {
+    Rect::from_corners(
+        (rect.top_left() - pivot) * zoom_factor + pivot,
+        (rect.bottom_right() - pivot) * zoom_factor + pivot,
+    )
 }
 
 /// A change of a [`ZoomRectModel`], which a viewer reacts to.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ZoomEvent {
-    /// The detail is changed to the rectangle.
-    DetailChanged(Rect),
-    /// The overview is changed to the rectangle.
-    OverviewChanged(Rect),
-    /// The zoom level is changed to the value.
-    ZoomLevelChanged(f64),
-}
-
-/// The state of a [`ZoomRectModel`], e.g. to restore a view.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct ZoomState {
-    /// The shown detail.
-    pub detail: Rect,
-    /// The overview of the scene.
-    pub overview: Rect,
+    /// The detail changed.
+    DetailChanged,
+    /// The overview changed.
+    OverviewChanged,
+    /// The zoom level changed.
+    ZoomLevelChanged,
 }
 
 /// The zoom of an orthographic view in the coordinates of the camera.
@@ -46,8 +35,10 @@ pub struct ZoomState {
 /// [`ZoomRectModel::take_events`].
 #[derive(Debug, Clone)]
 pub struct ZoomRectModel {
-    /// The overview and the detail.
-    state: ZoomState,
+    /// The overview of the scene.
+    overview: Rect,
+    /// The shown detail.
+    detail: Rect,
     min_zoom_level: f64,
     max_zoom_level: f64,
     events: Vec<ZoomEvent>,
@@ -63,7 +54,8 @@ impl ZoomRectModel {
     /// A model without overview and detail, see [`ZoomRectModel::initialize`].
     pub fn new() -> Self {
         Self {
-            state: ZoomState::default(),
+            overview: Rect::default(),
+            detail: Rect::default(),
             min_zoom_level: 0.25,
             max_zoom_level: 160.0,
             events: Vec::new(),
@@ -79,98 +71,62 @@ impl ZoomRectModel {
     pub fn initialize(&mut self, radius: f64, window_size: DVec2) {
         let r = radius;
         let aspect = window_size.x / window_size.y;
-
-        self.state.overview = Rect::new(-r * aspect, -r, 2.0 * r * aspect, 2.0 * r);
-        self.set_detail(self.state.overview);
-        self.events
-            .push(ZoomEvent::OverviewChanged(self.state.overview));
+        self.overview = Rect::new(-r * aspect, -r, 2.0 * r * aspect, 2.0 * r);
+        self.set_detail(self.overview);
+        self.events.push(ZoomEvent::OverviewChanged);
     }
 
     /// The overview of the scene.
     pub fn overview(&self) -> Rect {
-        self.state.overview
-    }
-
-    /// Set the overview of the scene.
-    pub fn set_overview(&mut self, overview: Rect) {
-        if self.state.overview.fuzzy_eq(&overview) {
-            return;
-        }
-        self.state.overview = overview;
-        self.set_detail(self.state.detail); // Update detail rect to fit into new overview rect
-        self.events
-            .push(ZoomEvent::OverviewChanged(self.state.overview));
+        self.overview
     }
 
     /// Scale the overview around its center by `scale_factor`.
     pub fn scale_overview(&mut self, scale_factor: f64) {
-        self.set_overview(zoomed_rect(
-            &self.state.overview,
-            scale_factor,
-            self.state.overview.center(),
-        ));
-        self.events
-            .push(ZoomEvent::ZoomLevelChanged(self.zoom_level()));
+        let overview = zoomed_rect(&self.overview, scale_factor, self.overview.center());
+        if !self.overview.fuzzy_eq(&overview) {
+            self.overview = overview;
+            self.events.push(ZoomEvent::OverviewChanged);
+        }
+        self.events.push(ZoomEvent::ZoomLevelChanged);
     }
 
     /// The shown detail.
     pub fn detail(&self) -> Rect {
-        self.state.detail
+        self.detail
     }
 
     /// Set the shown detail.
     pub fn set_detail(&mut self, detail: Rect) {
-        let detail = keep_in_rect(detail, &self.boundary_rect());
-        let zoom_level_has_changed = self.zoom_level() != self.state.overview.width / detail.width;
-        if self.state.detail.fuzzy_eq(&detail) {
+        if self.detail.fuzzy_eq(&detail) {
             return;
         }
-        self.state.detail = detail;
-
-        if zoom_level_has_changed {
+        let zoom_level_changed = self.zoom_level() != self.overview.width / detail.width;
+        self.detail = detail;
+        if zoom_level_changed {
+            // Keeps the zoom level between the minimum and the maximum.
             self.set_zoom_level(self.zoom_level());
         }
-        self.events
-            .push(ZoomEvent::DetailChanged(self.state.detail));
-    }
-
-    /// The detail relative to the overview, from 0 to 1 within the overview.
-    pub fn normalized_detail(&self) -> Rect {
-        let o = self.overview();
-        let d = self.detail().translated(-o.top_left());
-
-        Rect::new(
-            d.x / o.width,
-            d.y / o.height,
-            d.width / o.width,
-            d.height / o.height,
-        )
-        .normalized()
+        self.events.push(ZoomEvent::DetailChanged);
     }
 
     /// Move the detail by `d`, also out of the overview, so that panning follows the mouse
     /// exactly at any zoom level.
     pub fn translate(&mut self, d: Vec2) {
-        self.set_detail(self.state.detail.translated(d.as_dvec2()));
-    }
-
-    /// Move the detail by the offset from `p` to its center.
-    pub fn move_to(&mut self, p: DVec2) {
-        self.set_detail(self.state.detail.translated(self.state.detail.center() - p));
+        self.set_detail(self.detail.translated(d.as_dvec2()));
     }
 
     /// Scale the detail by `zoom_factor` around `p`, a factor below 1 zooms in.
     ///
     /// Nothing is zoomed in at the maximum zoom level, or out at the minimum one.
     pub fn zoom_to_point(&mut self, p: DVec2, zoom_factor: f64) {
-        if zoom_factor < 1.0 && self.zoom_level() >= self.max_zoom_level() {
+        let zoom_level = self.zoom_level();
+        if (zoom_factor < 1.0 && zoom_level >= self.max_zoom_level)
+            || (zoom_factor > 1.0 && zoom_level <= self.min_zoom_level)
+        {
             return;
         }
-        if zoom_factor > 1.0 && self.zoom_level() <= self.min_zoom_level() {
-            return;
-        }
-
-        self.set_detail(zoomed_rect(&self.state.detail, zoom_factor, p));
+        self.set_detail(zoomed_rect(&self.detail, zoom_factor, p));
     }
 
     /// Show the whole overview with the zoom level 1.
@@ -180,60 +136,25 @@ impl ZoomRectModel {
 
     /// How often the width of the detail fits into the width of the overview.
     pub fn zoom_level(&self) -> f64 {
-        self.state.overview.width / self.state.detail.width
+        self.overview.width / self.detail.width
     }
 
     /// Set the zoom level around the center of the detail, within the minimum and maximum.
-    pub fn set_zoom_level(&mut self, mut zoom_level: f64) {
-        if zoom_level < self.min_zoom_level {
-            zoom_level = self.min_zoom_level;
-        }
-        if zoom_level > self.max_zoom_level {
-            zoom_level = self.max_zoom_level;
-        }
-
-        let new_size = DVec2::new(
-            self.state.overview.width / zoom_level,
-            self.state.overview.width / self.aspect_ratio() / zoom_level,
-        );
-
+    pub fn set_zoom_level(&mut self, zoom_level: f64) {
+        let zoom_level = zoom_level.clamp(self.min_zoom_level, self.max_zoom_level);
+        let width = self.overview.width / zoom_level;
+        let size = DVec2::new(width, width / self.aspect_ratio());
         self.set_detail(Rect::from_top_left_size(
-            self.state.detail.center() - 0.5 * new_size,
-            new_size,
+            self.detail.center() - 0.5 * size,
+            size,
         ));
-        self.events.push(ZoomEvent::ZoomLevelChanged(zoom_level));
+        self.events.push(ZoomEvent::ZoomLevelChanged);
     }
 
     /// Set the zoom level around `pivot`, which stays in place.
     pub fn set_zoom_level_at(&mut self, new_zoom_level: f64, pivot: DVec2) {
         let zoom_factor = self.zoom_level() / new_zoom_level;
-        self.set_detail(zoomed_rect(&self.state.detail, zoom_factor, pivot));
-    }
-
-    /// The maximum zoom level, i.e. how far is zoomed in.
-    pub fn max_zoom_level(&self) -> f64 {
-        self.max_zoom_level
-    }
-
-    /// Set the maximum zoom level, a larger zoom level is reduced to it.
-    pub fn set_max_zoom_level(&mut self, max_zoom_level: f64) {
-        self.max_zoom_level = max_zoom_level;
-        if self.zoom_level() > self.max_zoom_level {
-            self.set_zoom_level(self.max_zoom_level);
-        }
-    }
-
-    /// The minimum zoom level, i.e. how far is zoomed out.
-    pub fn min_zoom_level(&self) -> f64 {
-        self.min_zoom_level
-    }
-
-    /// Set the minimum zoom level, a smaller zoom level is increased to it.
-    pub fn set_min_zoom_level(&mut self, min_zoom_level: f64) {
-        self.min_zoom_level = min_zoom_level;
-        if self.zoom_level() < self.min_zoom_level {
-            self.set_zoom_level(self.min_zoom_level);
-        }
+        self.set_detail(zoomed_rect(&self.detail, zoom_factor, pivot));
     }
 
     /// Show the rectangle `r` in the middle of the detail, which keeps its aspect ratio.
@@ -242,27 +163,14 @@ impl ZoomRectModel {
     /// leaves a margin. The zoom level stays between the minimum and the maximum.
     pub fn zoom_to_rect(&mut self, r: Rect, factor: f64) {
         let r = r.normalized();
-        let zoom_factor =
-            (r.width / self.state.detail.width).max(r.height / self.state.detail.height) * factor;
-        let size = self.state.detail.size() * zoom_factor;
+        let zoom_factor = (r.width / self.detail.width).max(r.height / self.detail.height) * factor;
+        let size = self.detail.size() * zoom_factor;
         self.set_detail(Rect::from_top_left_size(r.center() - 0.5 * size, size));
     }
 
     /// The ratio of the width to the height of the detail.
     pub fn aspect_ratio(&self) -> f64 {
-        self.state.detail.width / self.state.detail.height
-    }
-
-    /// Set the aspect ratio of the detail around its center, e.g. after resizing the window.
-    pub fn set_aspect_ratio(&mut self, new_aspect_ratio: f64) {
-        let new_size = DVec2::new(
-            self.state.detail.width,
-            self.state.detail.width / new_aspect_ratio,
-        );
-        self.set_detail(Rect::from_top_left_size(
-            self.state.detail.center() - 0.5 * new_size,
-            new_size,
-        ));
+        self.detail.width / self.detail.height
     }
 
     /// Adapt the overview and the detail to a window with `aspect_ratio`, e.g. after resizing
@@ -272,51 +180,17 @@ impl ZoomRectModel {
             let width = rect.height * aspect_ratio;
             Rect::new(rect.center().x - width / 2.0, rect.y, width, rect.height)
         };
-        let overview = fit(self.state.overview);
-        if !self.state.overview.fuzzy_eq(&overview) {
-            self.state.overview = overview;
-            self.events
-                .push(ZoomEvent::OverviewChanged(self.state.overview));
+        let overview = fit(self.overview);
+        if !self.overview.fuzzy_eq(&overview) {
+            self.overview = overview;
+            self.events.push(ZoomEvent::OverviewChanged);
         }
-        self.set_detail(fit(self.state.detail));
-    }
-
-    /// The detail and the overview, e.g. to restore them later.
-    pub fn state(&self) -> ZoomState {
-        self.state
-    }
-
-    /// Restore the detail and the overview.
-    pub fn set_state(&mut self, state: ZoomState) {
-        self.set_overview(state.overview);
-        self.set_detail(state.detail);
+        self.set_detail(fit(self.detail));
     }
 
     /// The orthographic projection of the detail, like `QMatrix4x4::ortho`.
     pub fn detail_ortho_projection_matrix(&self) -> Mat4 {
-        ortho(&self.state.detail)
-    }
-
-    /// The orthographic projection of the overview, like `QMatrix4x4::ortho`.
-    pub fn overview_ortho_projection_matrix(&self) -> Mat4 {
-        ortho(&self.state.overview)
-    }
-
-    /// The left and right edge of [`ZoomRectModel::normalized_detail`].
-    pub fn normalized_horizontal_range(&self) -> (f64, f64) {
-        let rect = self.normalized_detail();
-        (rect.left(), rect.right())
-    }
-
-    /// The bottom and top edge of [`ZoomRectModel::normalized_detail`].
-    pub fn normalized_vertical_range(&self) -> (f64, f64) {
-        let rect = self.normalized_detail();
-        (rect.bottom(), rect.top())
-    }
-
-    fn boundary_rect(&self) -> Rect {
-        let ds = self.state.detail.size();
-        self.state.overview.adjusted(-ds.x, -ds.y, ds.x, ds.y)
+        ortho(&self.detail)
     }
 }
 
@@ -331,13 +205,6 @@ fn ortho(rect: &Rect) -> Mat4 {
         0.1,
         100000.0,
     )
-}
-
-fn keep_in_rect(inner: Rect, rect: &Rect) -> Rect {
-    let _ = rect;
-    // Check if this function is required
-    // TODO
-    inner
 }
 
 #[cfg(test)]
@@ -365,9 +232,9 @@ mod tests {
         assert_eq!(
             model.take_events(),
             [
-                ZoomEvent::ZoomLevelChanged(1.0),
-                ZoomEvent::DetailChanged(model.overview()),
-                ZoomEvent::OverviewChanged(model.overview()),
+                ZoomEvent::ZoomLevelChanged,
+                ZoomEvent::DetailChanged,
+                ZoomEvent::OverviewChanged,
             ]
         );
         assert!(model.take_events().is_empty());
@@ -381,7 +248,7 @@ mod tests {
         assert_eq!(model.detail(), Rect::new(-50.0, -50.0, 200.0, 100.0));
 
         // Not further than the maximum zoom level.
-        model.set_max_zoom_level(4.0);
+        model.max_zoom_level = 4.0;
         model.zoom_to_point(DVec2::ZERO, 0.5);
         model.zoom_to_point(DVec2::ZERO, 0.5);
         assert_eq!(model.zoom_level(), 4.0);
@@ -393,7 +260,7 @@ mod tests {
         model.set_zoom_level(2.0);
         assert_eq!(model.detail(), Rect::new(-100.0, -50.0, 200.0, 100.0));
         model.set_zoom_level(1000.0);
-        assert_eq!(model.zoom_level(), model.max_zoom_level());
+        assert_eq!(model.zoom_level(), model.max_zoom_level);
         model.reset();
         assert_eq!(model.detail(), model.overview());
     }
@@ -419,16 +286,7 @@ mod tests {
         assert_eq!(model.detail(), Rect::new(-80.0, -15.0, 200.0, 100.0));
         // Not further than the maximum zoom level.
         model.zoom_to_rect(Rect::new(0.0, 0.0, 0.01, 0.01), 1.0);
-        assert_eq!(model.zoom_level(), model.max_zoom_level());
-    }
-
-    #[test]
-    fn normalized_detail() {
-        let mut model = model();
-        model.set_zoom_level(2.0);
-        assert_eq!(model.normalized_detail(), Rect::new(0.25, 0.25, 0.5, 0.5));
-        assert_eq!(model.normalized_horizontal_range(), (0.25, 0.75));
-        assert_eq!(model.normalized_vertical_range(), (0.75, 0.25));
+        assert_eq!(model.zoom_level(), model.max_zoom_level);
     }
 
     #[test]
@@ -442,17 +300,8 @@ mod tests {
         assert_eq!(model.detail(), Rect::new(-50.0, -50.0, 100.0, 100.0));
         assert_eq!(model.zoom_level(), 2.0);
         let events = model.take_events();
-        assert!(events.contains(&ZoomEvent::DetailChanged(model.detail())));
-        assert!(events.contains(&ZoomEvent::OverviewChanged(model.overview())));
-    }
-
-    #[test]
-    fn state() {
-        let mut model = model();
-        let state = model.state();
-        model.set_zoom_level(3.0);
-        model.set_state(state);
-        assert_eq!(model.state(), state);
+        assert!(events.contains(&ZoomEvent::DetailChanged));
+        assert!(events.contains(&ZoomEvent::OverviewChanged));
     }
 
     #[test]

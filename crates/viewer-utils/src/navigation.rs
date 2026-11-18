@@ -9,7 +9,8 @@ use std::time::Duration;
 use glam::{DVec2, Vec2, Vec3};
 
 use crate::{
-    CameraController, Controls, KeyBinding, Modifiers, MouseButton, MouseInput, TouchDrag,
+    CameraController, Controls, KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput,
+    TouchDrag,
 };
 
 /// The distance in pixels, which the mouse can move while clicking.
@@ -487,13 +488,15 @@ impl Navigation {
         }
     }
 
+    /// Whether the buttons of `binding` are pressed, in their order.
+    fn is_pressed(&self, binding: &MouseBinding) -> bool {
+        matches!(&binding.input, MouseInput::Buttons(buttons)
+            if !buttons.is_empty() && *buttons == self.pressed)
+    }
+
     /// The drag, whose binding are the pressed buttons with `modifiers`.
     fn matching_drag(&self, modifiers: Modifiers) -> Option<MouseAction> {
-        if self.pressed.is_empty() {
-            return None;
-        }
         let mouse = &self.controls.mouse;
-        let buttons = MouseInput::Buttons(self.pressed.clone());
         [
             (&mouse.orbit, MouseAction::Orbit),
             (&mouse.pan, MouseAction::Pan),
@@ -503,24 +506,20 @@ impl Navigation {
         .find_map(|(bindings, action)| {
             bindings
                 .iter()
-                .any(|binding| binding.input == buttons && binding.modifiers == modifiers)
+                .any(|binding| self.is_pressed(binding) && binding.modifiers == modifiers)
                 .then_some(action)
         })
     }
 
     /// The selection, whose binding are the pressed buttons with `modifiers`.
     fn matching_select(&self, modifiers: Modifiers) -> Option<MouseAction> {
-        if self.pressed.is_empty() {
-            return None;
-        }
-        let mouse = &self.controls.mouse;
-        let buttons = MouseInput::Buttons(self.pressed.clone());
         // Selecting with the multi select modifiers adds to the selection.
         let multi_select = self.controls.keyboard.multi_select;
-        mouse
+        self.controls
+            .mouse
             .select
             .iter()
-            .filter(|binding| binding.input == buttons)
+            .filter(|binding| self.is_pressed(binding))
             .find_map(|binding| {
                 if binding.modifiers == modifiers {
                     Some(MouseAction::Select { multi: false })

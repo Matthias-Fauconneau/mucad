@@ -92,17 +92,6 @@ impl Rect {
         )
     }
 
-    /// The rectangle with `dx1` and `dy1` added to the top left corner, `dx2` and `dy2` to the
-    /// bottom right corner.
-    pub fn adjusted(&self, dx1: f64, dy1: f64, dx2: f64, dy2: f64) -> Self {
-        Self::new(
-            self.x + dx1,
-            self.y + dy1,
-            self.width + dx2 - dx1,
-            self.height + dy2 - dy1,
-        )
-    }
-
     /// The rectangle with a non-negative width and height, which covers the same area.
     pub fn normalized(&self) -> Self {
         let mut rect = *self;
@@ -156,12 +145,6 @@ mod tests {
     fn normalized() {
         let rect = Rect::new(4.0, 6.0, -3.0, -4.0).normalized();
         assert_eq!(rect, Rect::new(1.0, 2.0, 3.0, 4.0));
-    }
-
-    #[test]
-    fn adjusted() {
-        let rect = Rect::new(0.0, 0.0, 2.0, 2.0).adjusted(-1.0, -1.0, 1.0, 1.0);
-        assert_eq!(rect, Rect::new(-1.0, -1.0, 4.0, 4.0));
     }
 
     #[test]

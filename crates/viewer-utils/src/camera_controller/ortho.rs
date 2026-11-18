@@ -141,10 +141,8 @@ impl OrthoCameraController {
     fn handle_zoom_events(&mut self) {
         for event in self.zoom_rect_model.take_events() {
             match event {
-                ZoomEvent::DetailChanged(_) | ZoomEvent::OverviewChanged(_) => {
-                    self.update_camera_lens()
-                }
-                ZoomEvent::ZoomLevelChanged(_) => {
+                ZoomEvent::DetailChanged | ZoomEvent::OverviewChanged => self.update_camera_lens(),
+                ZoomEvent::ZoomLevelChanged => {
                     self.state.events.push(CameraEvent::ZoomLevelChanged)
                 }
             }

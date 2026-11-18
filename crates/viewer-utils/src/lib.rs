@@ -39,4 +39,4 @@ pub use lighting::Lighting;
 pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
 pub use rect::Rect;
 pub use theme::Theme;
-pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};
+pub use zoom_rect::{ZoomEvent, ZoomRectModel};
