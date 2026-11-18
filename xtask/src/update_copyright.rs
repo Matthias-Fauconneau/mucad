@@ -44,10 +44,25 @@ fn get_revision_years(repo_path: impl AsRef<Path>) -> HashMap<PathBuf, RangeIncl
     file_years
 }
 
+/// The copyright notice of a file with comments of `prefix` and `suffix`, e.g. `//` and `""`
+/// or `/*` and `*/`, for `years` like `2025-2026` and `license_id`, followed by an empty line.
+pub fn copyright_header(prefix: &str, suffix: &str, years: &str, license_id: &str) -> String {
+    let suffix = if suffix.is_empty() {
+        String::new()
+    } else {
+        format!(" {suffix}")
+    };
+    format!(
+        "{prefix} Copyright © {years} The µcad authors <info@mucad.org>{suffix}\n\
+         {prefix} SPDX-License-Identifier: {license_id}{suffix}\n\n"
+    )
+}
+
 /// Manages updating copyright notices across source files in a repository.
 pub struct CopyrightUpdater {
     path: PathBuf,
-    extensions: HashMap<String, String>,
+    /// The comment prefix and suffix of each extension, e.g. `//` and `""`.
+    extensions: HashMap<String, (String, String)>,
     excluded_patterns: HashSet<PathBuf>,
 
     /// SPDX-License-Identifier
@@ -71,10 +86,23 @@ impl CopyrightUpdater {
     }
 
     /// Add a single extension and its associated comment prefix (e.g. `"rs"`, `"//"`).
-    pub fn extension(mut self, extension: impl Into<String>, prefix: impl Into<String>) -> Self {
+    pub fn extension(self, extension: impl Into<String>, prefix: impl Into<String>) -> Self {
+        self.extension_with_comment(extension, prefix, "")
+    }
+
+    /// Add a single extension and its associated comment prefix and suffix, e.g. `"css"`,
+    /// `"/*"` and `"*/"`.
+    pub fn extension_with_comment(
+        mut self,
+        extension: impl Into<String>,
+        prefix: impl Into<String>,
+        suffix: impl Into<String>,
+    ) -> Self {
         let ext = extension.into();
-        self.extensions
-            .insert(ext.trim_start_matches('.').to_string(), prefix.into());
+        self.extensions.insert(
+            ext.trim_start_matches('.').to_string(),
+            (prefix.into(), suffix.into()),
+        );
         self
     }
 
@@ -82,6 +110,20 @@ impl CopyrightUpdater {
     pub fn extensions(mut self, extensions: &[&str], prefix: &str) -> Self {
         for &ext in extensions {
             self = self.extension(ext, prefix);
+        }
+        self
+    }
+
+    /// Add multiple extensions mapped to the same comment prefix and suffix, e.g. `"/*"` and
+    /// `"*/"`.
+    pub fn extensions_with_comment(
+        mut self,
+        extensions: &[&str],
+        prefix: &str,
+        suffix: &str,
+    ) -> Self {
+        for &ext in extensions {
+            self = self.extension_with_comment(ext, prefix, suffix);
         }
         self
     }
@@ -138,7 +180,7 @@ impl CopyrightUpdater {
             let Some(ext) = path.extension().and_then(OsStr::to_str) else {
                 continue;
             };
-            let Some(prefix) = self.extensions.get(ext) else {
+            let Some((prefix, suffix)) = self.extensions.get(ext) else {
                 continue;
             };
 
@@ -161,11 +203,7 @@ impl CopyrightUpdater {
                     .replace(&content, format!("Copyright © {formatted_years}"))
                     .to_string()
             } else {
-                format!(
-                    "{prefix} Copyright © {formatted_years} The µcad authors <info@mucad.org>\n\
-                     {prefix} SPDX-License-Identifier: {license_id}\n\n\
-                     {content}"
-                )
+                copyright_header(prefix, suffix, &formatted_years, license_id) + &content
             };
 
             if updated_content != content {
@@ -175,5 +213,39 @@ impl CopyrightUpdater {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A file without notice gets one in the comments of its extension, e.g. `/* */` in CSS.
+    #[test]
+    fn notices_in_comments_of_extensions() {
+        let dir = tempfile::tempdir().expect("A temporary directory");
+        fs::write(dir.path().join("theme.css"), ":root {}\n").expect("CSS");
+        fs::write(dir.path().join("theme.ts"), "export {};\n").expect("TS");
+
+        CopyrightUpdater::new(dir.path())
+            .extensions(&["ts"], "//")
+            .extensions_with_comment(&["css"], "/*", "*/")
+            .update()
+            .expect("Updated notices");
+
+        let year = chrono::Datelike::year(&chrono::Utc::now()).to_string();
+        let css = fs::read_to_string(dir.path().join("theme.css")).expect("CSS");
+        assert_eq!(
+            css,
+            format!(
+                "/* Copyright © {year} The µcad authors <info@mucad.org> */\n\
+                 /* SPDX-License-Identifier: AGPL-3.0-or-later */\n\n:root {{}}\n"
+            )
+        );
+        let ts = fs::read_to_string(dir.path().join("theme.ts")).expect("TS");
+        assert!(
+            ts.starts_with(&format!("// Copyright © {year} The µcad")),
+            "{ts}"
+        );
     }
 }

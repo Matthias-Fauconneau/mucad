@@ -10846,6 +10846,7 @@ dependencies = [
  "clap",
  "glob",
  "mucad-driver",
+ "mucad-viewer-utils",
  "regex",
  "semver",
  "tempfile",

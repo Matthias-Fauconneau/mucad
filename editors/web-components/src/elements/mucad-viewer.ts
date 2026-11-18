@@ -4,6 +4,7 @@
 import type { Compiler, CompilerSession, Geometry } from "../compiler/types";
 import { errorMessage } from "../compiler/types";
 import { wasmCompiler } from "../compiler/wasm";
+import { theme } from "../generated/theme";
 import { decodeLink } from "../services/share";
 import { Viewer } from "../viewer";
 
@@ -17,7 +18,7 @@ const STYLE = `
   position: relative;
   min-height: 12rem;
   overflow: hidden;
-  background: var(--primary, #020d1a);
+  background: var(--primary, ${theme.primary});
 }
 
 :host([hidden]) {
@@ -36,10 +37,10 @@ const STYLE = `
   right: 0.5rem;
   height: 2.2rem;
   padding: 0 0.6rem;
-  border: 1px solid var(--signal, #ff9f0a);
+  border: 1px solid var(--signal, ${theme.signal});
   border-radius: 4px;
-  background: var(--primary, #020d1a);
-  color: var(--signal, #ff9f0a);
+  background: var(--primary, ${theme.primary});
+  color: var(--signal, ${theme.signal});
   font: inherit;
   cursor: pointer;
 }
@@ -51,7 +52,7 @@ const STYLE = `
   right: 0.5rem;
   bottom: 0.5rem;
   margin: 0;
-  color: var(--complementary, #c5221f);
+  color: var(--complementary, ${theme.complementary});
   font: 0.8rem monospace;
   white-space: pre-wrap;
 }

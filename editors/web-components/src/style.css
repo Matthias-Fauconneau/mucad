@@ -1,16 +1,7 @@
 /* Copyright © 2026 The µcad authors <info@mucad.org> */
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 
-/* The colors of the µcad theme, see `theme.ts`, and the controls of the components. */
-:root {
-  --primary: #020d1a;
-  --bright: #82a8c4;
-  --brighter: #e6f4ff;
-  --darker: #33556d;
-  --complementary: #c5221f;
-  --signal: #ff9f0a;
-  --guide: #00b4d8;
-}
+/* The controls of the components, the colors of the µcad theme are in `generated/theme.css`. */
 
 * {
   box-sizing: border-box;

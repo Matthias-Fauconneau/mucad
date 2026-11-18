@@ -21,6 +21,7 @@ toml_edit = "0.25"
 walkdir = "2.5"
 
 mucad-driver = { workspace = true }
+mucad-viewer-utils = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3.27.0"

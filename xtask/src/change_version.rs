@@ -45,7 +45,7 @@ const NPM_FILES: &[(&str, &[&str])] = &[
 ];
 
 /// The root of the workspace, the parent of the `xtask` crate.
-fn workspace_root() -> PathBuf {
+pub(crate) fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("The workspace of xtask")

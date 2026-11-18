@@ -8,6 +8,7 @@
  * platform.
  */
 
+import "./generated/theme.css";
 import "./style.css";
 
 export * from "./app/app";
@@ -23,5 +24,5 @@ export { MucadViewer } from "./elements/mucad-viewer";
 export * from "./platform";
 export * from "./services/documents";
 export * as share from "./services/share";
-export * from "./theme";
+export * from "./generated/theme";
 export * from "./viewer";

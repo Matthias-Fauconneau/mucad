@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CameraControls, type StandardView } from "./camera-controls";
 import type { Color, Geometry, MeshData, SketchData, Triangles } from "./compiler/types";
-import { theme } from "./theme";
+import { theme } from "./generated/theme";
 
 /** The angle between faces, above which an edge is shown sharp instead of smooth. */
 const CREASE_ANGLE = THREE.MathUtils.degToRad(20);
@@ -43,8 +43,8 @@ export class Viewer {
 
     this.scene.background = new THREE.Color(theme.primary);
     this.scene.add(this.model);
-    this.scene.add(new THREE.HemisphereLight(theme.bright, theme.darker, 1.5));
-    const light = new THREE.DirectionalLight(theme.bright, 2);
+    this.scene.add(new THREE.HemisphereLight(theme.brighter, theme.darker, 1.5));
+    const light = new THREE.DirectionalLight(theme.brighter, 2);
     light.position.set(1, -2, 3);
     this.camera.add(light);
     this.scene.add(this.camera);
@@ -85,7 +85,7 @@ export class Viewer {
     this.replace(
       meshes.flatMap((mesh) => {
         const material = new THREE.MeshStandardMaterial({
-          ...colorParameters(mesh.color, theme.brighter),
+          ...colorParameters(mesh.color, theme.bright),
           metalness: 0.1,
           roughness: 0.6,
           // Move the faces back a little, so that the contours on their edges stay visible.
