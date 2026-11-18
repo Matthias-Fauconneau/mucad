@@ -33,17 +33,20 @@ impl OrthoCameraController {
     /// A controller for a window of `window_size` in pixels, which shows bounds of radius 100
     /// around the origin from the front.
     pub fn new(window_size: DVec2) -> Self {
-        let mut controller = Self {
-            state: CameraControllerState::new(window_size),
-            zoom_rect_model: ZoomRectModel::new(),
-        };
-        controller
-            .zoom_rect_model
-            .initialize(controller.state.bounds.radius, window_size);
+        let mut controller = Self::with_state(CameraControllerState::new(window_size));
         controller.handle_zoom_events();
-
         controller.orbit(0.0, 0.0);
         controller
+    }
+
+    /// A controller with `state`, whose zoom shows the whole bounds.
+    fn with_state(state: CameraControllerState) -> Self {
+        let mut zoom_rect_model = ZoomRectModel::new();
+        zoom_rect_model.initialize(state.bounds.radius, state.window_size);
+        Self {
+            state,
+            zoom_rect_model,
+        }
     }
 
     /// A controller with `state`, e.g. of another projection mode, which shows the area of
@@ -52,29 +55,17 @@ impl OrthoCameraController {
     /// The view direction stays, the view center is the center of the bounds.
     pub fn from_visible_area(state: CameraControllerState, center: Vec3, height: f64) -> Self {
         let window_size = state.window_size;
-        let mut controller = Self {
-            state,
-            zoom_rect_model: ZoomRectModel::new(),
-        };
-        controller
-            .zoom_rect_model
-            .initialize(controller.state.bounds.radius, window_size);
+        let mut controller = Self::with_state(state);
         // The view direction stays, the camera looks at the center of the bounds.
-        let bounds = controller.state.bounds;
-        let camera = &mut controller.state.camera;
-        let direction = camera.view_vector().normalize();
-        camera.view_center = bounds.pos;
-        camera.position = bounds.pos - direction * bounds.radius as f32 * 10.0;
+        let camera = &controller.state.camera;
+        controller.place_camera(controller.state.bounds.pos, camera.view_vector());
 
         // The detail around the center in the coordinates of the camera.
-        let p = controller.state.camera.transform_matrix().inverse() * center.extend(1.0);
         let size = DVec2::new(height * window_size.x / window_size.y, height);
+        let center = controller.state.camera.view_xy(center);
         controller
             .zoom_rect_model
-            .set_detail(Rect::from_top_left_size(
-                (p / p.w).xy().as_dvec2() - size / 2.0,
-                size,
-            ));
+            .set_detail(Rect::from_top_left_size(center - size / 2.0, size));
         controller.handle_zoom_events();
         controller
     }
@@ -88,16 +79,10 @@ impl OrthoCameraController {
     /// i.e. the detail is moved by the offset of the view center instead.
     pub fn readjust_camera_position_and_detail(&mut self) {
         let camera = &self.state.camera;
-        let to_camera = camera.transform_matrix().inverse();
-        let get_point_2d = |v: Vec3| -> DVec2 {
-            let p = to_camera * v.extend(1.0);
-            (p / p.w).xy().as_dvec2()
-        };
-
         let bounds_center = self.state.bounds.pos;
         let d = camera.view_center - bounds_center;
-        let view_center_xy = get_point_2d(camera.view_center);
-        let bounds_center_xy = get_point_2d(bounds_center);
+        let view_center_xy = camera.view_xy(camera.view_center);
+        let bounds_center_xy = camera.view_xy(bounds_center);
 
         let camera = &mut self.state.camera;
         camera.view_center = bounds_center;
@@ -149,17 +134,16 @@ impl OrthoCameraController {
 
     /// The point in the coordinates of the camera under the screen coordinate in pixels.
     fn zoom_point_from_screen_coordinates(&self, screen_coords: DVec2) -> DVec2 {
-        let p = self.state.camera.transform_matrix().inverse()
-            * self.world_point(screen_coords).extend(1.0);
-        (p / p.w).xy().as_dvec2()
+        self.state.camera.view_xy(self.world_point(screen_coords))
     }
 
-    /// Place the camera on the periphery of the bounding sphere along its view vector, so
-    /// that the near and far plane of the projection enclose the bounds.
-    fn place_camera_outside_of_bounds(&mut self) {
-        let radius = self.state.bounds.radius as f32;
+    /// Look at `view_center` along `direction` from outside of the bounds, so that the near
+    /// and far plane of the projection enclose them.
+    fn place_camera(&mut self, view_center: Vec3, direction: Vec3) {
+        let distance = self.state.bounds.radius as f32 * 10.0;
         let camera = &mut self.state.camera;
-        camera.position = camera.view_center - camera.view_vector().normalize() * radius * 10.0;
+        camera.view_center = view_center;
+        camera.position = view_center - direction.normalize() * distance;
     }
 }
 
@@ -188,13 +172,9 @@ impl CameraControl for OrthoCameraController {
         let scale = bounds.radius / self.state.bounds.radius;
         self.state.bounds = bounds;
 
-        let camera = &mut self.state.camera;
-        let d = camera.view_center - bounds.pos;
-        camera.view_center = bounds.pos;
-        camera.position -= d;
-        // The camera stays outside of the bounds, like after orbiting, e.g. of a smaller or
-        // bigger model, so that the near and far plane of the projection enclose them.
-        self.place_camera_outside_of_bounds();
+        // The camera looks at the center of the bounds from outside of them, like after
+        // orbiting, e.g. of a smaller or bigger model.
+        self.place_camera(bounds.pos, self.state.camera.view_vector());
 
         self.zoom_rect_model.scale_overview(scale);
         self.handle_zoom_events();
@@ -212,18 +192,15 @@ impl CameraControl for OrthoCameraController {
     }
 
     fn orbit(&mut self, pan: f64, tilt: f64) {
-        // Place camera on bounding sphere's periphery
-        self.place_camera_outside_of_bounds();
+        // The camera is outside of the bounds.
+        let camera = &self.state.camera;
+        self.place_camera(camera.view_center, camera.view_vector());
         self.state.rotate_around_pivot(pan, tilt);
     }
 
     fn set_view(&mut self, view_vector: Vec3, up: Vec3) {
-        let v = view_vector.normalize();
-        let bounds = self.state.bounds;
-        let camera = &mut self.state.camera;
-        camera.view_center = bounds.pos;
-        camera.up_vector = up;
-        camera.position = bounds.pos - v * bounds.radius as f32 * 10.0;
+        self.place_camera(self.state.bounds.pos, view_vector);
+        self.state.camera.up_vector = up;
 
         self.update_camera_lens();
     }

@@ -3,7 +3,7 @@
 
 //! A camera like `QCamera` of Qt 3D, which a viewer applies to its own camera.
 
-use glam::{Mat4, Quat, Vec3};
+use glam::{DVec2, Mat4, Quat, Vec3, Vec3Swizzles};
 
 /// A camera looking from its position at its view center, like `QCamera` of Qt 3D.
 ///
@@ -43,6 +43,12 @@ impl Camera {
     /// The transformation from world coordinates to the coordinates of the camera.
     pub fn view_matrix(&self) -> Mat4 {
         Mat4::look_at_rh(self.position, self.view_center, self.up_vector)
+    }
+
+    /// The x and y coordinate of `point` in the coordinates of the camera, e.g. in the plane
+    /// of the orthographic projection.
+    pub fn view_xy(&self, point: Vec3) -> DVec2 {
+        self.view_matrix().transform_point3(point).xy().as_dvec2()
     }
 
     /// The transformation from the coordinates of the camera to world coordinates, i.e. the

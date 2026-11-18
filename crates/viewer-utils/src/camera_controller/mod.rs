@@ -12,7 +12,7 @@ pub use perspective::PerspectiveCameraController;
 
 use std::time::Duration;
 
-use glam::{DVec2, Vec2, Vec3, Vec4Swizzles};
+use glam::{DVec2, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
 use crate::{BoundingSphere, Camera};
@@ -396,10 +396,9 @@ pub trait CameraControl {
     /// The screen coordinate in pixels of a point in world coordinates.
     fn screen_coord(&self, world_point: Vec3) -> DVec2 {
         let camera = self.camera();
-        let point_in_screen_space = camera.projection_matrix
-            * camera.transform_matrix().inverse()
-            * world_point.extend(1.0);
-        let ndc = point_in_screen_space.xy().as_dvec2() / point_in_screen_space.w as f64;
+        let ndc = (camera.projection_matrix * camera.view_matrix())
+            .project_point3(world_point)
+            .as_dvec3();
         let size = self.window_size();
 
         DVec2::new((ndc.x + 1.0) / 2.0 * size.x, (1.0 - ndc.y) / 2.0 * size.y)

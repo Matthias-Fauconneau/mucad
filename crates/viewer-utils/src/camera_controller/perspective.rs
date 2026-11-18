@@ -240,8 +240,7 @@ impl CameraControl for PerspectiveCameraController {
     /// The zoom target is the point under the screen coordinates in the plane of the pivot.
     fn set_zoom_point_from_screen_coordinates(&mut self, screen_coords: DVec2) {
         self.zoom_target = self.world_point(screen_coords);
-        let p = self.state.camera.transform_matrix().inverse() * self.zoom_target.extend(1.0);
-        self.state.zoom_point = (p / p.w).xy().as_dvec2();
+        self.state.zoom_point = self.state.camera.view_xy(self.zoom_target);
     }
 
     /// The camera and the view center move by `delta` in pixels of the plane of the pivot.
