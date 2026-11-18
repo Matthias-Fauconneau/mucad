@@ -311,11 +311,26 @@ fn apply_camera(
     for (navigation, mut transform, mut projection) in &mut cameras {
         let controller = navigation.controller();
         *transform = Transform::from_matrix(controller.camera().transform_matrix());
-        if let Projection::Orthographic(ortho) = projection.as_mut()
-            && let Some(controller) = controller.ortho()
-        {
-            set_orthographic(ortho, controller);
-            ortho.update(window_size.x, window_size.y);
+        match controller {
+            CameraController::Ortho(controller) => {
+                if !matches!(*projection, Projection::Orthographic(_)) {
+                    *projection = Projection::from(OrthographicProjection::default_3d());
+                }
+                if let Projection::Orthographic(ortho) = projection.as_mut() {
+                    set_orthographic(ortho, controller);
+                    ortho.update(window_size.x, window_size.y);
+                }
+            }
+            CameraController::Perspective(controller) => {
+                let (near, far) = controller.near_far();
+                *projection = Projection::Perspective(PerspectiveProjection {
+                    fov: controller.fov(),
+                    aspect_ratio: window_size.x / window_size.y,
+                    near,
+                    far,
+                    ..Default::default()
+                });
+            }
         }
     }
 }

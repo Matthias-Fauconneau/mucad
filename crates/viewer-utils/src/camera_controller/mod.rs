@@ -17,9 +17,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BoundingSphere, Camera, ProjectionType};
 
-/// The projection mode of a [`CameraController`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// The projection mode of a [`CameraController`], written in lower case, e.g. `perspective`.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::IntoStaticStr,
+)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum ProjectionMode {
     /// An orthographic projection, e.g. to measure.
     #[default]

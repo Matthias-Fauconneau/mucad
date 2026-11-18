@@ -37,8 +37,10 @@ function modifiers(event: MouseEvent | KeyboardEvent): number {
 }
 
 /**
- * The camera navigation of the µcad viewers for a three.js camera: orbiting, panning and
- * zooming an orthographic view with the mouse, the keys and touch, configurable in TOML.
+ * The camera navigation of the µcad viewers for three.js cameras: orbiting, panning and zooming
+ * an orthographic or a perspective view with the mouse, the keys and touch, configurable in
+ * TOML. The projection is toggled with the key `p`, {@link CameraControls.camera} is the camera
+ * of the current one.
  *
  * The controls listen to the events of `element`, e.g. the canvas of the renderer, which gets
  * the focus for the keys by a click. `update()` applies the camera in each frame, a click or a
@@ -53,13 +55,13 @@ function modifiers(event: MouseEvent | KeyboardEvent): number {
  * The WebAssembly module is loaded at the first call or event, which are applied after it.
  *
  * ```ts
- * const controls = new CameraControls(camera, renderer.domElement);
+ * const controls = new CameraControls(renderer.domElement);
  * controls.setBounds(center, radius);
  * controls.setView("isometric");
  * controls.addEventListener("select", (event) => pick((event as CustomEvent<SelectDetail>).detail));
  * renderer.setAnimationLoop(() => {
  *   controls.update();
- *   renderer.render(scene, camera);
+ *   renderer.render(scene, controls.camera);
  * });
  * ```
  */
@@ -81,18 +83,22 @@ export class CameraControls extends EventTarget {
   private width = 1;
   private height = 1;
 
+  /** The camera of the orthographic projection, whose matrices the controls set. */
+  readonly orthographicCamera = new THREE.OrthographicCamera();
+  /** The camera of the perspective projection, whose matrices the controls set. */
+  readonly perspectiveCamera = new THREE.PerspectiveCamera();
+
   /**
-   * Controls for `camera`, whose matrices they set, with the events of `element` and the
-   * controls in TOML or the defaults, see `CameraNavigation.defaultControls()`.
+   * Controls with the events of `element` and the controls in TOML or the defaults, see
+   * `CameraNavigation.defaultControls()`.
    */
   constructor(
-    private camera: THREE.OrthographicCamera,
     private element: HTMLElement,
     private controlsToml?: string,
   ) {
     super();
-    camera.near = NEAR;
-    camera.far = FAR;
+    this.orthographicCamera.near = NEAR;
+    this.orthographicCamera.far = FAR;
     // The canvas gets the focus for the keys, without an outline.
     element.tabIndex = 0;
     element.style.outline = "none";
@@ -161,7 +167,22 @@ export class CameraControls extends EventTarget {
     this.navigation?.resize(width, height);
   }
 
-  /** Apply the camera, e.g. in each frame before rendering. */
+  /**
+   * The camera of the projection, orthographic or perspective, e.g. to render the scene and to
+   * pick objects. It changes, when the projection is changed, e.g. with the key `p`.
+   */
+  get camera(): THREE.OrthographicCamera | THREE.PerspectiveCamera {
+    return this.navigation?.projection() === "perspective"
+      ? this.perspectiveCamera
+      : this.orthographicCamera;
+  }
+
+  /** Change between the orthographic and the perspective projection, like the key `p`. */
+  toggleProjection() {
+    this.run((navigation) => navigation.toggleProjection());
+  }
+
+  /** Apply the camera of the projection, e.g. in each frame before rendering. */
   update() {
     this.frameStart = performance.now();
     const navigation = this.navigation;

@@ -12,8 +12,8 @@ use std::time::Duration;
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mucad_viewer_utils::{
     BoundingSphere, CameraControl, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML,
-    GridConfig, Modifiers, MouseAction, MouseButton, Navigation, Scalar, StandardView, Theme,
-    TouchId,
+    GridConfig, Modifiers, MouseAction, MouseButton, Navigation, ProjectionMode, Scalar,
+    StandardView, Theme, TouchId,
 };
 use wasm_bindgen::prelude::*;
 
@@ -257,6 +257,30 @@ impl CameraNavigation {
             .controller_mut()
             .set_view(view.view_vector(), view.up());
         Ok(())
+    }
+
+    /// The projection of the camera: `orthographic` or `perspective`.
+    pub fn projection(&self) -> String {
+        self.navigation.controller().projection_mode().to_string()
+    }
+
+    /// Set the projection of the camera: `orthographic` or `perspective`, the visible area at
+    /// the pivot stays.
+    ///
+    /// Throws an error for another name.
+    #[wasm_bindgen(js_name = setProjection)]
+    pub fn set_projection(&mut self, name: &str) -> Result<(), JsError> {
+        let mode: ProjectionMode = name
+            .parse()
+            .map_err(|_| JsError::new(&format!("unknown projection `{name}`")))?;
+        self.navigation.controller_mut().set_projection_mode(mode);
+        Ok(())
+    }
+
+    /// Change between the orthographic and the perspective projection, like the key `p`.
+    #[wasm_bindgen(js_name = toggleProjection)]
+    pub fn toggle_projection(&mut self) {
+        self.navigation.controller_mut().toggle_projection();
     }
 
     /// Show the whole scene in the middle of the view, e.g. to reset the camera.

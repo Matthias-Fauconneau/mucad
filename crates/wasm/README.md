@@ -195,6 +195,7 @@ two fingers in parallel pans without zooming.
 | `position()`, `viewCenter()`, `up()`, `pivot()` | `[x, y, z]` |
 | `setBounds(x, y, z, radius)` | Sets the center and the radius of what the camera shows, e.g. of the bounding sphere of the model |
 | `setView(name)` | Shows `isometric`, `front`, `top`, `right`, `rear`, `bottom` or `left` |
+| `projection()`, `setProjection(name)`, `toggleProjection()` | The projection `orthographic` or `perspective`, e.g. for a `THREE.OrthographicCamera` or `THREE.PerspectiveCamera`; switching keeps the visible area at the pivot |
 | `showAll()` | Shows the whole scene in the middle of the view, e.g. to reset the camera |
 | `zoomFit()`, `zoomLevel()`, `resetPivot()` | Zooms to level 1 around the center of the view, the zoom level, sets the pivot to the center of the bounds |
 | `takeEvents()` | The changes since the last call: `zoomLevelChanged` and `pivotChanged` |

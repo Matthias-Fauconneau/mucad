@@ -144,3 +144,20 @@ fn grid_config() {
     let view = glam::Vec3::from_slice(&config[2..5]);
     assert!((view.length() - 1.0).abs() < 1e-5);
 }
+
+#[test]
+fn projection() {
+    let mut navigation = navigation();
+    assert_eq!(navigation.projection(), "orthographic");
+    let orthographic = navigation.projection_matrix();
+    navigation.toggle_projection();
+    assert_eq!(navigation.projection(), "perspective");
+    // The perspective projection divides by the depth.
+    let perspective = navigation.projection_matrix();
+    assert_ne!(perspective, orthographic);
+    assert_eq!(perspective[11], -1.0);
+    assert!(navigation.key_down("p", 0));
+    assert_eq!(navigation.projection(), "orthographic");
+    assert!(navigation.set_projection("perspective").is_ok());
+    assert_eq!(navigation.projection(), "perspective");
+}

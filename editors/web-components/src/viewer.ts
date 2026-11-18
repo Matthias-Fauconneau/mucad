@@ -32,7 +32,8 @@ type ModelKind = keyof typeof VIEWS;
 /**
  * A three.js view of µcad models, the Z axis points up like in µcad.
  *
- * The orthographic camera is navigated with the mouse and the keys by {@link CameraControls}.
+ * The orthographic or perspective camera is navigated with the mouse and the keys by
+ * {@link CameraControls}, the key `p` toggles the projection.
  *
  * The scene is rendered into a linear render target and converted to sRGB afterwards, so that
  * transparent objects are blended in linear colors like in the Bevy viewer, e.g. the grid.
@@ -41,7 +42,8 @@ export class Viewer {
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer;
   private scene = new THREE.Scene();
-  private camera = new THREE.OrthographicCamera();
+  /** The pass, which renders the scene with the camera of the controls. */
+  private renderPass: RenderPass;
   /** The camera navigation, e.g. to listen to its `select` events or to set its controls. */
   readonly controls: CameraControls;
   /** The radius of the bounds of the camera, which a bigger model increases. */
@@ -59,18 +61,18 @@ export class Viewer {
     // A linear float render target, which is antialiased, and its conversion to sRGB.
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(this.renderer, target);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.controls = new CameraControls(this.renderer.domElement);
+    this.renderPass = new RenderPass(this.scene, this.controls.camera);
+    this.composer.addPass(this.renderPass);
     this.composer.addPass(new OutputPass());
 
     this.scene.background = new THREE.Color(theme.primary);
     this.scene.add(this.model);
     // The models are lit by their material like in the Bevy viewer, the scene has no lights.
-    this.scene.add(this.camera);
     this.grid.mesh.visible = false;
     this.scene.add(this.grid.mesh);
 
     THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
-    this.controls = new CameraControls(this.camera, this.renderer.domElement);
     // The right button orbits, the view has no context menu.
     element.addEventListener("contextmenu", (event) => event.preventDefault());
 
@@ -88,14 +90,16 @@ export class Viewer {
   /** Render the scene with the camera of the controls and the grid for it. */
   private render() {
     this.controls.update();
-    updateModelCamera(this.camera);
+    const camera = this.controls.camera;
+    this.renderPass.camera = camera;
+    updateModelCamera(camera);
     // The widths of the outlines are pixels of the render target.
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.model.traverse((object) => {
       if (object instanceof LineSegments2) object.material.resolution.copy(size);
     });
     const gridConfig = this.controls.gridConfig();
-    if (gridConfig) this.grid.update(this.camera, gridConfig);
+    if (gridConfig) this.grid.update(camera, gridConfig);
     this.composer.render();
   }
 

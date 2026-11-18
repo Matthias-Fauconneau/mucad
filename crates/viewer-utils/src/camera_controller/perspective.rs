@@ -61,7 +61,7 @@ impl PerspectiveCameraController {
     }
 
     /// The vertical field of view in radians.
-    fn fov(&self) -> f32 {
+    pub fn fov(&self) -> f32 {
         (self.state.config.fov_y_degrees as f32).to_radians()
     }
 
@@ -121,8 +121,9 @@ impl PerspectiveCameraController {
         self.dolly(self.zoom_target, zoom_factor);
     }
 
-    /// The near and the far plane, which enclose the bounds, also when the camera is in them.
-    fn near_far(&self) -> (f32, f32) {
+    /// The distances of the near and the far plane, which enclose the bounds, also when the
+    /// camera is in them.
+    pub fn near_far(&self) -> (f32, f32) {
         let camera = &self.state.camera;
         let radius = self.state.bounds.radius as f32;
         let depth = (self.state.bounds.pos - camera.position()).dot(self.direction());

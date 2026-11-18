@@ -5,6 +5,7 @@
 
 use crate::*;
 use bevy::prelude::*;
+use mucad_viewer_utils::CameraControl;
 
 mod angle;
 mod camera;
@@ -18,25 +19,19 @@ mod grid;
 mod overlay;
 mod ruler;
 
-/// Get current zoom level.
-pub fn get_current_zoom_level(projection: &Projection) -> f32 {
-    match projection {
-        Projection::Orthographic(orthographic_projection) => orthographic_projection.scale,
-        _ => todo!(),
-    }
+/// The inverse zoom level of the camera, e.g. like the scale of an orthographic projection:
+/// 1 shows the whole scene, a smaller one shows the model bigger.
+pub fn get_current_zoom_level(controller: &impl CameraControl) -> f32 {
+    1.0 / controller.zoom_level() as f32
 }
 
-/// Get current resolution in mm.
-pub fn get_current_resolution(projection: &Projection, window: &Window) -> f32 {
-    let area_size = match projection {
-        Projection::Orthographic(orthographic_projection) => orthographic_projection
-            .area
-            .width()
-            .max(orthographic_projection.area.height()),
-        _ => todo!(),
-    };
-
-    area_size / window.width().max(window.height()) * 10.0
+/// The current resolution in mm: the larger side of the visible area at the pivot per the
+/// larger side of the window, times 10.
+pub fn get_current_resolution(controller: &impl CameraControl) -> f32 {
+    let height = controller.visible_area().1;
+    let area_size = height.max(height * controller.aspect_ratio());
+    let window = controller.window_size();
+    (area_size / window.x.max(window.y) * 10.0) as f32
 }
 
 /// A system that draws hit indicators for every pointer.
@@ -44,16 +39,17 @@ pub fn draw_mesh_intersections(
     pointers: Query<&bevy::picking::pointer::PointerInteraction>,
     mut gizmos: Gizmos,
     view_model: Res<ViewModel>,
-    projections: Query<&Projection>,
+    navigations: Query<&CameraNavigation>,
 ) {
     for (_entity, hit) in pointers
         .iter()
         .filter_map(|interaction| interaction.get_nearest_hit())
     {
         if let Some(position) = hit.position {
-            let proj = projections.single().expect("Some projections");
-
-            let zoom = get_current_zoom_level(proj);
+            let Ok(navigation) = navigations.single() else {
+                return;
+            };
+            let zoom = get_current_zoom_level(navigation.controller());
             let color: Color = view_model.config.theme.guide.to_bevy();
             gizmos.sphere(position, zoom * 0.1, color);
         }
