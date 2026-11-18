@@ -21,8 +21,10 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
-/// A button of the mouse.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// A button of the mouse, written by its name in a binding, e.g. `Left`.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, strum::EnumString, strum::IntoStaticStr,
+)]
 pub enum MouseButton {
     /// The left button.
     Left,
@@ -30,26 +32,6 @@ pub enum MouseButton {
     Middle,
     /// The right button.
     Right,
-}
-
-impl MouseButton {
-    /// The name in a binding.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Left => "Left",
-            Self::Middle => "Middle",
-            Self::Right => "Right",
-        }
-    }
-
-    fn parse(name: &str) -> Option<Self> {
-        match name {
-            "Left" => Some(Self::Left),
-            "Middle" => Some(Self::Middle),
-            "Right" => Some(Self::Right),
-            _ => None,
-        }
-    }
 }
 
 /// The pressed modifier keys, written like `Ctrl+Shift`.
@@ -214,7 +196,7 @@ impl fmt::Display for MouseBinding {
         let mut names: Vec<&str> = self.modifiers.names().collect();
         match &self.input {
             MouseInput::Wheel => names.push("Wheel"),
-            MouseInput::Buttons(buttons) => names.extend(buttons.iter().map(|b| b.name())),
+            MouseInput::Buttons(buttons) => names.extend(buttons.iter().map(|&b| <&str>::from(b))),
         }
         f.write_str(&names.join("+"))
     }
@@ -228,7 +210,7 @@ impl FromStr for MouseBinding {
         let mut buttons = Vec::new();
         let mut wheel = false;
         for name in split(s) {
-            if let Some(button) = MouseButton::parse(name) {
+            if let Ok(button) = name.parse::<MouseButton>() {
                 if buttons.contains(&button) {
                     return Err(ParseError(format!("button `{name}` twice in `{s}`")));
                 }
