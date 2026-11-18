@@ -45,7 +45,7 @@ impl PerspectiveCameraController {
 
     /// A controller with `state`, e.g. of another projection mode, which keeps its camera.
     pub fn from_state(state: CameraControllerState) -> Self {
-        let zoom_target = state.camera.view_center();
+        let zoom_target = state.camera.view_center;
         let mut controller = Self { state, zoom_target };
         controller.update_projection();
         controller
@@ -90,8 +90,8 @@ impl PerspectiveCameraController {
     fn look_at(&mut self, center: Vec3, distance: f32) {
         let direction = self.direction();
         let camera = &mut self.state.camera;
-        camera.set_view_center(center);
-        camera.set_position(center - direction * distance);
+        camera.view_center = center;
+        camera.position = center - direction * distance;
         self.update_projection();
     }
 
@@ -104,8 +104,8 @@ impl PerspectiveCameraController {
         let new_level = (level / zoom_factor).clamp(MIN_ZOOM_LEVEL, MAX_ZOOM_LEVEL);
         let scale = (level / new_level) as f32;
         let camera = &mut self.state.camera;
-        camera.set_position(target + (camera.position() - target) * scale);
-        camera.set_view_center(target + (camera.view_center() - target) * scale);
+        camera.position = target + (camera.position - target) * scale;
+        camera.view_center = target + (camera.view_center - target) * scale;
         self.update_projection();
         if new_level != level {
             self.state.events.push(CameraEvent::ZoomLevelChanged);
@@ -126,7 +126,7 @@ impl PerspectiveCameraController {
     pub fn near_far(&self) -> (f32, f32) {
         let camera = &self.state.camera;
         let radius = self.state.bounds.radius as f32;
-        let depth = (self.state.bounds.pos - camera.position()).dot(self.direction());
+        let depth = (self.state.bounds.pos - camera.position).dot(self.direction());
         let near = (depth - DEPTH_RADII * radius).max(radius * 1e-3);
         let far = (depth + DEPTH_RADII * radius).max(near * 2.0);
         (near, far)
@@ -142,7 +142,7 @@ impl PerspectiveCameraController {
 
     /// The distance of the plane of the pivot from the camera along the view direction.
     fn pivot_depth(&self) -> f32 {
-        (self.state.pivot - self.state.camera.position()).dot(self.direction())
+        (self.state.pivot - self.state.camera.position).dot(self.direction())
     }
 }
 
@@ -169,8 +169,8 @@ impl CameraControl for PerspectiveCameraController {
         let offset = bounds.pos - self.state.bounds.pos;
         self.state.bounds = bounds;
         let camera = &mut self.state.camera;
-        camera.set_view_center(camera.view_center() + offset);
-        camera.set_position(camera.position() + offset);
+        camera.view_center += offset;
+        camera.position += offset;
         self.update_projection();
     }
 
@@ -189,9 +189,9 @@ impl CameraControl for PerspectiveCameraController {
         let distance = self.distance();
         let center = self.state.bounds.pos;
         let camera = &mut self.state.camera;
-        camera.set_view_center(center);
-        camera.set_up_vector(up);
-        camera.set_position(center - view_vector.normalize() * distance);
+        camera.view_center = center;
+        camera.up_vector = up;
+        camera.position = center - view_vector.normalize() * distance;
         self.update_projection();
     }
 
@@ -213,7 +213,7 @@ impl CameraControl for PerspectiveCameraController {
     }
 
     fn zoom_at_center(&mut self, zoom_factor: f64) {
-        self.dolly(self.state.camera.view_center(), zoom_factor);
+        self.dolly(self.state.camera.view_center, zoom_factor);
     }
 
     fn zoom_at_screen_point(&mut self, screen_coords: DVec2, zoom_factor: f64) {
@@ -231,7 +231,7 @@ impl CameraControl for PerspectiveCameraController {
 
     fn zoom_fit(&mut self) {
         let level = self.zoom_level();
-        self.look_at(self.state.camera.view_center(), self.fit_distance());
+        self.look_at(self.state.camera.view_center, self.fit_distance());
         if level != 1.0 {
             self.state.events.push(CameraEvent::ZoomLevelChanged);
         }
@@ -251,8 +251,8 @@ impl CameraControl for PerspectiveCameraController {
         let transform = self.state.camera.transform_matrix();
         let offset = transform.transform_vector3(Vec3::new(delta.x, delta.y, 0.0) * pixel);
         let camera = &mut self.state.camera;
-        camera.set_position(camera.position() + offset);
-        camera.set_view_center(camera.view_center() + offset);
+        camera.position += offset;
+        camera.view_center += offset;
         self.update_projection();
     }
 
@@ -276,7 +276,7 @@ impl CameraControl for PerspectiveCameraController {
 
     fn visible_area(&self) -> (Vec3, f64) {
         let depth = self.pivot_depth();
-        let center = self.state.camera.position() + self.direction() * depth;
+        let center = self.state.camera.position + self.direction() * depth;
         (center, (2.0 * depth * self.half_fov_tan()) as f64)
     }
 }
@@ -297,7 +297,7 @@ mod tests {
         assert!((controller.zoom_level() - 1.0).abs() < 1e-6);
         // The bounding sphere touches the top and the bottom of the view.
         let distance = 100.0 / (15f32.to_radians()).sin();
-        assert!((controller.camera().position().length() - distance).abs() < 1e-2);
+        assert!((controller.camera().position.length() - distance).abs() < 1e-2);
         let top = controller.screen_coord(Vec3::new(0.0, 100.0 / 15f32.to_radians().cos(), 0.0));
         assert!(top.y.abs() < 1.0, "{top}");
     }
@@ -355,9 +355,9 @@ mod tests {
     fn orbit_keeps_the_distance_to_the_pivot() {
         let mut controller = controller();
         controller.set_pivot(Vec3::new(10.0, 20.0, 0.0));
-        let distance = (controller.camera().position() - controller.pivot()).length();
+        let distance = (controller.camera().position - controller.pivot()).length();
         controller.orbit(40.0, 25.0);
-        let orbited = (controller.camera().position() - controller.pivot()).length();
+        let orbited = (controller.camera().position - controller.pivot()).length();
         assert!((orbited - distance).abs() < 1e-2);
     }
 
@@ -389,7 +389,7 @@ mod tests {
         let mut controller = controller();
         controller.zoom_at_center(1.0 / 100.0);
         let (near, far) = controller.near_far();
-        let depth = controller.camera().position().length();
+        let depth = controller.camera().position.length();
         assert!(
             near > 0.0 && near < depth && far > depth + 100.0,
             "{near} {far}"

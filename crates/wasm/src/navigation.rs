@@ -337,18 +337,18 @@ impl CameraNavigation {
 
     /// The position of the camera as `[x, y, z]`.
     pub fn position(&self) -> Vec<f32> {
-        self.camera().position().to_array().to_vec()
+        self.camera().position.to_array().to_vec()
     }
 
     /// The point, which the camera looks at, as `[x, y, z]`.
     #[wasm_bindgen(js_name = viewCenter)]
     pub fn view_center(&self) -> Vec<f32> {
-        self.camera().view_center().to_array().to_vec()
+        self.camera().view_center.to_array().to_vec()
     }
 
     /// The direction, which is upwards in the view, as `[x, y, z]`.
     pub fn up(&self) -> Vec<f32> {
-        self.camera().up_vector().to_array().to_vec()
+        self.camera().up_vector.to_array().to_vec()
     }
 
     /// The transformation from the camera to the world, e.g. `Object3D.matrixWorld` of the

@@ -24,9 +24,12 @@ pub enum ProjectionType {
 /// OpenGL, from -1 to 1 in x, y and z.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Camera {
-    position: Vec3,
-    view_center: Vec3,
-    up_vector: Vec3,
+    /// The position of the camera.
+    pub position: Vec3,
+    /// The point the camera looks at.
+    pub view_center: Vec3,
+    /// The direction, which is upwards in the view.
+    pub up_vector: Vec3,
     projection_type: ProjectionType,
     projection_matrix: Mat4,
 }
@@ -46,36 +49,6 @@ impl Default for Camera {
 }
 
 impl Camera {
-    /// The position of the camera.
-    pub fn position(&self) -> Vec3 {
-        self.position
-    }
-
-    /// Set the position of the camera.
-    pub fn set_position(&mut self, position: Vec3) {
-        self.position = position;
-    }
-
-    /// The point the camera looks at.
-    pub fn view_center(&self) -> Vec3 {
-        self.view_center
-    }
-
-    /// Set the point the camera looks at.
-    pub fn set_view_center(&mut self, view_center: Vec3) {
-        self.view_center = view_center;
-    }
-
-    /// The direction, which is upwards in the view.
-    pub fn up_vector(&self) -> Vec3 {
-        self.up_vector
-    }
-
-    /// Set the direction, which is upwards in the view.
-    pub fn set_up_vector(&mut self, up_vector: Vec3) {
-        self.up_vector = up_vector;
-    }
-
     /// The vector from the position to the view center.
     pub fn view_vector(&self) -> Vec3 {
         self.view_center - self.position
@@ -133,10 +106,11 @@ mod tests {
     use super::*;
 
     fn camera() -> Camera {
-        let mut camera = Camera::default();
-        camera.set_position(Vec3::new(0.0, 0.0, 10.0));
-        camera.set_view_center(Vec3::ZERO);
-        camera
+        Camera {
+            position: Vec3::new(0.0, 0.0, 10.0),
+            view_center: Vec3::ZERO,
+            ..Camera::default()
+        }
     }
 
     #[test]
@@ -146,7 +120,7 @@ mod tests {
         assert!(
             transform
                 .transform_point3(Vec3::ZERO)
-                .abs_diff_eq(camera.position(), 1e-6)
+                .abs_diff_eq(camera.position, 1e-6)
         );
         // The camera looks along its -z axis.
         let forward = transform.transform_vector3(-Vec3::Z);

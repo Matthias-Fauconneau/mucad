@@ -7,7 +7,7 @@
 mod ortho;
 mod perspective;
 
-pub use ortho::{CameraState, OrthoCameraController};
+pub use ortho::OrthoCameraController;
 pub use perspective::PerspectiveCameraController;
 
 use std::time::Duration;
@@ -132,9 +132,9 @@ impl CameraControllerState {
     pub(crate) fn new(window_size: DVec2) -> Self {
         let bounds = BoundingSphere::new(Vec3::ZERO, 100.0);
         let mut camera = Camera::default();
-        camera.set_up_vector(Vec3::Y);
-        camera.set_view_center(bounds.pos);
-        camera.set_position(bounds.pos + Vec3::Z * 2.0 * bounds.radius as f32);
+        camera.up_vector = Vec3::Y;
+        camera.view_center = bounds.pos;
+        camera.position = bounds.pos + Vec3::Z * 2.0 * bounds.radius as f32;
         Self {
             camera,
             bounds,
@@ -152,19 +152,19 @@ impl CameraControllerState {
     pub(crate) fn rotate_around_pivot(&mut self, pan: f64, tilt: f64) {
         let camera = &mut self.camera;
         let p = self.pivot;
-        let v = p - camera.position();
-        let w = p - camera.view_center();
+        let v = p - camera.position;
+        let w = p - camera.view_center;
 
         // Do pan rotation first
         let pq = camera.pan_rotation(-pan as f32);
 
         // Apply tilt rotation and set camera position and view angle
         let tq = camera.tilt_rotation(tilt as f32);
-        camera.set_position(p - pq * tq * v);
-        camera.set_view_center(p - pq * tq * w);
+        camera.position = p - pq * tq * v;
+        camera.view_center = p - pq * tq * w;
 
-        let up = pq * tq * camera.up_vector();
-        camera.set_up_vector(up.normalize());
+        let up = pq * tq * camera.up_vector;
+        camera.up_vector = up.normalize();
     }
 }
 

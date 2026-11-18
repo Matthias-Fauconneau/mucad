@@ -412,7 +412,7 @@ mod tests {
         let navigation = CameraNavigation::new(Vec2::new(400.0, 200.0), Controls::default());
         let camera = navigation.controller().camera();
         let transform = Transform::from_matrix(camera.transform_matrix());
-        assert!(transform.translation.abs_diff_eq(camera.position(), 1e-3));
+        assert!(transform.translation.abs_diff_eq(camera.position, 1e-3));
         let forward = *transform.forward();
         assert!(forward.abs_diff_eq(camera.view_vector().normalize(), 1e-5));
     }

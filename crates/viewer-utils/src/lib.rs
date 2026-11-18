@@ -27,7 +27,7 @@ pub use bounding_sphere::BoundingSphere;
 pub use camera::{Camera, ProjectionType};
 pub use camera_controller::{
     CameraControl, CameraController, CameraControllerConfig, CameraControllerState, CameraEvent,
-    CameraState, Mode, OrthoCameraController, PerspectiveCameraController, ProjectionMode, Ray,
+    Mode, OrthoCameraController, PerspectiveCameraController, ProjectionMode, Ray,
 };
 pub use controls::{
     Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls, TouchControls, TouchDrag,

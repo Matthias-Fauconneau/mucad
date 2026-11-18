@@ -102,7 +102,7 @@ pub type TouchId = i64;
 ///
 /// Touch: one finger orbits or pans, see [`crate::TouchControls`], two fingers pinch to zoom
 /// and pan, a tap selects. More fingers are ignored. While
-/// [`CameraController::pointer_pinned`], it passes the movement of the mouse, e.g. of a locked
+/// [`CameraControl::pointer_pinned`](crate::CameraControl::pointer_pinned), it passes the movement of the mouse, e.g. of a locked
 /// pointer, also when the pointer position stays the same.
 #[derive(Debug, Clone)]
 pub struct Navigation {
@@ -808,7 +808,7 @@ mod tests {
             assert!(navigation.key_pressed(key, Modifiers::NONE), "{key}");
             let camera = navigation.controller().camera();
             let expected = -view.view_vector() * 1000.0;
-            assert!(camera.position().abs_diff_eq(expected, 1e-2), "{key}");
+            assert!(camera.position.abs_diff_eq(expected, 1e-2), "{key}");
             assert!(view.up().dot(view.view_vector()).abs() < 1e-6, "{key}");
         }
         assert!(!navigation.key_pressed("7", Modifiers::NONE));

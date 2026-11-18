@@ -8,20 +8,7 @@ use std::time::Duration;
 use glam::{DVec2, Vec2, Vec3, Vec4, Vec4Swizzles};
 
 use super::{CameraControl, CameraControllerState, CameraEvent, Mode, Ray, scaled_by_time};
-use crate::{BoundingSphere, Rect, ZoomEvent, ZoomRectModel, ZoomState};
-
-/// The state of an [`OrthoCameraController`], e.g. to restore a view.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CameraState {
-    /// The view center of the camera.
-    pub view_center: Vec3,
-    /// The position of the camera.
-    pub position: Vec3,
-    /// The up vector of the camera.
-    pub up: Vec3,
-    /// The zoom.
-    pub zoom: ZoomState,
-}
+use crate::{BoundingSphere, Rect, ZoomEvent, ZoomRectModel};
 
 /// A camera controller for an orthographic view.
 ///
@@ -76,8 +63,8 @@ impl OrthoCameraController {
         let bounds = controller.state.bounds;
         let camera = &mut controller.state.camera;
         let direction = camera.view_vector().normalize();
-        camera.set_view_center(bounds.pos);
-        camera.set_position(bounds.pos - direction * bounds.radius as f32 * 10.0);
+        camera.view_center = bounds.pos;
+        camera.position = bounds.pos - direction * bounds.radius as f32 * 10.0;
 
         // The detail around the center in the coordinates of the camera.
         let p = controller.state.camera.transform_matrix().inverse() * center.extend(1.0);
@@ -108,36 +95,15 @@ impl OrthoCameraController {
         };
 
         let bounds_center = self.state.bounds.pos;
-        let d = camera.view_center() - bounds_center;
-        let view_center_xy = get_point_2d(camera.view_center());
+        let d = camera.view_center - bounds_center;
+        let view_center_xy = get_point_2d(camera.view_center);
         let bounds_center_xy = get_point_2d(bounds_center);
 
         let camera = &mut self.state.camera;
-        camera.set_view_center(bounds_center);
-        camera.set_position(camera.position() - d);
+        camera.view_center = bounds_center;
+        camera.position -= d;
         self.zoom_rect_model
             .translate((view_center_xy - bounds_center_xy).as_vec2());
-        self.handle_zoom_events();
-    }
-
-    /// The camera and the zoom, e.g. to restore them later.
-    pub fn camera_state(&self) -> CameraState {
-        let camera = &self.state.camera;
-        CameraState {
-            view_center: camera.view_center(),
-            position: camera.position(),
-            up: camera.up_vector(),
-            zoom: self.zoom_rect_model.state(),
-        }
-    }
-
-    /// Restore the camera and the zoom.
-    pub fn set_camera_state(&mut self, state: &CameraState) {
-        let camera = &mut self.state.camera;
-        camera.set_view_center(state.view_center);
-        camera.set_position(state.position);
-        camera.set_up_vector(state.up);
-        self.zoom_rect_model.set_state(state.zoom);
         self.handle_zoom_events();
     }
 
@@ -197,8 +163,7 @@ impl OrthoCameraController {
     fn place_camera_outside_of_bounds(&mut self) {
         let radius = self.state.bounds.radius as f32;
         let camera = &mut self.state.camera;
-        camera
-            .set_position(camera.view_center() - camera.view_vector().normalize() * radius * 10.0);
+        camera.position = camera.view_center - camera.view_vector().normalize() * radius * 10.0;
     }
 }
 
@@ -228,9 +193,9 @@ impl CameraControl for OrthoCameraController {
         self.state.bounds = bounds;
 
         let camera = &mut self.state.camera;
-        let d = camera.view_center() - bounds.pos;
-        camera.set_view_center(bounds.pos);
-        camera.set_position(camera.position() - d);
+        let d = camera.view_center - bounds.pos;
+        camera.view_center = bounds.pos;
+        camera.position -= d;
         // The camera stays outside of the bounds, like after orbiting, e.g. of a smaller or
         // bigger model, so that the near and far plane of the projection enclose them.
         self.place_camera_outside_of_bounds();
@@ -260,9 +225,9 @@ impl CameraControl for OrthoCameraController {
         let v = view_vector.normalize();
         let bounds = self.state.bounds;
         let camera = &mut self.state.camera;
-        camera.set_view_center(bounds.pos);
-        camera.set_up_vector(up);
-        camera.set_position(bounds.pos - v * bounds.radius as f32 * 10.0);
+        camera.view_center = bounds.pos;
+        camera.up_vector = up;
+        camera.position = bounds.pos - v * bounds.radius as f32 * 10.0;
 
         self.update_camera_lens();
     }
@@ -374,10 +339,10 @@ mod tests {
         // On the bounding sphere's periphery, looking at the pivot from the front.
         assert!(
             camera
-                .position()
+                .position
                 .abs_diff_eq(Vec3::new(0.0, 0.0, 1000.0), 1e-3)
         );
-        assert_eq!(camera.view_center(), Vec3::ZERO);
+        assert_eq!(camera.view_center, Vec3::ZERO);
         assert_eq!(camera.projection_type(), ProjectionType::Custom);
         assert_eq!(
             camera.projection_matrix(),
@@ -403,12 +368,12 @@ mod tests {
     fn orbit_keeps_pivot_distance() {
         let mut controller = OrthoCameraController::new(WINDOW);
         controller.set_pivot(Vec3::new(10.0, 0.0, 0.0));
-        let distance = |c: &OrthoCameraController| (c.camera().position() - c.pivot()).length();
+        let distance = |c: &OrthoCameraController| (c.camera().position - c.pivot()).length();
         controller.orbit(0.0, 0.0);
         let before = distance(&controller);
         controller.orbit(30.0, 20.0);
         assert!((distance(&controller) - before).abs() < 1e-2);
-        assert!(controller.camera().up_vector().is_normalized());
+        assert!(controller.camera().up_vector.is_normalized());
     }
 
     #[test]
@@ -457,7 +422,7 @@ mod tests {
         let mut controller = OrthoCameraController::new(WINDOW);
         // A small model, e.g. of 18mm, is between the near and the far plane.
         controller.set_bounds(BoundingSphere::new(Vec3::ZERO, 18.0));
-        let distance = controller.camera().position().length();
+        let distance = controller.camera().position.length();
         assert!((distance - 180.0).abs() < 1e-3, "{distance}");
     }
 
@@ -501,7 +466,7 @@ mod tests {
         let point = Vec3::new(5.0, 6.0, 7.0);
         let before = controller.screen_coord(point);
         controller.set_inactive();
-        assert_eq!(controller.camera().view_center(), controller.bounds().pos);
+        assert_eq!(controller.camera().view_center, controller.bounds().pos);
         let after = controller.screen_coord(point);
         assert!(after.abs_diff_eq(before, 1e-2), "{before} {after}");
     }
@@ -553,23 +518,13 @@ mod tests {
     }
 
     #[test]
-    fn state() {
-        let mut controller = OrthoCameraController::new(WINDOW);
-        let state = controller.camera_state();
-        controller.orbit(45.0, 30.0);
-        controller.set_zoom_level(3.0);
-        controller.set_camera_state(&state);
-        assert_eq!(controller.camera_state(), state);
-    }
-
-    #[test]
     fn set_view() {
         let mut controller = OrthoCameraController::new(WINDOW);
         controller.set_view(Vec3::new(0.0, -1.0, 0.0), Vec3::Z);
         let camera = controller.camera();
         assert!(
             camera
-                .position()
+                .position
                 .abs_diff_eq(Vec3::new(0.0, 1000.0, 0.0), 1e-3)
         );
     }
