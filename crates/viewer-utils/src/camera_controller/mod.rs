@@ -12,7 +12,7 @@ pub use perspective::PerspectiveCameraController;
 
 use std::time::Duration;
 
-use glam::{DVec2, Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
+use glam::{DVec2, Vec2, Vec3, Vec4Swizzles};
 use serde::{Deserialize, Serialize};
 
 use crate::{BoundingSphere, Camera};
@@ -403,36 +403,6 @@ pub trait CameraControl {
         let size = self.window_size();
 
         DVec2::new((ndc.x + 1.0) / 2.0 * size.x, (1.0 - ndc.y) / 2.0 * size.y)
-    }
-
-    /// The point in the coordinates of the plane with `plane_transform`, which is under the
-    /// screen coordinate in pixels.
-    fn plane_coord_from_screen_coord(&self, screen_coord: DVec2, plane_transform: &Mat4) -> DVec2 {
-        // Intersection of a ray and a plane
-        // http://lousodrome.net/blog/light/2020/07/03/intersection-of-a-ray-and-a-plane/
-
-        // ray in world coordinates
-        let ray = self.camera_ray(screen_coord);
-
-        // normal of plane in world coordinates
-        let mut rotation = *plane_transform;
-        rotation.w_axis = Vec4::new(0.0, 0.0, 0.0, 1.0);
-        let plane_normal_wcs = rotation.project_point3(Vec3::Z).normalize();
-
-        // point on plane in world coordinates
-        let plane_point_wcs = plane_transform.project_point3(Vec3::ZERO);
-
-        // calculate intersection in world coordinates
-        let diff_wcs = plane_point_wcs - ray.origin;
-        let dot1 = diff_wcs.dot(plane_normal_wcs);
-        let dot2 = ray.direction.dot(plane_normal_wcs);
-        let t = dot1 / dot2;
-        let intersection_wcs = ray.origin + ray.direction * t;
-
-        // transform intersection to plane coordinates
-        let intersection_pcs = plane_transform.inverse().project_point3(intersection_wcs);
-
-        DVec2::new(intersection_pcs.x as f64, intersection_pcs.y as f64)
     }
 }
 

@@ -323,7 +323,6 @@ impl CameraControl for OrthoCameraController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::Mat4;
 
     const WINDOW: DVec2 = DVec2::new(400.0, 200.0);
 
@@ -521,13 +520,5 @@ mod tests {
                 .position
                 .abs_diff_eq(Vec3::new(0.0, 1000.0, 0.0), 1e-3)
         );
-    }
-
-    #[test]
-    fn plane_coord() {
-        let controller = OrthoCameraController::new(WINDOW);
-        let plane = Mat4::from_translation(Vec3::new(10.0, 0.0, 0.0));
-        let coord = controller.plane_coord_from_screen_coord(WINDOW / 2.0, &plane);
-        assert!(coord.abs_diff_eq(DVec2::new(-10.0, 0.0), 1e-3));
     }
 }
