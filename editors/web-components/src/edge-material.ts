@@ -36,16 +36,16 @@ export function updateEdgeCamera(camera: THREE.Camera, height: number) {
  * attributes of the edge shader, whose names naga generated. The positions are world coordinates.
  */
 export function edgeGeometry(lines: EdgeData): THREE.BufferGeometry {
-  const [position, normalA, normalB, midpoint] = edge.attributes;
+  const { attributes } = edge;
   const positions = new THREE.BufferAttribute(lines.positions, 3);
   return (
     new THREE.BufferGeometry()
       // E.g. for the bounds of the lines.
       .setAttribute("position", positions)
-      .setAttribute(position, positions)
-      .setAttribute(normalA, new THREE.BufferAttribute(lines.normalsA, 3))
-      .setAttribute(normalB, new THREE.BufferAttribute(lines.normalsB, 3))
-      .setAttribute(midpoint, new THREE.BufferAttribute(lines.midpoints, 3))
+      .setAttribute(attributes.position, positions)
+      .setAttribute(attributes.normal_a, new THREE.BufferAttribute(lines.normalsA, 3))
+      .setAttribute(attributes.normal_b, new THREE.BufferAttribute(lines.normalsB, 3))
+      .setAttribute(attributes.midpoint, new THREE.BufferAttribute(lines.midpoints, 3))
   );
 }
 

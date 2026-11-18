@@ -15,16 +15,13 @@ publish = false
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 glob = "0.3"
-# The versions of Bevy, which converts the same WGSL.
-naga = { version = "27", features = ["wgsl-in", "glsl-out"] }
-naga_oil = "0.20"
 regex = "1.10"
 semver = "1"
 toml_edit = "0.25"
 walkdir = "2.5"
 
 mucad-driver = { workspace = true }
-mucad-viewer-utils = { workspace = true }
+mucad-viewer-utils = { workspace = true, features = ["glsl"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

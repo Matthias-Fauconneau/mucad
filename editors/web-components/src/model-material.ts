@@ -29,9 +29,8 @@ export function updateModelCamera(camera: THREE.Camera) {
  * names naga generated. Its positions and normals are world coordinates.
  */
 export function modelGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
-  const [position, normal] = model.attributes;
-  geometry.setAttribute(position, geometry.getAttribute("position"));
-  geometry.setAttribute(normal, geometry.getAttribute("normal"));
+  geometry.setAttribute(model.attributes.position, geometry.getAttribute("position"));
+  geometry.setAttribute(model.attributes.normal, geometry.getAttribute("normal"));
   return geometry;
 }
 

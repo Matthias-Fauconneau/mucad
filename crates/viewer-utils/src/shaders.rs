@@ -6,6 +6,15 @@
 //! Each shader is a type with its [`Shader`] implementation, e.g. [`Lighting`]: the libraries
 //! with `#define_import_path mucad_viewer_utils::…` without bindings, which the viewers import,
 //! and the shaders for WebGL2 with their vertex and fragment shader, which import libraries.
+//!
+//! With the feature `glsl`, the shaders for WebGL2 are converted to GLSL ES 3.00, e.g. by
+//! `cargo xtask web`.
+
+#[cfg(feature = "glsl")]
+mod glsl;
+
+#[cfg(feature = "glsl")]
+pub use glsl::{UniformBlock, WebGlShader};
 
 /// A shader in WGSL with its name and the libraries, which it imports.
 pub trait Shader {
@@ -18,6 +27,15 @@ pub trait Shader {
 
     /// The libraries, which the source imports, e.g. `&[source::<Lighting>()]`.
     const IMPORTS: &'static [ShaderSource] = &[];
+
+    /// The shader in GLSL ES 3.00 for WebGL2, see [`ShaderSource::to_webgl`].
+    #[cfg(feature = "glsl")]
+    fn to_webgl() -> Result<WebGlShader, Box<dyn std::error::Error>>
+    where
+        Self: Sized,
+    {
+        source::<Self>().to_webgl()
+    }
 }
 
 /// The name, the source and the imports of a [`Shader`], e.g. for a list of shaders.
@@ -29,6 +47,17 @@ pub struct ShaderSource {
     pub source: &'static str,
     /// See [`Shader::IMPORTS`].
     pub imports: &'static [ShaderSource],
+}
+
+impl ShaderSource {
+    /// The shader with the entry points `vertex` and `fragment` in GLSL ES 3.00 for WebGL2,
+    /// with the names, which naga generated, e.g. of its attributes and uniform blocks.
+    ///
+    /// The coordinate space is not adjusted, i.e. the clip space is the one of WebGL.
+    #[cfg(feature = "glsl")]
+    pub fn to_webgl(&self) -> Result<WebGlShader, Box<dyn std::error::Error>> {
+        glsl::to_webgl(self)
+    }
 }
 
 /// The name, the source and the imports of the shader `S`.

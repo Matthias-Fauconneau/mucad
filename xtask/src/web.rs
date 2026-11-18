@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Generate files of the web components from Rust, e.g. the colors of the theme as CSS and
-//! TypeScript and the grid shader in GLSL, so that they are defined only once in the workspace.
+//! TypeScript and the shaders in GLSL, so that they are defined only once in the workspace.
 //!
 //! The copyright notices of the generated files are the ones of [`crate::generated`].
 
 use std::error::Error;
 use std::path::Path;
 
-use mucad_viewer_utils::shaders::{EdgeWeb, GridWeb, ModelWeb, source};
+use mucad_viewer_utils::shaders::{ModelWeb, Shader, ShaderSource, WEB_SHADERS, WebGlShader};
 use mucad_viewer_utils::{Lighting, Theme};
 
 use crate::generated::Generated;
@@ -19,16 +19,6 @@ const GENERATED_DIR: &str = "editors/web-components/src/generated";
 
 /// The source of the generated theme files.
 const THEME_SOURCE: &str = "`Theme::default()` of `mucad-viewer-utils`";
-
-/// The source of the generated grid shader.
-const GRID_SOURCE: &str = "`shaders::GridWeb` and `shaders::Grid` of `mucad-viewer-utils`";
-
-/// The source of the generated model shader.
-const MODEL_SOURCE: &str =
-    "`shaders::ModelWeb`, `shaders::Lighting` and `Lighting::default()` of `mucad-viewer-utils`";
-
-/// The source of the generated edge shader.
-const EDGE_SOURCE: &str = "`shaders::EdgeWeb` and `shaders::Silhouette` of `mucad-viewer-utils`";
 
 /// The note of a generated file, which says where it comes from, e.g. [`THEME_SOURCE`].
 fn note(source: &str) -> String {
@@ -44,13 +34,12 @@ pub fn web(check: bool) -> Result<(), Box<dyn Error>> {
 fn generated_files() -> Result<Vec<Generated>, Box<dyn Error>> {
     let theme = Theme::default();
     let dir = Path::new(GENERATED_DIR);
-    Ok(vec![
+    let mut files = vec![
         Generated::css(dir.join("theme.css"), theme_css(&theme)?),
         Generated::ts(dir.join("theme.ts"), theme_ts(&theme)?),
-        Generated::ts(dir.join("grid.ts"), grid_ts()?),
-        Generated::ts(dir.join("model.ts"), model_ts()?),
-        Generated::ts(dir.join("edge.ts"), edge_ts()?),
-    ])
+    ];
+    files.extend(shader_files(dir)?);
+    Ok(files)
 }
 
 /// The colors of the theme as CSS custom properties, e.g. `--primary: #020D1A;`.
@@ -84,22 +73,31 @@ fn theme_ts(theme: &Theme) -> Result<String, Box<dyn Error>> {
     ))
 }
 
-/// The grid shader in GLSL ES 3.00 for three.js.
-fn grid_ts() -> Result<String, Box<dyn Error>> {
-    let shader = crate::glsl::to_webgl(&source::<GridWeb>())?;
-    shader_ts(
-        "grid",
-        "The grid shader of the µcad viewers",
-        "the position at location 0",
-        &shader,
-        "",
-        GRID_SOURCE,
-    )
+/// The shaders of [`WEB_SHADERS`] as TypeScript modules in GLSL ES 3.00 for three.js, e.g.
+/// `grid.ts` of `grid_web.wgsl`.
+fn shader_files(dir: &Path) -> Result<Vec<Generated>, Box<dyn Error>> {
+    WEB_SHADERS
+        .iter()
+        .map(|shader| {
+            let name = shader.name.strip_suffix("_web.wgsl").ok_or(format!(
+                "The web shader `{}` without `_web.wgsl`",
+                shader.name
+            ))?;
+            let content = shader_ts(name, shader)?;
+            Ok(Generated::ts(dir.join(format!("{name}.ts")), content))
+        })
+        .collect()
 }
 
-/// The shader of the lit models in GLSL ES 3.00 for three.js, with the default lighting.
-fn model_ts() -> Result<String, Box<dyn Error>> {
-    let shader = crate::glsl::to_webgl(&source::<ModelWeb>())?;
+/// The default values of the uniform blocks of `shader` as entries of its TypeScript constant,
+/// with the sources of the values, e.g. of the lighting of the models.
+fn uniform_defaults(
+    shader: &ShaderSource,
+    glsl: &WebGlShader,
+) -> Result<(String, Vec<&'static str>), Box<dyn Error>> {
+    if shader.name != ModelWeb::NAME {
+        return Ok((String::new(), Vec::new()));
+    }
     // The floats of `Lighting::default()` in the order of the members of the WGSL struct.
     let lighting = Lighting::default();
     let values: [(&str, Vec<f32>); 8] = [
@@ -115,7 +113,7 @@ fn model_ts() -> Result<String, Box<dyn Error>> {
         ("specular", vec![lighting.specular]),
         ("shininess", vec![lighting.shininess]),
     ];
-    let block = shader
+    let block = glsl
         .uniform_blocks
         .get("lighting")
         .ok_or("No uniform block `lighting`")?;
@@ -132,45 +130,22 @@ fn model_ts() -> Result<String, Box<dyn Error>> {
         .iter()
         .flat_map(|(_, floats)| floats.iter().map(|float| format!("{float:?}")))
         .collect();
-    shader_ts(
-        "model",
-        "The shader of the lit 3D models of the µcad viewers",
-        "the position at location 0 and the normal at location 1",
-        &shader,
-        &format!(
+    Ok((
+        format!(
             "\x20 /** The floats of `Lighting::default()` for the uniform block `lighting`. */\n\
              \x20 lighting: [{}],\n",
             floats.join(", ")
         ),
-        MODEL_SOURCE,
-    )
+        vec!["`Lighting::default()`"],
+    ))
 }
 
-/// The shader of the edge lines in GLSL ES 3.00 for three.js.
-fn edge_ts() -> Result<String, Box<dyn Error>> {
-    let shader = crate::glsl::to_webgl(&source::<EdgeWeb>())?;
-    shader_ts(
-        "edge",
-        "The shader of the edge lines of the 3D models of the µcad viewers",
-        "the position at location 0, the normals of the two triangles of the edge at locations 1 \
-         and 2 and its midpoint at location 3",
-        &shader,
-        "",
-        EDGE_SOURCE,
-    )
-}
-
-/// A TypeScript module, which exports the constant `name` with the shaders without `#version`,
-/// which three.js writes with `glslVersion: THREE.GLSL3`, with the names of the attributes and of
-/// the uniform blocks, which naga generated, and with `extra` entries.
-fn shader_ts(
-    name: &str,
-    description: &str,
-    attributes_description: &str,
-    shader: &crate::glsl::WebGlShader,
-    extra: &str,
-    source: &str,
-) -> Result<String, Box<dyn Error>> {
+/// A TypeScript module of `shader`, which exports the constant `name` with the shaders without
+/// `#version`, which three.js writes with `glslVersion: THREE.GLSL3`, with the names of the
+/// attributes and of the uniform blocks, which naga generated, and with the default values of
+/// uniform blocks.
+fn shader_ts(name: &str, shader: &ShaderSource) -> Result<String, Box<dyn Error>> {
+    let glsl = shader.to_webgl()?;
     // three.js writes `#version 300 es` itself with `glslVersion: THREE.GLSL3`, before its defines.
     let without_version = |glsl: &str| -> Result<String, Box<dyn Error>> {
         let glsl = glsl
@@ -178,22 +153,14 @@ fn shader_ts(
             .ok_or("GLSL without `#version 300 es`")?;
         Ok(glsl.trim_start().to_string())
     };
-    let vertex_shader = template_literal(&without_version(&shader.vertex)?);
-    let fragment_shader = template_literal(&without_version(&shader.fragment)?);
-    // The attributes by their locations from 0.
-    let attributes: Vec<String> = shader
+    let vertex_shader = template_literal(&without_version(&glsl.vertex)?);
+    let fragment_shader = template_literal(&without_version(&glsl.fragment)?);
+    let attributes: String = glsl
         .attributes
         .iter()
-        .enumerate()
-        .map(|(index, (location, attribute))| {
-            if *location as usize == index {
-                Ok(format!("\"{attribute}\""))
-            } else {
-                Err(format!("No vertex attribute at location {index}"))
-            }
-        })
-        .collect::<Result<_, _>>()?;
-    let blocks: String = shader
+        .map(|(wgsl, glsl)| format!("    {wgsl}: \"{glsl}\",\n"))
+        .collect();
+    let blocks: String = glsl
         .uniform_blocks
         .iter()
         .map(|(variable, block)| {
@@ -209,18 +176,32 @@ fn shader_ts(
             )
         })
         .collect();
+    let (defaults, default_sources) = uniform_defaults(shader, &glsl)?;
+    // E.g. `` `grid_web.wgsl` and `grid.wgsl` ``.
+    let sources: Vec<String> = std::iter::once(shader)
+        .chain(shader.imports)
+        .map(|shader| format!("`{}`", shader.name))
+        .chain(default_sources.into_iter().map(str::to_string))
+        .collect();
+    let sources = match sources.split_last() {
+        Some((last, [])) => last.clone(),
+        Some((last, others)) => format!("{} and {last}", others.join(", ")),
+        None => String::new(),
+    };
     Ok(format!(
         "// {note}\n\
          \n\
          /**\n \
-          * {description} in GLSL ES 3.00 for WebGL2, without `#version`, which three.js writes\n \
-          * with `glslVersion: THREE.GLSL3`.\n \
+          * The shader `{shader_name}` in GLSL ES 3.00 for WebGL2, without `#version`, which three.js\n \
+          * writes with `glslVersion: THREE.GLSL3`.\n \
           */\n\
          export const {name} = {{\n\
          \x20 vertexShader: {vertex_shader},\n\
          \x20 fragmentShader: {fragment_shader},\n\
-         \x20 /** The vertex attributes by their locations: {attributes_description}. */\n\
-         \x20 attributes: [{attributes}],\n\
+         \x20 /** The names of the vertex attributes in GLSL by their names in WGSL. */\n\
+         \x20 attributes: {{\n\
+         {attributes}\
+         \x20 }},\n\
          \x20 /**\n\
          \x20  * The uniform blocks by the names of their variables in WGSL, with the names and the numbers\n\
          \x20  * of floats of the members in the order of their std140 layout, e.g. for\n\
@@ -229,10 +210,10 @@ fn shader_ts(
          \x20 uniformBlocks: {{\n\
          {blocks}\
          \x20 }},\n\
-         {extra}\
+         {defaults}\
          }} as const;\n",
-        note = note(source),
-        attributes = attributes.join(", "),
+        note = note(&format!("{sources} of `mucad-viewer-utils`")),
+        shader_name = shader.name,
     ))
 }
 

@@ -14,10 +14,16 @@ keywords.workspace = true
 # The parameters of the shaders as uniforms of Bevy, e.g. `GridConfig`. The version of `encase`
 # must be the one of Bevy.
 encase = ["dep:encase", "glam/encase"]
+# The conversion of the shaders to GLSL for WebGL2, e.g. for `cargo xtask web`. The versions of
+# naga and naga_oil are the ones of Bevy, which converts the same WGSL.
+glsl = ["dep:naga", "dep:naga_oil", "dep:regex"]
 
 [dependencies]
 encase = { version = "0.12", optional = true }
 glam = "0.30"
+naga = { version = "27", features = ["wgsl-in", "glsl-out"], optional = true }
+naga_oil = { version = "0.20", optional = true }
+regex = { version = "1.10", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 strum = { version = "0.28", features = ["derive"] }
 toml = { version = "1.1.2", features = ["serde"] }

@@ -1,16 +1,18 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Convert WGSL shaders with imports to GLSL ES 3.00 for WebGL2, e.g. for three.js.
+//! Convert WGSL shaders with imports to GLSL ES 3.00 for WebGL2, e.g. for three.js, with the
+//! feature `glsl`.
 
 use std::collections::BTreeMap;
 use std::error::Error;
 
-use mucad_viewer_utils::shaders::ShaderSource;
 use naga::back::glsl;
 use naga_oil::compose::{
     ComposableModuleDescriptor, Composer, NagaModuleDescriptor, ShaderLanguage, ShaderType,
 };
+
+use super::ShaderSource;
 
 /// A shader in GLSL ES 3.00 with the names, which naga generated, e.g. for three.js.
 pub struct WebGlShader {
@@ -18,8 +20,9 @@ pub struct WebGlShader {
     pub vertex: String,
     /// The fragment shader.
     pub fragment: String,
-    /// The names of the vertex attributes by their locations, e.g. `_p2vs_location0`.
-    pub attributes: BTreeMap<u32, String>,
+    /// The names of the vertex attributes in GLSL by their names in WGSL, e.g.
+    /// `_p2vs_location0` of `position`.
+    pub attributes: BTreeMap<String, String>,
     /// The uniform blocks by the names of their variables in WGSL, e.g. `config`.
     pub uniform_blocks: BTreeMap<String, UniformBlock>,
 }
@@ -37,7 +40,7 @@ pub struct UniformBlock {
 /// e.g. with `#import mucad_viewer_utils::grid::{…}`, to GLSL ES 3.00 for WebGL2.
 ///
 /// The coordinate space is not adjusted, i.e. the clip space is the one of WebGL.
-pub fn to_webgl(shader: &ShaderSource) -> Result<WebGlShader, Box<dyn Error>> {
+pub(super) fn to_webgl(shader: &ShaderSource) -> Result<WebGlShader, Box<dyn Error>> {
     let mut composer = Composer::default();
     for library in shader.imports {
         let added = composer.add_composable_module(ComposableModuleDescriptor {
@@ -83,8 +86,10 @@ pub fn to_webgl(shader: &ShaderSource) -> Result<WebGlShader, Box<dyn Error>> {
         uniform_blocks: BTreeMap::new(),
     };
     // The reflection of naga has no attributes for GLSL ES, they are declared like
-    // `layout(location = 0) in vec3 _p2vs_location0;`.
+    // `layout(location = 0) in vec3 _p2vs_location0;`, the names in WGSL are the ones of the
+    // arguments of the vertex shader.
     let attribute = regex::Regex::new(r"^layout\(location = (\d+)\) in \w+ (\w+);$")?;
+    let wgsl_attributes = vertex_attributes(&module)?;
     for stage in [naga::ShaderStage::Vertex, naga::ShaderStage::Fragment] {
         let entry_point = match stage {
             naga::ShaderStage::Vertex => "vertex",
@@ -135,9 +140,13 @@ pub fn to_webgl(shader: &ShaderSource) -> Result<WebGlShader, Box<dyn Error>> {
         if stage == naga::ShaderStage::Vertex {
             for line in out.lines() {
                 if let Some(captures) = attribute.captures(line) {
+                    let location: u32 = captures[1].parse()?;
+                    let name = wgsl_attributes
+                        .get(&location)
+                        .ok_or(format!("No vertex attribute at location {location}"))?;
                     shader
                         .attributes
-                        .insert(captures[1].parse()?, captures[2].to_string());
+                        .insert(name.clone(), captures[2].to_string());
                 }
             }
             shader.vertex = out;
@@ -146,6 +155,31 @@ pub fn to_webgl(shader: &ShaderSource) -> Result<WebGlShader, Box<dyn Error>> {
         }
     }
     Ok(shader)
+}
+
+/// The names of the vertex attributes in WGSL by their locations, the arguments of the vertex
+/// shader with `@location`.
+fn vertex_attributes(module: &naga::Module) -> Result<BTreeMap<u32, String>, Box<dyn Error>> {
+    let vertex = module
+        .entry_points
+        .iter()
+        .find(|entry_point| entry_point.stage == naga::ShaderStage::Vertex)
+        .ok_or("No vertex shader")?;
+    vertex
+        .function
+        .arguments
+        .iter()
+        .filter_map(|argument| match argument.binding {
+            Some(naga::Binding::Location { location, .. }) => Some((location, argument)),
+            _ => None,
+        })
+        .map(|(location, argument)| {
+            let name = argument.name.clone().ok_or(format!(
+                "The vertex attribute at location {location} has no name"
+            ))?;
+            Ok((location, name))
+        })
+        .collect()
 }
 
 /// The number of floats of a float, a float vector or a float matrix, e.g. 3 of `vec3<f32>`.
@@ -169,11 +203,11 @@ mod tests {
 
     #[test]
     fn grid() {
-        use mucad_viewer_utils::shaders::{GridWeb, source};
-        let shader = to_webgl(&source::<GridWeb>()).expect("The grid in GLSL");
+        use crate::shaders::{GridWeb, Shader};
+        let shader = GridWeb::to_webgl().expect("The grid in GLSL");
         assert!(shader.vertex.starts_with("#version 300 es\n"));
         assert!(shader.fragment.contains("fwidth("));
-        assert_eq!(shader.attributes[&0], "_p2vs_location0");
+        assert_eq!(shader.attributes["position"], "_p2vs_location0");
         let config = &shader.uniform_blocks["config"];
         assert!(config.name.ends_with("Fragment"), "{}", config.name);
         fn members(block: &UniformBlock) -> Vec<(&str, u32)> {

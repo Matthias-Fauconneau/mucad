@@ -23,7 +23,7 @@ export class Grid {
     this.positions = new THREE.BufferAttribute(new Float32Array(4 * 3), 3);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", this.positions);
-    geometry.setAttribute(grid.attributes[0], this.positions);
+    geometry.setAttribute(grid.attributes.position, this.positions);
     geometry.setIndex([0, 1, 2, 0, 2, 3]);
     const material = new THREE.RawShaderMaterial({
       glslVersion: THREE.GLSL3,
