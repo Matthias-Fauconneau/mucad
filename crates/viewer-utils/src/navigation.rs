@@ -9,8 +9,7 @@ use std::time::Duration;
 use glam::{DVec2, Vec2, Vec3};
 
 use crate::{
-    CameraControl, CameraController, Controls, KeyBinding, Modifiers, MouseButton, MouseInput,
-    TouchDrag,
+    CameraController, Controls, KeyBinding, Modifiers, MouseButton, MouseInput, TouchDrag,
 };
 
 /// The distance in pixels, which the mouse can move while clicking.

@@ -12,7 +12,6 @@ use bevy::{
 };
 
 use mucad_driver::prelude as mu;
-use mucad_viewer_utils::CameraControl;
 
 use crate::{
     ViewModel,

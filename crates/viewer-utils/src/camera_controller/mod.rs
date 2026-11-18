@@ -513,17 +513,13 @@ impl CameraController {
             Self::Ortho(_) => None,
         }
     }
+}
 
-    /// The controller of the projection mode.
-    fn control(&self) -> &dyn CameraControl {
-        match self {
-            Self::Ortho(controller) => controller,
-            Self::Perspective(controller) => controller,
-        }
-    }
+/// The controller of the projection mode, e.g. `controller.orbit(…)` of [`CameraControl`].
+impl std::ops::Deref for CameraController {
+    type Target = dyn CameraControl;
 
-    /// The controller of the projection mode.
-    fn control_mut(&mut self) -> &mut dyn CameraControl {
+    fn deref(&self) -> &Self::Target {
         match self {
             Self::Ortho(controller) => controller,
             Self::Perspective(controller) => controller,
@@ -531,84 +527,12 @@ impl CameraController {
     }
 }
 
-/// Delegates the required methods to the controller of the projection mode.
-impl CameraControl for CameraController {
-    fn state(&self) -> &CameraControllerState {
-        self.control().state()
-    }
-
-    fn state_mut(&mut self) -> &mut CameraControllerState {
-        self.control_mut().state_mut()
-    }
-
-    fn set_window_size(&mut self, window_size: DVec2) {
-        self.control_mut().set_window_size(window_size);
-    }
-
-    fn set_bounds(&mut self, bounds: BoundingSphere) {
-        self.control_mut().set_bounds(bounds);
-    }
-
-    fn set_mode(&mut self, mode: Mode) {
-        self.control_mut().set_mode(mode);
-    }
-
-    fn orbit(&mut self, pan: f64, tilt: f64) {
-        self.control_mut().orbit(pan, tilt);
-    }
-
-    fn set_view(&mut self, view_vector: Vec3, up: Vec3) {
-        self.control_mut().set_view(view_vector, up);
-    }
-
-    fn zoom_level(&self) -> f64 {
-        self.control().zoom_level()
-    }
-
-    fn set_zoom_level(&mut self, zoom_level: f64) {
-        self.control_mut().set_zoom_level(zoom_level);
-    }
-
-    fn zoom_by_wheel(&mut self, wheel_delta: Vec2, elapsed: Duration) {
-        self.control_mut().zoom_by_wheel(wheel_delta, elapsed);
-    }
-
-    fn zoom_by_mouse(&mut self, delta: Vec2, elapsed: Duration) {
-        self.control_mut().zoom_by_mouse(delta, elapsed);
-    }
-
-    fn zoom_at_center(&mut self, zoom_factor: f64) {
-        self.control_mut().zoom_at_center(zoom_factor);
-    }
-
-    fn zoom_at_screen_point(&mut self, screen_coords: DVec2, zoom_factor: f64) {
-        self.control_mut()
-            .zoom_at_screen_point(screen_coords, zoom_factor);
-    }
-
-    fn show_all(&mut self) {
-        self.control_mut().show_all();
-    }
-
-    fn zoom_fit(&mut self) {
-        self.control_mut().zoom_fit();
-    }
-
-    fn set_zoom_point_from_screen_coordinates(&mut self, screen_coords: DVec2) {
-        self.control_mut()
-            .set_zoom_point_from_screen_coordinates(screen_coords);
-    }
-
-    fn translate(&mut self, delta: Vec2) {
-        self.control_mut().translate(delta);
-    }
-
-    fn camera_ray(&self, pos: DVec2) -> Ray {
-        self.control().camera_ray(pos)
-    }
-
-    fn visible_area(&self) -> (Vec3, f64) {
-        self.control().visible_area()
+impl std::ops::DerefMut for CameraController {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Ortho(controller) => controller,
+            Self::Perspective(controller) => controller,
+        }
     }
 }
 

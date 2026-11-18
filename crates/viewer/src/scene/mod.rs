@@ -21,13 +21,13 @@ mod ruler;
 
 /// The inverse zoom level of the camera, e.g. like the scale of an orthographic projection:
 /// 1 shows the whole scene, a smaller one shows the model bigger.
-pub fn get_current_zoom_level(controller: &impl CameraControl) -> f32 {
+pub fn get_current_zoom_level(controller: &dyn CameraControl) -> f32 {
     1.0 / controller.zoom_level() as f32
 }
 
 /// The current resolution in mm: the larger side of the visible area at the pivot per the
 /// larger side of the window, times 10.
-pub fn get_current_resolution(controller: &impl CameraControl) -> f32 {
+pub fn get_current_resolution(controller: &dyn CameraControl) -> f32 {
     let height = controller.visible_area().1;
     let area_size = height.max(height * controller.aspect_ratio());
     let window = controller.window_size();
@@ -49,7 +49,7 @@ pub fn draw_mesh_intersections(
             let Ok(navigation) = navigations.single() else {
                 return;
             };
-            let zoom = get_current_zoom_level(navigation.controller());
+            let zoom = get_current_zoom_level(&**navigation.controller());
             let color: Color = view_model.config.theme.guide.to_bevy();
             gizmos.sphere(position, zoom * 0.1, color);
         }

@@ -5,7 +5,7 @@
 
 use glam::Vec3;
 
-use crate::{CameraControl, CameraController, Theme};
+use crate::{CameraController, Theme};
 
 /// The parameters of the grid shader, `GridConfig` of [`crate::shaders::Grid`] with the same
 /// layout, which a test checks.
