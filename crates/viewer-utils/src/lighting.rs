@@ -1,11 +1,11 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The lighting of the models in the viewers, see [`crate::LIGHTING_WGSL`].
+//! The lighting of the models in the viewers, see [`crate::shaders::Lighting`].
 
 use glam::Vec3;
 
-/// The parameters of the lighting, `Lighting` of [`crate::LIGHTING_WGSL`] with the same layout.
+/// The parameters of the lighting, `Lighting` of [`crate::shaders::Lighting`] with the same layout.
 ///
 /// A hemisphere in world space keeps up and down recognizable, a key and a fill light in view
 /// space follow the camera, so that the faces towards the viewer are always lit. The default

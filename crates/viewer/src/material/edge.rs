@@ -27,7 +27,7 @@ pub const ATTRIBUTE_MIDPOINT: MeshVertexAttribute =
     MeshVertexAttribute::new("Vertex_Midpoint", 0xED6E_0003, VertexFormat::Float32x3);
 
 /// The material of the edge lines in one color, which the vertex shader moves in front of their
-/// faces, see `in_front` of [`mucad_viewer_utils::SILHOUETTE_WGSL`].
+/// faces, see `in_front` of [`mucad_viewer_utils::shaders::Silhouette`].
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
 pub struct EdgeMaterial {
     /// The color of the lines.

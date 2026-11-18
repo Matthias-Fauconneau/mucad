@@ -9,10 +9,8 @@
 use std::error::Error;
 use std::path::Path;
 
-use mucad_viewer_utils::{
-    EDGE_WEB_WGSL, GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, Lighting, MODEL_WEB_WGSL,
-    SILHOUETTE_WGSL, Theme,
-};
+use mucad_viewer_utils::shaders::{EdgeWeb, GridWeb, ModelWeb, source};
+use mucad_viewer_utils::{Lighting, Theme};
 
 use crate::generated::Generated;
 
@@ -23,14 +21,14 @@ const GENERATED_DIR: &str = "editors/web-components/src/generated";
 const THEME_SOURCE: &str = "`Theme::default()` of `mucad-viewer-utils`";
 
 /// The source of the generated grid shader.
-const GRID_SOURCE: &str = "`GRID_WEB_WGSL` and `GRID_WGSL` of `mucad-viewer-utils`";
+const GRID_SOURCE: &str = "`shaders::GridWeb` and `shaders::Grid` of `mucad-viewer-utils`";
 
 /// The source of the generated model shader.
 const MODEL_SOURCE: &str =
-    "`MODEL_WEB_WGSL`, `LIGHTING_WGSL` and `Lighting::default()` of `mucad-viewer-utils`";
+    "`shaders::ModelWeb`, `shaders::Lighting` and `Lighting::default()` of `mucad-viewer-utils`";
 
 /// The source of the generated edge shader.
-const EDGE_SOURCE: &str = "`EDGE_WEB_WGSL` and `SILHOUETTE_WGSL` of `mucad-viewer-utils`";
+const EDGE_SOURCE: &str = "`shaders::EdgeWeb` and `shaders::Silhouette` of `mucad-viewer-utils`";
 
 /// The note of a generated file, which says where it comes from, e.g. [`THEME_SOURCE`].
 fn note(source: &str) -> String {
@@ -88,8 +86,7 @@ fn theme_ts(theme: &Theme) -> Result<String, Box<dyn Error>> {
 
 /// The grid shader in GLSL ES 3.00 for three.js.
 fn grid_ts() -> Result<String, Box<dyn Error>> {
-    let shader =
-        crate::glsl::to_webgl(GRID_WEB_WGSL, "grid_web.wgsl", &[("grid.wgsl", GRID_WGSL)])?;
+    let shader = crate::glsl::to_webgl(&source::<GridWeb>())?;
     shader_ts(
         "grid",
         "The grid shader of the µcad viewers",
@@ -102,11 +99,7 @@ fn grid_ts() -> Result<String, Box<dyn Error>> {
 
 /// The shader of the lit models in GLSL ES 3.00 for three.js, with the default lighting.
 fn model_ts() -> Result<String, Box<dyn Error>> {
-    let shader = crate::glsl::to_webgl(
-        MODEL_WEB_WGSL,
-        "model_web.wgsl",
-        &[("lighting.wgsl", LIGHTING_WGSL)],
-    )?;
+    let shader = crate::glsl::to_webgl(&source::<ModelWeb>())?;
     // The floats of `Lighting::default()` in the order of the members of the WGSL struct.
     let lighting = Lighting::default();
     let values: [(&str, Vec<f32>); 8] = [
@@ -155,11 +148,7 @@ fn model_ts() -> Result<String, Box<dyn Error>> {
 
 /// The shader of the edge lines in GLSL ES 3.00 for three.js.
 fn edge_ts() -> Result<String, Box<dyn Error>> {
-    let shader = crate::glsl::to_webgl(
-        EDGE_WEB_WGSL,
-        "edge_web.wgsl",
-        &[("silhouette.wgsl", SILHOUETTE_WGSL)],
-    )?;
+    let shader = crate::glsl::to_webgl(&source::<EdgeWeb>())?;
     shader_ts(
         "edge",
         "The shader of the edge lines of the 3D models of the µcad viewers",

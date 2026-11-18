@@ -39,7 +39,7 @@ pub mod bevy_types {
 /// The shader material asset id. This assures that we can query the correct material from a model node.
 pub static BUILTIN_MATERIAL_ASSET_ID: u64 = 0x1234123412341234;
 
-fn asset_uuid_from_str(s: &'static str) -> Uuid {
+fn asset_uuid_from_str(s: &str) -> Uuid {
     use std::hash::{Hash, Hasher};
     let mut hasher = rustc_hash::FxHasher::default();
     s.hash(&mut hasher);
@@ -115,30 +115,16 @@ macro_rules! add_shader_asset {
 }
 
 fn load_materials(mut shaders: ResMut<Assets<Shader>>) {
-    // The grid library of `mucad_viewer_utils::grid`, which `grid.wgsl` imports.
-    let grid_library = "mucad_viewer_utils/grid.wgsl";
-    shaders
-        .insert(
-            asset_uuid_from_str(grid_library),
-            Shader::from_wgsl(mucad_viewer_utils::GRID_WGSL, grid_library),
-        )
-        .ok();
-    // The lighting library of `mucad_viewer_utils::lighting`, which `model.wgsl` imports.
-    let lighting_library = "mucad_viewer_utils/lighting.wgsl";
-    shaders
-        .insert(
-            asset_uuid_from_str(lighting_library),
-            Shader::from_wgsl(mucad_viewer_utils::LIGHTING_WGSL, lighting_library),
-        )
-        .ok();
-    // The silhouette library of `mucad_viewer_utils::silhouette`, which `edge.wgsl` imports.
-    let silhouette_library = "mucad_viewer_utils/silhouette.wgsl";
-    shaders
-        .insert(
-            asset_uuid_from_str(silhouette_library),
-            Shader::from_wgsl(mucad_viewer_utils::SILHOUETTE_WGSL, silhouette_library),
-        )
-        .ok();
+    // The libraries of `mucad_viewer_utils`, which the shaders import, e.g. `grid.wgsl`.
+    for library in mucad_viewer_utils::shaders::LIBRARIES {
+        let path = format!("mucad_viewer_utils/{}", library.name);
+        shaders
+            .insert(
+                asset_uuid_from_str(&path),
+                Shader::from_wgsl(library.source, path),
+            )
+            .ok();
+    }
     add_shader_asset!(shaders, "model.wgsl");
     add_shader_asset!(shaders, "edge.wgsl");
     //add_shader_asset!(shaders, "angle.wgsl");

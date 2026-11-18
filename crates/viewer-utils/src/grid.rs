@@ -1,13 +1,13 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The parameters of the grid shader of the viewers, see [`crate::GRID_WGSL`].
+//! The parameters of the grid shader of the viewers, see [`crate::shaders::Grid`].
 
 use glam::Vec3;
 
 use crate::{CameraControl, CameraController, Theme};
 
-/// The parameters of the grid shader, `GridConfig` of [`crate::GRID_WGSL`] with the same
+/// The parameters of the grid shader, `GridConfig` of [`crate::shaders::Grid`] with the same
 /// layout, which a test checks.
 ///
 /// With the feature `encase`, it is a uniform of Bevy, e.g. `#[uniform(0)]` of a material.

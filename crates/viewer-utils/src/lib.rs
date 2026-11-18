@@ -19,7 +19,7 @@ mod input;
 mod lighting;
 mod navigation;
 mod rect;
-mod shaders;
+pub mod shaders;
 mod theme;
 mod zoom_rect;
 
@@ -38,8 +38,5 @@ pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, Pa
 pub use lighting::Lighting;
 pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
 pub use rect::Rect;
-pub use shaders::{
-    EDGE_WEB_WGSL, GRID_WEB_WGSL, GRID_WGSL, LIGHTING_WGSL, MODEL_WEB_WGSL, SILHOUETTE_WGSL,
-};
 pub use theme::Theme;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel, ZoomState, zoomed_rect};

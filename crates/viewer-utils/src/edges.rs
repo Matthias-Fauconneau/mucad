@@ -131,7 +131,7 @@ fn position(mesh: &TriangleMesh, vertex: u32) -> Vec3 {
 ///
 /// Each line has two vertices, which both have the normals of the two triangles of its edge
 /// and its midpoint, so that a vertex shader decides for both, whether the line is drawn, with
-/// `is_silhouette` of [`crate::SILHOUETTE_WGSL`]. The normals of contour edges are zero, so
+/// `is_silhouette` of [`crate::shaders::Silhouette`]. The normals of contour edges are zero, so
 /// that they are always on the silhouette.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EdgeLines {

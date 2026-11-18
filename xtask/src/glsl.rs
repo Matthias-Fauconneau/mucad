@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 
+use mucad_viewer_utils::shaders::ShaderSource;
 use naga::back::glsl;
 use naga_oil::compose::{
     ComposableModuleDescriptor, Composer, NagaModuleDescriptor, ShaderLanguage, ShaderType,
@@ -32,20 +33,16 @@ pub struct UniformBlock {
     pub members: Vec<(String, u32)>,
 }
 
-/// Convert `source` with the entry points `vertex` and `fragment`, which imports `libraries`,
+/// Convert `shader` with the entry points `vertex` and `fragment`, which imports its libraries,
 /// e.g. with `#import mucad_viewer_utils::grid::{…}`, to GLSL ES 3.00 for WebGL2.
 ///
 /// The coordinate space is not adjusted, i.e. the clip space is the one of WebGL.
-pub fn to_webgl(
-    source: &str,
-    file_path: &str,
-    libraries: &[(&str, &str)],
-) -> Result<WebGlShader, Box<dyn Error>> {
+pub fn to_webgl(shader: &ShaderSource) -> Result<WebGlShader, Box<dyn Error>> {
     let mut composer = Composer::default();
-    for (library_path, library) in libraries {
+    for library in shader.imports {
         let added = composer.add_composable_module(ComposableModuleDescriptor {
-            source: library,
-            file_path: library_path,
+            source: library.source,
+            file_path: library.name,
             language: ShaderLanguage::Wgsl,
             ..Default::default()
         });
@@ -54,8 +51,8 @@ pub fn to_webgl(
         }
     }
     let module = composer.make_naga_module(NagaModuleDescriptor {
-        source,
-        file_path,
+        source: shader.source,
+        file_path: shader.name,
         shader_type: ShaderType::Wgsl,
         ..Default::default()
     });
@@ -172,12 +169,8 @@ mod tests {
 
     #[test]
     fn grid() {
-        let shader = to_webgl(
-            mucad_viewer_utils::GRID_WEB_WGSL,
-            "grid_web.wgsl",
-            &[("grid.wgsl", mucad_viewer_utils::GRID_WGSL)],
-        )
-        .expect("The grid in GLSL");
+        use mucad_viewer_utils::shaders::{GridWeb, source};
+        let shader = to_webgl(&source::<GridWeb>()).expect("The grid in GLSL");
         assert!(shader.vertex.starts_with("#version 300 es\n"));
         assert!(shader.fragment.contains("fwidth("));
         assert_eq!(shader.attributes[&0], "_p2vs_location0");
