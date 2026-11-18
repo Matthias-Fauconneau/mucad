@@ -173,8 +173,8 @@ impl CameraControllerState {
 /// [`CameraController`] share.
 ///
 /// A projection mode implements the required methods, the provided ones work with them and
-/// with its [`CameraControllerState`]. The provided methods are not overridden, so that the
-/// [`CameraController`] only delegates the required ones.
+/// with its [`CameraControllerState`]. The [`CameraController`] dereferences to the trait
+/// object of its projection mode.
 pub trait CameraControl {
     /// The state, which the projection modes share.
     fn state(&self) -> &CameraControllerState;

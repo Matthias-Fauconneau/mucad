@@ -93,6 +93,13 @@ pub enum MouseAction {
     Zoom,
 }
 
+impl MouseAction {
+    /// Whether the action drags, i.e. orbits, pans or zooms.
+    fn is_drag(self) -> bool {
+        matches!(self, Self::Orbit | Self::Pan | Self::Zoom)
+    }
+}
+
 /// The identifier of a touch, i.e. of a finger on the screen, e.g. `PointerEvent.pointerId`.
 pub type TouchId = i64;
 
@@ -103,8 +110,9 @@ pub type TouchId = i64;
 ///
 /// Touch: one finger orbits or pans, see [`crate::TouchControls`], two fingers pinch to zoom
 /// and pan, a tap selects. More fingers are ignored. While
-/// [`CameraControl::pointer_pinned`](crate::CameraControl::pointer_pinned), it passes the movement of the mouse, e.g. of a locked
-/// pointer, also when the pointer position stays the same.
+/// [`CameraControl::pointer_pinned`](crate::CameraControl::pointer_pinned), it passes the
+/// movement of the mouse, e.g. of a locked pointer, also when the pointer position stays the
+/// same.
 #[derive(Debug, Clone)]
 pub struct Navigation {
     controller: CameraController,
@@ -223,7 +231,7 @@ impl Navigation {
     ///
     /// The delta is the movement of the pointer, so that panning follows it exactly, or of the
     /// mouse, while the pointer is pinned.
-    pub fn mouse_moved(&mut self, delta: Vec2, elapsed: Duration) {
+    pub fn mouse_moved(&mut self, mut delta: Vec2, elapsed: Duration) {
         if !self.pressed.is_empty() {
             self.moved += delta.length();
         }
@@ -236,9 +244,7 @@ impl Navigation {
             // the pointer while panning.
             self.pending_drag = None;
             self.set_action(Some(drag), self.press_position);
-            let delta = std::mem::take(&mut self.pending_delta);
-            self.drag(delta, elapsed);
-            return;
+            delta = std::mem::take(&mut self.pending_delta);
         }
         self.drag(delta, elapsed);
     }
@@ -460,10 +466,7 @@ impl Navigation {
         if action == self.action {
             return;
         }
-        if matches!(
-            self.action,
-            Some(MouseAction::Orbit | MouseAction::Pan | MouseAction::Zoom)
-        ) {
+        if self.action.is_some_and(MouseAction::is_drag) {
             self.controller.set_inactive();
         }
         self.action = action;
@@ -480,10 +483,7 @@ impl Navigation {
             }
             Some(MouseAction::Select { .. }) | None => {}
         }
-        if matches!(
-            action,
-            Some(MouseAction::Orbit | MouseAction::Pan | MouseAction::Zoom)
-        ) {
+        if action.is_some_and(MouseAction::is_drag) {
             self.clicking = false;
         }
     }
