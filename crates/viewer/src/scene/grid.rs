@@ -59,8 +59,8 @@ pub fn spawn_grid_plane(
                 MeshMaterial3d(materials.add(material::Grid {
                     parameters: material::GridUniform {
                         grid_color: theme.darker.to_bevy(),
-                        x_axis_color: theme.bright.to_bevy(),
-                        y_axis_color: theme.bright.to_bevy(),
+                        x_axis_color: theme.brighter.to_bevy(),
+                        y_axis_color: theme.brighter.to_bevy(),
                         ..Default::default()
                     },
                 })),

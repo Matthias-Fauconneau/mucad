@@ -3,10 +3,9 @@
 
 //! mucad Viewer settings.
 
-pub mod theme;
-
 use std::time::Duration;
-pub use theme::Theme;
+
+pub use mucad_viewer_utils::Theme;
 
 use bevy::ecs::resource::Resource;
 

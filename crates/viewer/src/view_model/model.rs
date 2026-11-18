@@ -35,7 +35,7 @@ impl ModelViewState {
                 colour: state.config.theme.darker.make_transparent(0.5).to_bevy(),
                 width: 4.0,
             },
-            base_color: info.color.unwrap_or(state.config.theme.bright.to_bevy()),
+            base_color: info.color.unwrap_or(state.config.theme.brighter.to_bevy()),
             info,
             ..Default::default()
         }

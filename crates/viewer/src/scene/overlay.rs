@@ -31,7 +31,7 @@ pub fn setup_overlay(state: Res<ViewModel>, mut commands: Commands) {
     ));
 
     commands.spawn((
-        BackgroundColor(state.config.theme.brighter.to_bevy()),
+        BackgroundColor(state.config.theme.bright.to_bevy()),
         Node {
             position_type: bevy::ui::PositionType::Absolute,
             width: Val::Percent(0.0),
