@@ -17,6 +17,12 @@ pub mod core {
 
 pub use core::{Color, Scalar};
 
+/// Symbols from `mucad_viewer_utils`, the utilities of the viewers, with the feature `viewer`.
+#[cfg(feature = "viewer")]
+pub mod viewer {
+    pub use mucad_viewer_utils::*;
+}
+
 // =========================================================================
 // --- Language Infrastructure & Pipeline ---
 // =========================================================================

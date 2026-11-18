@@ -10,10 +10,11 @@
 use std::time::Duration;
 
 use glam::{DVec2, Mat4, Vec2, Vec3};
-use mucad_viewer_utils::{
+use mu::viewer::{
     BoundingSphere, CameraEvent, Command, Controls, DEFAULT_CONTROLS_TOML, GridConfig, Modifiers,
     MouseButton, Navigation, ProjectionMode, Scalar, StandardView, Theme, TouchId,
 };
+use mucad_driver::prelude as mu;
 use wasm_bindgen::prelude::*;
 
 /// The bit of Ctrl in the modifiers.
@@ -374,7 +375,7 @@ impl CameraNavigation {
 }
 
 impl CameraNavigation {
-    fn camera(&self) -> &mucad_viewer_utils::Camera {
+    fn camera(&self) -> &mu::viewer::Camera {
         self.navigation.controller().camera()
     }
 }

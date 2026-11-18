@@ -5,6 +5,8 @@
 
 use std::marker::PhantomData;
 
+use mucad_driver::prelude as mu;
+
 use bevy::{
     app::{App, Plugin, Startup},
     asset::{Assets, Handle, uuid::Uuid},
@@ -116,7 +118,7 @@ macro_rules! add_shader_asset {
 
 fn load_materials(mut shaders: ResMut<Assets<Shader>>) {
     // The libraries of `mucad_viewer_utils`, which the shaders import, e.g. `grid.wgsl`.
-    for library in mucad_viewer_utils::shaders::LIBRARIES {
+    for library in mu::viewer::shaders::LIBRARIES {
         let path = format!("mucad_viewer_utils/{}", library.name);
         shaders
             .insert(

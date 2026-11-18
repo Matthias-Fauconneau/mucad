@@ -9,8 +9,9 @@
 use std::error::Error;
 use std::path::Path;
 
-use mucad_viewer_utils::shaders::{ModelWeb, Shader, ShaderSource, UniformBlock, WEB_SHADERS};
-use mucad_viewer_utils::{Lighting, Theme};
+use mu::viewer::shaders::{ModelWeb, Shader, ShaderSource, UniformBlock, WEB_SHADERS};
+use mu::viewer::{Lighting, Theme};
+use mucad_driver::prelude as mu;
 
 use crate::generated::Generated;
 

@@ -56,7 +56,7 @@ impl Mesh {
     ///
     /// [`crease_angle`]: crate::crease_angle
     pub fn edges(&self) -> EdgeLines {
-        mucad_viewer_utils::edge_lines(&self.mesh, mucad_viewer_utils::CREASE_ANGLE_DEGREES).into()
+        mu::viewer::edge_lines(&self.mesh, mu::viewer::CREASE_ANGLE_DEGREES).into()
     }
 }
 
@@ -110,7 +110,7 @@ impl From<mu::core::TriangleMesh> for Mesh {
 /// Each line has two vertices, which both have the normals of the two triangles of its edge and
 /// its midpoint, all as `x, y, z` triples. The normals of contour edges are zero.
 #[wasm_bindgen]
-pub struct EdgeLines(mucad_viewer_utils::EdgeLines);
+pub struct EdgeLines(mu::viewer::EdgeLines);
 
 /// The vectors as `x, y, z` triples.
 fn triples(vectors: &[glam::Vec3]) -> js_sys::Float32Array {
@@ -148,8 +148,8 @@ impl EdgeLines {
     }
 }
 
-impl From<mucad_viewer_utils::EdgeLines> for EdgeLines {
-    fn from(lines: mucad_viewer_utils::EdgeLines) -> Self {
+impl From<mu::viewer::EdgeLines> for EdgeLines {
+    fn from(lines: mu::viewer::EdgeLines) -> Self {
         Self(lines)
     }
 }

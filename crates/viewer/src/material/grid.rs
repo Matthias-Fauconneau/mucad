@@ -5,7 +5,8 @@
 
 use bevy::render::render_resource::*;
 
-use mucad_viewer_utils::GridConfig;
+use mu::viewer::GridConfig;
+use mucad_driver::prelude as mu;
 
 use super::bevy_types::*;
 

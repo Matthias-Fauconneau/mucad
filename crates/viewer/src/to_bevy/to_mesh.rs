@@ -247,10 +247,10 @@ impl ToBevyMesh for mu::core::TriangleMesh {
     /// The edge lines with the attributes of [`crate::material::EdgeMaterial`]: the contour
     /// edges, where the normals of the faces differ more than `threshold_degrees` or which have
     /// not two faces, and the smooth edges on the silhouette, see
-    /// [`mucad_viewer_utils::edge_lines`].
+    /// [`mu::viewer::edge_lines`].
     fn to_bevy_edge_mesh(&self, threshold_degrees: Self::Parameters) -> Option<Mesh> {
         use crate::material::{ATTRIBUTE_MIDPOINT, ATTRIBUTE_NORMAL_A, ATTRIBUTE_NORMAL_B};
-        let lines = mucad_viewer_utils::edge_lines(self, f64::from(threshold_degrees));
+        let lines = mu::viewer::edge_lines(self, f64::from(threshold_degrees));
         let arrays = |vectors: Vec<Vec3>| {
             vectors
                 .into_iter()

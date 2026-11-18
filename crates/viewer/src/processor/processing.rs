@@ -10,7 +10,7 @@ use crate::{
         ModelInfo, ProcessorRequest, ProcessorResponse,
         context::{ProcessingState, ProcessorContext},
     },
-    to_bevy::{CREASE_ANGLE, ToBevyMesh},
+    to_bevy::ToBevyMesh,
 };
 
 /// The processor is responsible for generating bevy meshes and commands sent to the view.
@@ -200,10 +200,14 @@ impl Processor {
                             mu::core::Geometry::Geometry2D(geometry) => {
                                 (geometry.to_bevy_mesh_default(), None)
                             }
-                            mu::core::Geometry::Geometry3D(geometry) => (
-                                geometry.to_bevy_mesh(CREASE_ANGLE),
-                                geometry.to_bevy_edge_mesh(CREASE_ANGLE),
-                            ),
+                            mu::core::Geometry::Geometry3D(geometry) => {
+                                // The crease angle of the viewers, which the web viewer shares.
+                                let crease_angle = mu::viewer::CREASE_ANGLE_DEGREES as f32;
+                                (
+                                    geometry.to_bevy_mesh(crease_angle),
+                                    geometry.to_bevy_edge_mesh(crease_angle),
+                                )
+                            }
                         };
                         // The edges belong to the first mesh of a geometry.
                         meshes.into_iter().map(move |mesh| (mesh, edges.take()))

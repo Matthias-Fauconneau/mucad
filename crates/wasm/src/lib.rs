@@ -25,7 +25,7 @@ pub use share::SharedLink;
 /// `toCreasedNormals` of three.js.
 #[wasm_bindgen(js_name = creaseAngle)]
 pub fn crease_angle() -> f64 {
-    mucad_viewer_utils::CREASE_ANGLE_DEGREES
+    mu::viewer::CREASE_ANGLE_DEGREES
 }
 
 use mu::{

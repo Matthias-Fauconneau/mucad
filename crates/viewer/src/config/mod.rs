@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-pub use mucad_viewer_utils::Theme;
+pub use mu::viewer::Theme;
 
 use bevy::ecs::resource::Resource;
 
@@ -39,7 +39,7 @@ pub struct Config {
 
     /// The controls of the camera with the mouse, the keys and touch.
     #[serde(default)]
-    pub controls: mucad_viewer_utils::Controls,
+    pub controls: mu::viewer::Controls,
 
     /// The view of the camera at the start, e.g. from the command line.
     #[serde(skip)]

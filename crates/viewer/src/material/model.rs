@@ -10,7 +10,8 @@ use bevy::{
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
 };
-use mucad_viewer_utils::Lighting;
+use mu::viewer::Lighting;
+use mucad_driver::prelude as mu;
 
 /// The material of the models: its colors, alpha and flags are the ones of the standard
 /// material, its lighting is the one of [`ModelLighting`], unless it is unlit, e.g. of 2D models.

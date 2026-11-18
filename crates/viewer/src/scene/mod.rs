@@ -5,7 +5,8 @@
 
 use crate::*;
 use bevy::prelude::*;
-use mucad_viewer_utils::CameraControl;
+use mu::viewer::CameraControl;
+use mucad_driver::prelude as mu;
 
 mod angle;
 mod camera;

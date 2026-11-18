@@ -16,7 +16,8 @@ use bevy::{
     mesh::{Mesh, Mesh3d},
     pbr::MeshMaterial3d,
 };
-use mucad_viewer_utils::GridConfig;
+use mu::viewer::GridConfig;
+use mucad_driver::prelude as mu;
 
 #[derive(Component)]
 pub struct ToggleMe;

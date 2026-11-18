@@ -19,10 +19,11 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use mucad_viewer_utils::{
-    CameraControl, CameraController, Command, Controls, Modifiers, Navigation,
+use mu::viewer::{
+    self, CameraControl, CameraController, Command, Controls, Modifiers, Navigation,
     OrthoCameraController, TouchId,
 };
+use mucad_driver::prelude as mu;
 
 /// The pixels of a line of the mouse wheel, e.g. of one notch, like one notch in browsers.
 const LINE_PIXELS: f32 = 100.0;
@@ -109,11 +110,11 @@ fn modifiers(keys: &ButtonInput<KeyCode>) -> Modifiers {
 }
 
 /// The button of the navigation.
-fn mouse_button(button: MouseButton) -> Option<mucad_viewer_utils::MouseButton> {
+fn mouse_button(button: MouseButton) -> Option<viewer::MouseButton> {
     match button {
-        MouseButton::Left => Some(mucad_viewer_utils::MouseButton::Left),
-        MouseButton::Middle => Some(mucad_viewer_utils::MouseButton::Middle),
-        MouseButton::Right => Some(mucad_viewer_utils::MouseButton::Right),
+        MouseButton::Left => Some(viewer::MouseButton::Left),
+        MouseButton::Middle => Some(viewer::MouseButton::Middle),
+        MouseButton::Right => Some(viewer::MouseButton::Right),
         _ => None,
     }
 }
