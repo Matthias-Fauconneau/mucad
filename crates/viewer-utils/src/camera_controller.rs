@@ -6,8 +6,32 @@
 use std::time::Duration;
 
 use glam::{DVec2, Mat4, Vec2, Vec3, Vec4, Vec4Swizzles};
+use serde::{Deserialize, Serialize};
 
 use crate::{Camera, ProjectionType, Rect, ZoomEvent, ZoomRectModel, ZoomState};
+
+/// The speeds of a [`CameraController`] with the mouse, e.g. from TOML.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CameraControllerConfig {
+    /// The speed of orbiting with the mouse.
+    pub orbit_speed: f64,
+    /// The speed of zooming with the mouse, a negative speed inverts zooming.
+    pub zoom_speed: f64,
+    /// The speed of translating with the mouse, which is not used yet: translating follows
+    /// the mouse.
+    pub translate_speed: f64,
+}
+
+impl Default for CameraControllerConfig {
+    fn default() -> Self {
+        Self {
+            orbit_speed: 25.0,
+            zoom_speed: 25.0,
+            translate_speed: 15.0,
+        }
+    }
+}
 
 /// A ray from a point on the near plane of a camera into the view.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -71,10 +95,7 @@ pub struct CameraController {
     camera: Camera,
     window_size: DVec2,
 
-    orbit_speed: f64,
-    /// Negative zoom speed means zoom is inverted.
-    zoom_speed: f64,
-    translate_speed: f64,
+    config: CameraControllerConfig,
     mode: Mode,
 
     scene_center: Vec3,
@@ -95,9 +116,7 @@ impl CameraController {
         let mut controller = Self {
             camera: Camera::default(),
             window_size,
-            orbit_speed: 25.0,
-            zoom_speed: 25.0,
-            translate_speed: 15.0,
+            config: CameraControllerConfig::default(),
             mode: Mode::Inactive,
             scene_center: Vec3::ZERO,
             scene_radius: 100.0,
@@ -241,7 +260,7 @@ impl CameraController {
     pub fn orbit_by_mouse(&mut self, mouse_delta: Vec2, elapsed: Duration) {
         let wr = self.window_size;
         let d = scaled_by_time(mouse_delta, elapsed);
-        let delta = d.as_dvec2() * self.orbit_speed;
+        let delta = d.as_dvec2() * self.config.orbit_speed;
         let max_angle = 15.0;
 
         let pan = (delta.x / wr.x * 360.0).clamp(-max_angle, max_angle);
@@ -250,14 +269,14 @@ impl CameraController {
         self.orbit(pan, tilt);
     }
 
-    /// The speed of orbiting with the mouse.
-    pub fn orbit_speed(&self) -> f64 {
-        self.orbit_speed
+    /// The speeds with the mouse.
+    pub fn config(&self) -> &CameraControllerConfig {
+        &self.config
     }
 
-    /// Set the speed of orbiting with the mouse.
-    pub fn set_orbit_speed(&mut self, orbit_speed: f64) {
-        self.orbit_speed = orbit_speed;
+    /// Set the speeds with the mouse.
+    pub fn set_config(&mut self, config: CameraControllerConfig) {
+        self.config = config;
     }
 
     /// Move the view center back to the scene center, while the view stays the same, i.e. the
@@ -291,7 +310,7 @@ impl CameraController {
     /// negative one out, with a positive zoom speed.
     pub fn zoom_by_wheel(&mut self, wheel_delta: Vec2, elapsed: Duration) {
         let d = scaled_by_time(wheel_delta, elapsed);
-        let delta = -d.y as f64 * self.zoom_speed();
+        let delta = -d.y as f64 * self.config.zoom_speed;
         // Like `1 + delta / 100` for small deltas, but never 0 or negative, e.g. for a turn of
         // the wheel in a long frame, and zooming in and out by the same delta cancel out.
         let zoom_factor = (delta / 100.0).exp();
@@ -347,16 +366,6 @@ impl CameraController {
     pub fn zoom_fit(&mut self) {
         self.zoom_rect_model.reset();
         self.handle_zoom_events();
-    }
-
-    /// The speed of zooming with the mouse, a negative speed inverts zooming.
-    pub fn zoom_speed(&self) -> f64 {
-        self.zoom_speed
-    }
-
-    /// Set the speed of zooming with the mouse, a negative speed inverts zooming.
-    pub fn set_zoom_speed(&mut self, zoom_speed: f64) {
-        self.zoom_speed = zoom_speed;
     }
 
     /// The point in the coordinates of the camera, which stays in place while zooming.
@@ -420,16 +429,6 @@ impl CameraController {
         self.zoom_rect_model
             .translate((delta.as_dvec2() * pixel).as_vec2());
         self.handle_zoom_events();
-    }
-
-    /// The speed of translating with the mouse.
-    pub fn translate_speed(&self) -> f64 {
-        self.translate_speed
-    }
-
-    /// Set the speed of translating with the mouse.
-    pub fn set_translate_speed(&mut self, translate_speed: f64) {
-        self.translate_speed = translate_speed;
     }
 
     /// Stop orbiting, translating or zooming with the mouse.

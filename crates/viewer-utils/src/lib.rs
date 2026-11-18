@@ -15,7 +15,9 @@ mod rect;
 mod zoom_rect;
 
 pub use camera::{Camera, ProjectionType};
-pub use camera_controller::{CameraController, CameraEvent, CameraState, Mode, Ray};
+pub use camera_controller::{
+    CameraController, CameraControllerConfig, CameraEvent, CameraState, Mode, Ray,
+};
 pub use controls::{
     Controls, DEFAULT_CONTROLS_TOML, KeyboardControls, MouseControls, TouchControls, TouchDrag,
 };

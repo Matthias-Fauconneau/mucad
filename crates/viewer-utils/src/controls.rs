@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{KeyBinding, Modifiers, MouseBinding, MouseButton};
+use crate::{CameraControllerConfig, KeyBinding, Modifiers, MouseBinding, MouseButton};
 
 /// The default controls as TOML with comments, e.g. to start a configuration file.
 pub const DEFAULT_CONTROLS_TOML: &str = include_str!("../controls.toml");
@@ -17,18 +17,14 @@ pub const DEFAULT_CONTROLS_TOML: &str = include_str!("../controls.toml");
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Controls {
-    /// The speed of orbiting with the mouse.
-    pub orbit_speed: f64,
-    /// The speed of zooming with the mouse, a negative speed inverts zooming.
-    pub zoom_speed: f64,
-    /// The speed of translating with the mouse.
-    pub translate_speed: f64,
     /// The factor, which a zoom key scales the view by, e.g. 1.25.
     pub zoom_step: f64,
     /// The part of the window, which a pan key moves the view by, e.g. 0.1.
     pub pan_step: f64,
     /// The angle in degrees, which a rotate key turns the view by, e.g. 90.
     pub rotate_step: f64,
+    /// The speeds of the camera with the mouse.
+    pub camera: CameraControllerConfig,
     /// The navigation style with the mouse.
     pub mouse: MouseControls,
     /// The keys, which are available with any navigation style.
@@ -40,12 +36,10 @@ pub struct Controls {
 impl Default for Controls {
     fn default() -> Self {
         Self {
-            orbit_speed: 25.0,
-            zoom_speed: 25.0,
-            translate_speed: 15.0,
             zoom_step: 1.25,
             pan_step: 0.1,
             rotate_step: 90.0,
+            camera: CameraControllerConfig::default(),
             mouse: MouseControls::default(),
             keyboard: KeyboardControls::default(),
             touch: TouchControls::default(),
@@ -216,10 +210,11 @@ mod tests {
     #[test]
     fn partial() {
         let controls = Controls::from_toml(
-            "zoom_speed = -25.0\n[mouse]\npan = [\"Middle\"]\n[keyboard]\nmulti_select = \"Shift\"\n",
+            "[camera]\nzoom_speed = -25.0\n[mouse]\npan = [\"Middle\"]\n[keyboard]\nmulti_select = \"Shift\"\n",
         )
         .expect("TOML");
-        assert_eq!(controls.zoom_speed, -25.0);
+        assert_eq!(controls.camera.zoom_speed, -25.0);
+        assert_eq!(controls.camera.orbit_speed, 25.0);
         assert_eq!(controls.mouse.pan, ["Middle".parse().expect("binding")]);
         assert_eq!(controls.mouse.orbit, MouseControls::default().orbit);
         assert_eq!(controls.keyboard.multi_select, Modifiers::SHIFT);

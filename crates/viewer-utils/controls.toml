@@ -7,18 +7,21 @@
 # Modifiers: `Ctrl`, `Shift`, `Alt` (`Option`), `Meta` (`Cmd`, `Super`), which must be pressed
 # exactly.
 
-# The speed of orbiting with the mouse.
-orbit_speed = 25.0
-# The speed of zooming with the mouse, a negative speed inverts zooming.
-zoom_speed = 25.0
-# The speed of translating with the mouse.
-translate_speed = 15.0
 # The factor, which a zoom key scales the view by.
 zoom_step = 1.25
 # The part of the window, which a pan key moves the view by.
 pan_step = 0.1
 # The angle in degrees, which a rotate key turns the view by.
 rotate_step = 90.0
+
+# The speeds of the camera with the mouse.
+[camera]
+# The speed of orbiting.
+orbit_speed = 25.0
+# The speed of zooming, a negative speed inverts zooming.
+zoom_speed = 25.0
+# The speed of translating, which is not used yet: translating follows the mouse.
+translate_speed = 15.0
 
 # The navigation style with the mouse.
 #

@@ -154,10 +154,7 @@ impl Navigation {
 
     /// Set the controls, e.g. after the configuration is changed.
     pub fn set_controls(&mut self, controls: Controls) {
-        self.controller.set_orbit_speed(controls.orbit_speed);
-        self.controller.set_zoom_speed(controls.zoom_speed);
-        self.controller
-            .set_translate_speed(controls.translate_speed);
+        self.controller.set_config(controls.camera);
         self.controls = controls;
     }
 
