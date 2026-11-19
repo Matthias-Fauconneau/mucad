@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The navigation with the mouse, the keys and touch: input events of a viewer control the
-//! camera by the configured [`Controls`].
+//! camera by the configured [`Controls`] and the bindings of the actions of an
+//! [`ActionRegistry`].
 
-use std::time::Duration;
+use std::{any::Any, sync::Arc, time::Duration};
 
 use glam::{DVec2, Vec2, Vec3};
 
 use crate::{
-    CameraController, Controls, KeyCommand, Modifiers, MouseBinding, MouseButton, MouseInput,
-    TouchDrag,
+    ActionRegistry, CameraController, Controls, KeyCommand, Modifiers, MouseBinding, MouseButton,
+    MouseInput, TouchDrag,
 };
 
 /// The distance in pixels, which the mouse can move while clicking.
@@ -126,6 +127,8 @@ pub type TouchId = i64;
 pub struct Navigation {
     controller: CameraController,
     controls: Controls,
+    /// The actions with their bindings.
+    actions: Arc<ActionRegistry>,
     /// The pressed buttons in their order.
     pressed: Vec<MouseButton>,
     action: Option<MouseCommand>,
@@ -149,11 +152,13 @@ pub struct Navigation {
 }
 
 impl Navigation {
-    /// The navigation for a window of `window_size` in pixels with `controls`.
-    pub fn new(window_size: DVec2, controls: Controls) -> Self {
+    /// The navigation for a window of `window_size` in pixels with `controls` and the bindings
+    /// of `actions`, e.g. of [`ActionRegistry::navigation`].
+    pub fn new(window_size: DVec2, controls: Controls, actions: Arc<ActionRegistry>) -> Self {
         let mut navigation = Self {
             controller: CameraController::new(window_size),
             controls: Controls::default(),
+            actions,
             pressed: Vec::new(),
             action: None,
             moved: 0.0,
@@ -186,12 +191,23 @@ impl Navigation {
 
     /// Set the controls, e.g. after the configuration is changed.
     ///
-    /// The projection mode becomes the one of the controls, e.g. at the start.
+    /// The projection mode becomes the one of the controls, e.g. at the start. The bindings of
+    /// the controls are the ones of the actions, see [`Navigation::set_actions`].
     pub fn set_controls(&mut self, controls: Controls) {
         self.controller.set_config(controls.camera);
         self.controller
             .set_projection_mode(controls.camera.projection);
         self.controls = controls;
+    }
+
+    /// The actions with their bindings.
+    pub fn actions(&self) -> &Arc<ActionRegistry> {
+        &self.actions
+    }
+
+    /// Set the actions with their bindings, e.g. after the bindings of the controls are set.
+    pub fn set_actions(&mut self, actions: Arc<ActionRegistry>) {
+        self.actions = actions;
     }
 
     /// Set the size of the window in pixels, e.g. after resizing it.
@@ -279,10 +295,10 @@ impl Navigation {
         position: DVec2,
         elapsed: Duration,
     ) -> bool {
-        let bound =
-            self.controls.mouse.zoom.iter().any(|binding| {
-                binding.input == MouseInput::Wheel && binding.modifiers == modifiers
-            });
+        let bound = self
+            .actions
+            .mouse_bindings(MouseCommand::Zoom)
+            .any(|binding| binding.input == MouseInput::Wheel && binding.modifiers == modifiers);
         if bound {
             self.controller
                 .set_zoom_point_from_screen_coordinates(position);
@@ -390,10 +406,12 @@ impl Navigation {
 
     /// Press `key`, a logical key like `KeyboardEvent.key` of the web, with `modifiers`.
     ///
-    /// Returns whether the key is bound, otherwise the viewer can use it.
+    /// Returns whether the key is bound to a [`KeyCommand`], otherwise the viewer can use it,
+    /// e.g. for its own actions.
     pub fn key_pressed(&mut self, key: &str, modifiers: Modifiers) -> bool {
         use KeyCommand::*;
-        let Some(command) = self.controls.keyboard.command(key, modifiers) else {
+        let action = self.actions.key_action(key, modifiers);
+        let Some(&command) = action.and_then(|action| (action as &dyn Any).downcast_ref()) else {
             return false;
         };
         let zoom_step = self.controls.zoom_step;
@@ -483,29 +501,21 @@ impl Navigation {
 
     /// The drag, whose binding are the pressed buttons with `modifiers`.
     fn matching_drag(&self, modifiers: Modifiers) -> Option<MouseCommand> {
-        let mouse = &self.controls.mouse;
-        [
-            (&mouse.orbit, MouseCommand::Orbit),
-            (&mouse.pan, MouseCommand::Pan),
-            (&mouse.zoom, MouseCommand::Zoom),
-        ]
-        .into_iter()
-        .find_map(|(bindings, action)| {
-            bindings
-                .iter()
-                .any(|binding| self.is_pressed(binding) && binding.modifiers == modifiers)
-                .then_some(action)
-        })
+        [MouseCommand::Orbit, MouseCommand::Pan, MouseCommand::Zoom]
+            .into_iter()
+            .find(|&command| {
+                self.actions
+                    .mouse_bindings(command)
+                    .any(|binding| self.is_pressed(binding) && binding.modifiers == modifiers)
+            })
     }
 
     /// The selection, whose binding are the pressed buttons with `modifiers`.
     fn matching_select(&self, modifiers: Modifiers) -> Option<MouseCommand> {
         // Selecting with the multi select modifiers adds to the selection.
-        let multi_select = self.controls.keyboard.multi_select;
-        self.controls
-            .mouse
-            .select
-            .iter()
+        let multi_select = self.controls.multi_select;
+        self.actions
+            .mouse_bindings(MouseCommand::Select { multi: false })
             .filter(|binding| self.is_pressed(binding))
             .find_map(|binding| {
                 if binding.modifiers == modifiers {
@@ -533,7 +543,14 @@ mod tests {
     const FRAME: Duration = Duration::from_millis(16);
 
     fn navigation() -> Navigation {
-        Navigation::new(WINDOW, Controls::default())
+        configured(Controls::default())
+    }
+
+    /// The navigation with `controls` and the actions with their bindings.
+    fn configured(controls: Controls) -> Navigation {
+        let mut actions = ActionRegistry::navigation();
+        actions.set_bindings(&controls.bindings).expect("bindings");
+        Navigation::new(WINDOW, controls, Arc::new(actions))
     }
 
     fn modifiers(s: &str) -> Modifiers {
@@ -816,7 +833,7 @@ mod tests {
 
         let controls =
             Controls::from_toml("[camera]\nprojection = \"perspective\"\n").expect("TOML");
-        let navigation = Navigation::new(WINDOW, controls);
+        let navigation = configured(controls);
         assert_eq!(
             navigation.controller().projection_mode(),
             ProjectionMode::Perspective
@@ -824,13 +841,13 @@ mod tests {
     }
 
     #[test]
-    fn configured() {
+    fn bindings() {
         let controls = Controls::from_toml(
-            "[mouse]\norbit = [\"Middle+Right\"]\npan = [\"Right\"]\n\
-                 [keyboard]\nview_top = [\"t\"]\n[touch]\none_finger = \"pan\"\n",
+            "[touch]\none_finger = \"pan\"\n\
+             [bindings]\norbit = [\"Middle+Right\"]\npan = [\"Right\"]\nview_top = [\"t\"]\n",
         )
         .expect("controls");
-        let mut navigation = Navigation::new(WINDOW, controls);
+        let mut navigation = configured(controls);
         navigation.mouse_pressed(Right, Modifiers::NONE, CENTER);
         assert_eq!(navigation.controller().mode(), Mode::Translation);
         navigation.mouse_released(Right, Modifiers::NONE, CENTER);
@@ -838,6 +855,21 @@ mod tests {
         assert!(!navigation.key_pressed("2", Modifiers::NONE));
         navigation.touch_started(1, CENTER);
         assert_eq!(navigation.controller().mode(), Mode::Translation);
+    }
+
+    #[test]
+    fn other_actions() {
+        // A key of an action, which is not a key command, is for the viewer.
+        let mut actions = ActionRegistry::navigation();
+        let bindings = [("select".to_string(), vec!["Ctrl+Left".to_string()])].into();
+        actions.set_bindings(&bindings).expect("bindings");
+        let mut navigation = Navigation::new(WINDOW, Controls::default(), Arc::new(actions));
+        assert!(!navigation.key_pressed("x", Modifiers::NONE));
+        navigation.mouse_pressed(Left, Modifiers::CTRL, CENTER);
+        assert!(matches!(
+            navigation.mouse_action(),
+            Some(MouseCommand::Select { multi: false })
+        ));
     }
 
     #[test]

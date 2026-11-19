@@ -4,7 +4,7 @@
 //! Tests of the camera navigation of the WebAssembly interface, which run natively.
 
 use glam::{Mat4, Vec3};
-use mucad_wasm::{CTRL, CameraNavigation, Mucad, SHIFT};
+use mucad_wasm::{ActionRegistry, CTRL, CameraNavigation, Mucad, SHIFT};
 
 const WIDTH: f64 = 400.0;
 const HEIGHT: f64 = 200.0;
@@ -12,10 +12,7 @@ const FRAME_MS: f64 = 16.0;
 
 /// A navigation with the default controls.
 fn navigation() -> CameraNavigation {
-    let Ok(navigation) = CameraNavigation::new(WIDTH, HEIGHT, None) else {
-        panic!("The default controls");
-    };
-    navigation
+    CameraNavigation::new(WIDTH, HEIGHT, &ActionRegistry::new())
 }
 
 fn matrix(columns: Vec<f32>) -> Mat4 {
@@ -102,16 +99,6 @@ fn views_and_bounds() {
 }
 
 #[test]
-fn controls() {
-    let toml = "[mouse]\norbit = [\"Middle+Right\"]\npan = [\"Right\"]\n";
-    let Ok(mut navigation) = CameraNavigation::new(WIDTH, HEIGHT, Some(toml.into())) else {
-        panic!("Valid controls");
-    };
-    navigation.mouse_down(2, 0.0, 0.0, 0);
-    assert_eq!(navigation.mouse_action().as_deref(), Some("pan"));
-}
-
-#[test]
 fn touch() {
     let mut navigation = navigation();
     // A tap selects.
@@ -163,18 +150,19 @@ fn projection() {
 
 #[test]
 fn actions() {
-    let toml = "[keyboard]\nzoom_fit = [\"Home\"]\n";
-    let Ok(navigation) = CameraNavigation::new(WIDTH, HEIGHT, Some(toml.into())) else {
-        panic!("Valid controls");
-    };
-    let actions = Mucad::new().actions();
+    let mucad = Mucad::new();
+    let mut navigation = CameraNavigation::new(WIDTH, HEIGHT, &mucad.actions());
+    // The navigation has the bindings of the actions.
+    navigation.mouse_down(0, 0.0, 0.0, 0);
+    assert_eq!(navigation.mouse_action().as_deref(), Some("select"));
+
+    let actions = mucad.actions();
     assert_eq!(actions.ids()[..4], ["select", "orbit", "pan", "zoom"]);
-    // The help has the bindings of the current controls.
-    let Ok(tooltip) = actions.tooltip(&navigation, "zoom_fit") else {
+    let Ok(tooltip) = actions.tooltip("zoom_fit") else {
         panic!("Known action");
     };
-    assert_eq!(tooltip, "Zoom to fit (Home)");
-    let help = actions.help_markdown(&navigation, true);
-    assert!(help.contains("| Zoom to fit | `Home` |"));
+    assert_eq!(tooltip, "Zoom to fit (f)");
+    let help = actions.help_markdown(true);
+    assert!(help.contains("| Zoom to fit | `f` |"));
     assert!(!help.contains("Pan left"));
 }

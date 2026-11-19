@@ -55,8 +55,8 @@ pub struct Args {
     #[arg(long, value_name = "PERCENT", value_parser = parse_zoom, default_value = "100%")]
     zoom: f32,
 
-    /// The controls of the camera with the mouse, the keys and touch in a TOML file, see
-    /// `Controls` of `mucad-viewer-utils` for the defaults.
+    /// The controls of the camera with the mouse, the keys and touch in a TOML file, with the
+    /// bindings of the actions in `[bindings]`, see `Controls` of `mucad-viewer-utils`.
     #[arg(long, value_name = "TOML", value_parser = parse_controls)]
     controls: Option<mu::viewer::Controls>,
 

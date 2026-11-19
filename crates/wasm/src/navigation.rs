@@ -7,7 +7,7 @@
 //! The methods take the values of DOM events, e.g. `MouseEvent.button`, `WheelEvent.deltaY`
 //! and `KeyboardEvent.key`, and the modifiers as bits, see [`CameraNavigation`].
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use glam::{DVec2, Mat4, Vec2, Vec3};
 use mu::viewer::{
@@ -15,6 +15,8 @@ use mu::viewer::{
     ProjectionMode, Scalar, StandardView, Theme, TouchId,
 };
 use mucad_driver::prelude as mu;
+
+use crate::ActionRegistry;
 use wasm_bindgen::prelude::*;
 
 /// The bit of Ctrl in the modifiers.
@@ -75,34 +77,15 @@ pub struct CameraNavigation {
 
 #[wasm_bindgen]
 impl CameraNavigation {
-    /// The navigation for an element of `width` and `height` in pixels with the controls in
-    /// TOML, see `Controls` of `mucad-viewer-utils`, or the default controls.
-    ///
-    /// Throws an error with the reason for invalid controls.
+    /// The navigation for an element of `width` and `height` in pixels with the bindings of
+    /// `actions`, e.g. `mucad.actions`.
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        width: f64,
-        height: f64,
-        controls_toml: Option<String>,
-    ) -> Result<CameraNavigation, JsError> {
+    pub fn new(width: f64, height: f64, actions: &ActionRegistry) -> CameraNavigation {
         console_error_panic_hook::set_once();
-        let controls = match controls_toml {
-            Some(toml) => parse_controls(&toml).map_err(|error| JsError::new(&error))?,
-            None => Controls::default(),
-        };
-        Ok(Self {
-            navigation: Navigation::new(DVec2::new(width, height), controls),
-        })
-    }
-
-    /// Set the controls in TOML, missing entries are the defaults.
-    ///
-    /// Throws an error with the reason for invalid controls, which keeps the previous ones.
-    #[wasm_bindgen(js_name = setControls)]
-    pub fn set_controls(&mut self, controls_toml: &str) -> Result<(), JsError> {
-        let controls = parse_controls(controls_toml).map_err(|error| JsError::new(&error))?;
-        self.navigation.set_controls(controls);
-        Ok(())
+        let actions = Arc::new(actions.registry().clone());
+        Self {
+            navigation: Navigation::new(DVec2::new(width, height), Controls::default(), actions),
+        }
     }
 
     /// Set the size of the element in pixels, e.g. after resizing it.
@@ -369,11 +352,6 @@ impl CameraNavigation {
 }
 
 impl CameraNavigation {
-    /// The current controls.
-    pub(crate) fn controls(&self) -> &Controls {
-        self.navigation.controls()
-    }
-
     fn camera(&self) -> &mu::viewer::Camera {
         self.navigation.controller().camera()
     }
@@ -412,11 +390,6 @@ fn to_touches(values: &[f64]) -> Vec<(TouchId, DVec2)> {
         .iter()
         .map(|[id, x, y]| (*id as TouchId, DVec2::new(*x, *y)))
         .collect()
-}
-
-/// The controls in TOML or the reason, why they are invalid.
-fn parse_controls(toml: &str) -> Result<Controls, String> {
-    Controls::from_toml(toml).map_err(|error| format!("invalid controls: {error}"))
 }
 
 /// The button of `MouseEvent.button`.
@@ -501,13 +474,5 @@ mod tests {
             to_touches(&[1.0, 10.0, 20.0, 2.0, 30.0, 40.0, 3.0]),
             [(1, DVec2::new(10.0, 20.0)), (2, DVec2::new(30.0, 40.0))]
         );
-    }
-
-    #[test]
-    fn controls() {
-        let toml = Controls::default().to_toml().expect("TOML");
-        assert!(parse_controls(&toml).is_ok());
-        let error = parse_controls("[mouse]\npan = [\"Up\"]\n").expect_err("invalid");
-        assert!(error.starts_with("invalid controls:"), "{error}");
     }
 }

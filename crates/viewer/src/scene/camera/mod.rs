@@ -8,7 +8,9 @@ use camera_controller::CameraNavigation;
 use mu::viewer::BoundingSphere;
 use mucad_driver::prelude as mu;
 
-use crate::ViewModel;
+use std::sync::Arc;
+
+use crate::{ViewModel, actions::Actions};
 
 /// The view of the camera at the start, e.g. from the command line.
 #[derive(Clone, Debug, PartialEq)]
@@ -32,15 +34,23 @@ impl Default for CameraView {
 const DEFAULT_WINDOW_SIZE: Vec2 = Vec2::new(1280.0, 720.0);
 
 /// Spawn the camera, which shows the scene from the direction and with the zoom of the view.
+///
+/// The bindings of the controls replace the ones of the actions, invalid bindings are logged and
+/// keep the defaults.
 pub fn setup_camera(
     mut commands: Commands,
     state: Res<ViewModel>,
+    mut actions: ResMut<Actions>,
     windows: Query<&Window, With<PrimaryWindow>>,
 ) {
     let window_size = windows
         .single()
         .map_or(DEFAULT_WINDOW_SIZE, |window| window.size());
-    let mut navigation = CameraNavigation::new(window_size, state.config.controls.clone());
+    let controls = state.config.controls.clone();
+    if let Err(error) = Arc::make_mut(&mut actions.0).set_bindings(&controls.bindings) {
+        log::error!("Invalid controls: {error}");
+    }
+    let mut navigation = CameraNavigation::new(window_size, controls, actions.0.clone());
     show_view(
         &mut navigation,
         state.scene.radius,

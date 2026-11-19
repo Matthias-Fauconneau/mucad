@@ -24,16 +24,14 @@ pub mod shaders;
 mod theme;
 mod zoom_rect;
 
-pub use action::{Action, ActionError, ActionRegistry, Binding, Help};
+pub use action::{Action, ActionError, ActionRegistry, Binding, BindingKind};
 pub use bounding_sphere::BoundingSphere;
 pub use camera::Camera;
 pub use camera_controller::{
     CameraControl, CameraController, CameraControllerConfig, CameraControllerState, CameraEvent,
     Mode, OrthoCameraController, PerspectiveCameraController, ProjectionMode, Ray,
 };
-pub use controls::{
-    Controls, KeyCommand, KeyboardControls, MouseControls, TouchControls, TouchDrag,
-};
+pub use controls::{Controls, KeyCommand, TouchControls, TouchDrag};
 pub use edges::{CREASE_ANGLE_DEGREES, EdgeLines, edge_lines};
 pub use grid::GridConfig;
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as THREE from "three";
-import { CameraNavigation } from "mucad-wasm";
+import { ActionRegistry, CameraNavigation } from "mucad-wasm";
 import { loadWasm } from "./compiler/wasm";
 
 /** A standard view of the scene with Z upwards. */
@@ -88,14 +88,8 @@ export class CameraControls extends EventTarget {
   /** The camera of the perspective projection, whose matrices the controls set. */
   readonly perspectiveCamera = new THREE.PerspectiveCamera();
 
-  /**
-   * Controls with the events of `element` and the controls in TOML or the defaults, see
-   * `Controls` of `mucad-viewer-utils`.
-   */
-  constructor(
-    private element: HTMLElement,
-    private controlsToml?: string,
-  ) {
+  /** Controls with the events of `element` and the default bindings. */
+  constructor(private element: HTMLElement) {
     super();
     this.orthographicCamera.near = NEAR;
     this.orthographicCamera.far = FAR;
@@ -139,17 +133,6 @@ export class CameraControls extends EventTarget {
   /** Set the pivot, which the camera orbits around, to the center of the bounds. */
   resetPivot() {
     this.run((navigation) => navigation.resetPivot());
-  }
-
-  /**
-   * Set the controls in TOML, missing entries are the defaults.
-   *
-   * Throws an error with the reason for invalid controls, once the WebAssembly module is
-   * loaded.
-   */
-  setControls(toml: string) {
-    this.controlsToml = toml;
-    this.navigation?.setControls(toml);
   }
 
   /**
@@ -239,14 +222,12 @@ export class CameraControls extends EventTarget {
       .catch((error) => console.error("Cannot load the camera controls:", error));
   }
 
-  /** The navigation with the controls, or with the default ones, if they are invalid. */
+  /** The navigation with the default bindings. */
   private createNavigation(): CameraNavigation {
-    try {
-      return new CameraNavigation(this.width, this.height, this.controlsToml);
-    } catch (error) {
-      console.error(error);
-      return new CameraNavigation(this.width, this.height);
-    }
+    const actions = new ActionRegistry();
+    const navigation = new CameraNavigation(this.width, this.height, actions);
+    actions.free();
+    return navigation;
   }
 
   /** The position of `event` in pixels from the top left of the element. */

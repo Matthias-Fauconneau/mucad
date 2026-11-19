@@ -6,19 +6,18 @@
 use mucad_driver::prelude as mu;
 use wasm_bindgen::prelude::*;
 
-use crate::CameraNavigation;
-
-/// The actions of the viewer in the order of its help, see `ActionRegistry` of
-/// `mucad-viewer-utils`.
+/// The actions of the viewer with their bindings in the order of its help, see `ActionRegistry`
+/// of `mucad-viewer-utils`.
 ///
-/// The help shows the bindings of the current controls of a navigation.
+/// `mucad.actions` are the actions with their default bindings, e.g. for a `CameraNavigation`.
 #[wasm_bindgen]
 #[derive(Debug, Clone)]
 pub struct ActionRegistry(mu::viewer::ActionRegistry);
 
 #[wasm_bindgen]
 impl ActionRegistry {
-    /// The actions of the navigation: the mouse commands, then the key commands.
+    /// The actions of the navigation with their default bindings: the mouse commands, then the
+    /// key commands.
     #[wasm_bindgen(constructor)]
     pub fn new() -> ActionRegistry {
         Self(mu::viewer::ActionRegistry::navigation())
@@ -29,21 +28,24 @@ impl ActionRegistry {
         self.0.iter().map(|action| action.id().into()).collect()
     }
 
-    /// The tooltip of the action `id` with the bindings of `navigation`, e.g.
-    /// `Zoom to fit (f)`.
+    /// The label of the action `id` with its bindings, e.g. `Zoom to fit (f)`.
     ///
     /// Throws an error for an unknown action.
-    pub fn tooltip(&self, navigation: &CameraNavigation, id: &str) -> Result<String, JsError> {
-        let help = self.0.help(navigation.controls());
-        help.tooltip(id)
-            .map_err(|error| JsError::new(&error.to_string()))
+    pub fn tooltip(&self, id: &str) -> Result<String, JsError> {
+        (self.0.tooltip(id)).map_err(|error| JsError::new(&error.to_string()))
     }
 
-    /// A Markdown table of the actions with the bindings of `navigation`, with `basic` only of
-    /// the basic ones.
+    /// A Markdown table of the actions with their bindings, with `basic` only of the basic ones.
     #[wasm_bindgen(js_name = helpMarkdown)]
-    pub fn help_markdown(&self, navigation: &CameraNavigation, basic: bool) -> String {
-        self.0.help(navigation.controls()).markdown(basic)
+    pub fn help_markdown(&self, basic: bool) -> String {
+        self.0.help_markdown(basic)
+    }
+}
+
+impl ActionRegistry {
+    /// The actions of `mucad-viewer-utils`.
+    pub(crate) fn registry(&self) -> &mu::viewer::ActionRegistry {
+        &self.0
     }
 }
 

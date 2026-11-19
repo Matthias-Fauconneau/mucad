@@ -4,22 +4,22 @@
 //! The actions of the viewer with their help, e.g. for tooltips and a help in Markdown, see
 //! [`Actions`].
 
-use bevy::{
-    app::App,
-    ecs::resource::Resource,
-    prelude::{Deref, DerefMut},
-};
+use std::sync::Arc;
+
+use bevy::{app::App, ecs::resource::Resource, prelude::Deref};
 use mu::viewer::{Action, ActionRegistry};
 use mucad_driver::prelude as mu;
 
-/// The actions of the viewer in the order of its help: the ones of the navigation, then the
-/// registered ones, see [`RegisterAction`].
-#[derive(Resource, Debug, Clone, Deref, DerefMut)]
-pub struct Actions(pub ActionRegistry);
+/// The actions of the viewer with their bindings in the order of its help: the ones of the
+/// navigation, then the registered ones, see [`RegisterAction`].
+///
+/// The camera navigation shares them, e.g. with the bindings of the controls.
+#[derive(Resource, Debug, Clone, Deref)]
+pub struct Actions(pub Arc<ActionRegistry>);
 
 impl Default for Actions {
     fn default() -> Self {
-        Self(ActionRegistry::navigation())
+        Self(Arc::new(ActionRegistry::navigation()))
     }
 }
 
@@ -37,7 +37,7 @@ impl RegisterAction for App {
     fn register_action(&mut self, action: impl Action + 'static) -> &mut Self {
         self.init_resource::<Actions>();
         let mut actions = self.world_mut().resource_mut::<Actions>();
-        if let Err(error) = actions.register(action) {
+        if let Err(error) = Arc::make_mut(&mut actions.0).register(action) {
             panic!("{error}");
         }
         self
@@ -46,7 +46,7 @@ impl RegisterAction for App {
 
 #[cfg(test)]
 mod tests {
-    use mu::viewer::{Binding, Controls};
+    use mu::viewer::{Binding, BindingKind};
 
     use super::*;
 
@@ -66,7 +66,11 @@ mod tests {
             "Save a screenshot."
         }
 
-        fn bindings(&self, _: &Controls) -> Vec<Binding> {
+        fn kind(&self) -> BindingKind {
+            BindingKind::Key
+        }
+
+        fn default_bindings(&self) -> Vec<Binding> {
             Vec::new()
         }
     }

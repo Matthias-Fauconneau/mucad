@@ -20,10 +20,11 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use mu::viewer::{
-    self, CameraControl, CameraController, Command, Controls, Modifiers, Navigation,
-    OrthoCameraController, TouchId,
+    self, ActionRegistry, CameraControl, CameraController, Command, Controls, Modifiers,
+    Navigation, OrthoCameraController, TouchId,
 };
 use mucad_driver::prelude as mu;
+use std::sync::Arc;
 
 /// The pixels of a line of the mouse wheel, e.g. of one notch, like one notch in browsers.
 const LINE_PIXELS: f32 = 100.0;
@@ -65,9 +66,10 @@ pub struct CameraControllerSystems;
 pub struct CameraNavigation(pub Navigation);
 
 impl CameraNavigation {
-    /// The navigation for a window of `window_size` in logical pixels with `controls`.
-    pub fn new(window_size: Vec2, controls: Controls) -> Self {
-        Self(Navigation::new(window_size.as_dvec2(), controls))
+    /// The navigation for a window of `window_size` in logical pixels with `controls` and the
+    /// bindings of `actions`.
+    pub fn new(window_size: Vec2, controls: Controls, actions: Arc<ActionRegistry>) -> Self {
+        Self(Navigation::new(window_size.as_dvec2(), controls, actions))
     }
 
     /// The camera controller.
@@ -393,7 +395,11 @@ mod tests {
     /// The area of the projection is the detail of the zoom.
     #[test]
     fn orthographic() {
-        let mut navigation = CameraNavigation::new(Vec2::new(400.0, 200.0), Controls::default());
+        let mut navigation = CameraNavigation::new(
+            Vec2::new(400.0, 200.0),
+            Controls::default(),
+            Arc::new(ActionRegistry::navigation()),
+        );
         navigation.0.key_pressed("PageUp", Modifiers::NONE);
         navigation.0.key_pressed("ArrowLeft", Modifiers::NONE);
         let mut ortho = OrthographicProjection::default_3d();
@@ -412,7 +418,11 @@ mod tests {
     /// The transform of the camera is the one of the controller.
     #[test]
     fn transform() {
-        let navigation = CameraNavigation::new(Vec2::new(400.0, 200.0), Controls::default());
+        let navigation = CameraNavigation::new(
+            Vec2::new(400.0, 200.0),
+            Controls::default(),
+            Arc::new(ActionRegistry::navigation()),
+        );
         let camera = navigation.controller().camera();
         let transform = Transform::from_matrix(camera.transform_matrix());
         assert!(transform.translation.abs_diff_eq(camera.position, 1e-3));
