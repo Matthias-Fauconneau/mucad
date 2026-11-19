@@ -6,36 +6,85 @@
 use bevy::{
     asset::Assets,
     camera::visibility::Visibility,
+    ecs::message::MessageReader,
     ecs::{
         component::Component,
         query::With,
         system::{Commands, Query, Res, ResMut},
     },
-    input::{ButtonInput, keyboard::KeyCode},
+    input::{
+        ButtonInput, ButtonState,
+        keyboard::{KeyCode, KeyboardInput},
+    },
     math::{Vec2, Vec3, primitives::Plane3d},
     mesh::{Mesh, Mesh3d},
     pbr::MeshMaterial3d,
 };
-use mu::viewer::GridConfig;
+use mu::viewer::{Action, Binding, Controls, GridConfig, KeyBinding, Modifiers};
 use mucad_driver::prelude as mu;
 
 #[derive(Component)]
 pub struct ToggleMe;
 
-use crate::{scene::CameraNavigation, view_model::ViewModel, *};
+use crate::{
+    scene::{CameraNavigation, camera::camera_controller},
+    view_model::ViewModel,
+    *,
+};
 
+/// The action, which shows or hides the grid with its key `g`.
+pub struct ToggleGrid;
+
+impl ToggleGrid {
+    /// The binding of the action, which is not in the controls.
+    fn binding() -> KeyBinding {
+        KeyBinding::new(Modifiers::NONE, "g")
+    }
+}
+
+impl Action for ToggleGrid {
+    fn id(&self) -> &'static str {
+        "toggle_grid"
+    }
+
+    fn label(&self) -> &'static str {
+        "Toggle grid"
+    }
+
+    fn description(&self) -> &'static str {
+        "Show or hide the grid."
+    }
+
+    fn bindings(&self, _: &Controls) -> Vec<Binding> {
+        vec![Binding::Key(Self::binding())]
+    }
+
+    fn basic(&self) -> bool {
+        true
+    }
+}
+
+/// Show or hide the grid with the binding of [`ToggleGrid`].
 pub fn toggle_grid(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    mut inputs: MessageReader<KeyboardInput>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut Visibility, With<ToggleMe>>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyG) {
-        let mut visibility = query.single_mut().expect("Visible");
-
-        *visibility = match *visibility {
-            Visibility::Visible => Visibility::Hidden,
-            Visibility::Hidden => Visibility::Visible,
-            _ => Visibility::Visible,
+    let modifiers = camera_controller::modifiers(&keys);
+    let binding = ToggleGrid::binding();
+    for input in inputs.read() {
+        let pressed = input.state == ButtonState::Pressed && !input.repeat;
+        let Some(name) = camera_controller::key_name(&input.logical_key).filter(|_| pressed) else {
+            continue;
         };
+        if binding.matches(&name, modifiers) {
+            let mut visibility = query.single_mut().expect("Visible");
+            *visibility = match *visibility {
+                Visibility::Visible => Visibility::Hidden,
+                Visibility::Hidden => Visibility::Visible,
+                _ => Visibility::Visible,
+            };
+        }
     }
 }
 

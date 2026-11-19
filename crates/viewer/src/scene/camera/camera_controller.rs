@@ -36,21 +36,23 @@ pub struct CameraControllerPlugin;
 
 impl Plugin for CameraControllerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<SelectAt>().add_systems(
-            Update,
-            (
-                resize,
-                mouse_buttons,
-                mouse_motion,
-                mouse_wheel,
-                keys,
-                touches,
-                apply_camera,
-                grab_cursor,
-            )
-                .chain()
-                .in_set(CameraControllerSystems),
-        );
+        app.add_message::<SelectAt>()
+            .init_resource::<crate::actions::Actions>()
+            .add_systems(
+                Update,
+                (
+                    resize,
+                    mouse_buttons,
+                    mouse_motion,
+                    mouse_wheel,
+                    keys,
+                    touches,
+                    apply_camera,
+                    grab_cursor,
+                )
+                    .chain()
+                    .in_set(CameraControllerSystems),
+            );
     }
 }
 
@@ -100,7 +102,7 @@ impl From<Command> for SelectAt {
 }
 
 /// The pressed modifier keys.
-fn modifiers(keys: &ButtonInput<KeyCode>) -> Modifiers {
+pub(crate) fn modifiers(keys: &ButtonInput<KeyCode>) -> Modifiers {
     Modifiers {
         ctrl: keys.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]),
         shift: keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]),
@@ -120,7 +122,7 @@ fn mouse_button(button: MouseButton) -> Option<viewer::MouseButton> {
 }
 
 /// The name of a logical key like `KeyboardEvent.key` of the web, e.g. `ArrowLeft` or `+`.
-fn key_name(key: &Key) -> Option<String> {
+pub(crate) fn key_name(key: &Key) -> Option<String> {
     match key {
         Key::Character(character) => Some(character.to_string()),
         Key::Space => Some(" ".into()),

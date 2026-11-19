@@ -6,6 +6,8 @@
 use crate::*;
 use bevy::prelude::*;
 use mu::viewer::CameraControl;
+
+use crate::actions::RegisterAction;
 use mucad_driver::prelude as mu;
 
 mod angle;
@@ -88,6 +90,7 @@ pub struct ScenePlugin;
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(CameraControllerPlugin)
+            .register_action(grid::ToggleGrid)
             .add_systems(
                 Update,
                 camera::update_bounds.before(CameraControllerSystems),
