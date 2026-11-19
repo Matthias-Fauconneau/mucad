@@ -4,7 +4,7 @@
 //! Tests of the camera navigation of the WebAssembly interface, which run natively.
 
 use glam::{Mat4, Vec3};
-use mucad_wasm::{CTRL, CameraNavigation, SHIFT};
+use mucad_wasm::{CTRL, CameraNavigation, Mucad, SHIFT};
 
 const WIDTH: f64 = 400.0;
 const HEIGHT: f64 = 200.0;
@@ -159,4 +159,22 @@ fn projection() {
     assert_eq!(navigation.projection(), "orthographic");
     assert!(navigation.set_projection("perspective").is_ok());
     assert_eq!(navigation.projection(), "perspective");
+}
+
+#[test]
+fn actions() {
+    let toml = "[keyboard]\nzoom_fit = [\"Home\"]\n";
+    let Ok(navigation) = CameraNavigation::new(WIDTH, HEIGHT, Some(toml.into())) else {
+        panic!("Valid controls");
+    };
+    let actions = Mucad::new().actions();
+    assert_eq!(actions.ids()[..4], ["select", "orbit", "pan", "zoom"]);
+    // The help has the bindings of the current controls.
+    let Ok(tooltip) = actions.tooltip(&navigation, "zoom_fit") else {
+        panic!("Known action");
+    };
+    assert_eq!(tooltip, "Zoom to fit (Home)");
+    let help = actions.help_markdown(&navigation, true);
+    assert!(help.contains("| Zoom to fit | `Home` |"));
+    assert!(!help.contains("Pan left"));
 }

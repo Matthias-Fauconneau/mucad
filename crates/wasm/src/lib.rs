@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+mod actions;
 mod completion;
 mod diagnostic;
 mod geometry;
@@ -14,6 +15,7 @@ mod literal;
 mod navigation;
 mod share;
 
+pub use actions::ActionRegistry;
 pub use completion::Completion;
 pub use diagnostic::{Diagnostic, Severity};
 pub use literal::{LiteralRange, SteppedLiteral};
@@ -57,6 +59,8 @@ pub struct Mucad {
     renderer: Renderer,
     /// The model of the last successful compilation.
     model: Option<mu::ModelTree>,
+    /// The actions of the viewer.
+    actions: ActionRegistry,
 }
 
 #[wasm_bindgen]
@@ -77,7 +81,14 @@ impl Mucad {
             compiler,
             renderer: Renderer::new().with_cache(mu::SharedMut::new(RenderCache::new())),
             model: None,
+            actions: ActionRegistry::new(),
         }
+    }
+
+    /// The actions of the viewer, e.g. for its help.
+    #[wasm_bindgen(getter)]
+    pub fn actions(&self) -> ActionRegistry {
+        self.actions.clone()
     }
 
     /// Set the linear render resolution in millimeters, e.g. `0.1` for fine circles.

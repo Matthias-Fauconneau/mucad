@@ -369,6 +369,11 @@ impl CameraNavigation {
 }
 
 impl CameraNavigation {
+    /// The current controls.
+    pub(crate) fn controls(&self) -> &Controls {
+        self.navigation.controls()
+    }
+
     fn camera(&self) -> &mu::viewer::Camera {
         self.navigation.controller().camera()
     }

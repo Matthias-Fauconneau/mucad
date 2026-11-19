@@ -199,7 +199,27 @@ two fingers in parallel pans without zooming.
 | `zoomFit()`, `zoomLevel()`, `resetPivot()` | Zooms to level 1 around the center of the view, the zoom level, sets the pivot to the center of the bounds |
 | `takeEvents()` | The changes since the last call: `zoomLevelChanged` and `pivotChanged` |
 
-`Selection` and `CameraNavigation` are freed with `free()`.
+### Help
+
+`mucad.actions` are the actions of the viewer as an `ActionRegistry`, e.g. for its help and
+tooltips, with the bindings of the current controls of a `CameraNavigation`. A
+`new ActionRegistry()` without a `Mucad` has the same actions.
+
+```js
+help.innerHTML = markdownToHtml(mucad.actions.helpMarkdown(navigation, true));
+fitButton.title = mucad.actions.tooltip(navigation, "zoom_fit"); // "Zoom to fit (f)"
+```
+
+| Method | Does |
+|---|---|
+| `ids()` | The ids of the actions in the order of the help, e.g. `zoom_fit` |
+| `tooltip(navigation, id)` | The label with the bindings, e.g. `Zoom to fit (f)`, throws an error for an unknown id |
+| `helpMarkdown(navigation, basic)` | A Markdown table of the actions with their bindings and descriptions, with `basic` only of the basic ones |
+
+The ids are the ones of the controls, e.g. `zoom_in`, and `select`, `orbit`, `pan` and `zoom`
+for the mouse.
+
+`Selection`, `CameraNavigation` and `ActionRegistry` are freed with `free()`.
 
 ## Scope
 
