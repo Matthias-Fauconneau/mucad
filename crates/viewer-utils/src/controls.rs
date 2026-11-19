@@ -8,7 +8,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
-use crate::{CameraControllerConfig, KeyBinding, Modifiers, MouseBinding, MouseButton};
+use crate::{
+    CameraControllerConfig, KeyBinding, Modifiers, MouseBinding, MouseButton, MouseCommand,
+    StandardView,
+};
 
 /// The controls of the camera in the µcad viewers with the mouse, the keys and touch.
 ///
@@ -84,6 +87,18 @@ pub struct MouseControls {
     pub pan: Vec<MouseBinding>,
 }
 
+impl MouseControls {
+    /// The bindings of `action`.
+    pub fn bindings(&self, action: MouseCommand) -> &[MouseBinding] {
+        match action {
+            MouseCommand::Select { .. } => &self.select,
+            MouseCommand::Orbit => &self.orbit,
+            MouseCommand::Pan => &self.pan,
+            MouseCommand::Zoom => &self.zoom,
+        }
+    }
+}
+
 impl Default for MouseControls {
     fn default() -> Self {
         use MouseButton::*;
@@ -112,8 +127,8 @@ impl Default for MouseControls {
 
 /// A command of the keys, written in snake case in TOML, e.g. `zoom_in`.
 ///
-/// Its doc comment describes it, e.g. for a help of the viewers, see
-/// [`strum::EnumMessage::get_documentation`].
+/// It is an [`Action`](crate::Action): its message is the label, its doc comment the description and its
+/// property `group` the group in the help.
 #[derive(
     Debug,
     Clone,
@@ -128,47 +143,81 @@ impl Default for MouseControls {
     strum::Display,
     strum::EnumIter,
     strum::EnumMessage,
+    strum::EnumProperty,
+    strum::IntoStaticStr,
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum KeyCommand {
     /// Zoom in at the center of the view.
+    #[strum(message = "Zoom in", props(group = "Zoom"))]
     ZoomIn,
     /// Zoom out at the center of the view.
+    #[strum(message = "Zoom out", props(group = "Zoom"))]
     ZoomOut,
     /// Show the whole scene in the middle of the view.
+    #[strum(message = "Zoom to fit")]
     ZoomFit,
     /// Change between the orthographic and the perspective projection.
+    #[strum(message = "Toggle projection")]
     ToggleProjection,
     /// Pan the view to the left, i.e. the model moves to the right.
+    #[strum(message = "Pan left", props(group = "Pan"))]
     PanLeft,
     /// Pan the view to the right, i.e. the model moves to the left.
+    #[strum(message = "Pan right", props(group = "Pan"))]
     PanRight,
     /// Pan the view upwards, i.e. the model moves downwards.
+    #[strum(message = "Pan up", props(group = "Pan"))]
     PanUp,
     /// Pan the view downwards, i.e. the model moves upwards.
+    #[strum(message = "Pan down", props(group = "Pan"))]
     PanDown,
     /// Rotate the view to the left around the vertical axis of the view.
+    #[strum(message = "Rotate left", props(group = "Rotate"))]
     RotateLeft,
     /// Rotate the view to the right around the vertical axis of the view.
+    #[strum(message = "Rotate right", props(group = "Rotate"))]
     RotateRight,
     /// Show the isometric view.
+    #[strum(message = "Isometric view", props(group = "Views"))]
     ViewIsometric,
     /// Show the front view.
+    #[strum(message = "Front view", props(group = "Views"))]
     ViewFront,
     /// Show the top view.
+    #[strum(message = "Top view", props(group = "Views"))]
     ViewTop,
     /// Show the right view.
+    #[strum(message = "Right view", props(group = "Views"))]
     ViewRight,
     /// Show the rear view.
+    #[strum(message = "Rear view", props(group = "Views"))]
     ViewRear,
     /// Show the bottom view.
+    #[strum(message = "Bottom view", props(group = "Views"))]
     ViewBottom,
     /// Show the left view.
+    #[strum(message = "Left view", props(group = "Views"))]
     ViewLeft,
 }
 
 impl KeyCommand {
+    /// The standard view, which the command shows, if it is a view command.
+    pub(crate) fn view(self) -> Option<StandardView> {
+        use KeyCommand::*;
+        match self {
+            ViewIsometric => Some(StandardView::Isometric),
+            ViewFront => Some(StandardView::Front),
+            ViewTop => Some(StandardView::Top),
+            ViewRight => Some(StandardView::Right),
+            ViewRear => Some(StandardView::Rear),
+            ViewBottom => Some(StandardView::Bottom),
+            ViewLeft => Some(StandardView::Left),
+            _ => None,
+        }
+    }
+
     /// The default bindings of the command.
     pub fn default_bindings(self) -> Vec<KeyBinding> {
         use KeyCommand::*;

@@ -9,6 +9,7 @@
 /// A scalar like in µcad, e.g. a length in millimeters.
 pub type Scalar = f64;
 
+mod action;
 mod bounding_sphere;
 mod camera;
 mod camera_controller;
@@ -23,6 +24,7 @@ pub mod shaders;
 mod theme;
 mod zoom_rect;
 
+pub use action::{Action, ActionError, ActionRegistry, Binding, Help};
 pub use bounding_sphere::BoundingSphere;
 pub use camera::Camera;
 pub use camera_controller::{
@@ -36,7 +38,7 @@ pub use edges::{CREASE_ANGLE_DEGREES, EdgeLines, edge_lines};
 pub use grid::GridConfig;
 pub use input::{KeyBinding, Modifiers, MouseBinding, MouseButton, MouseInput, ParseError};
 pub use lighting::Lighting;
-pub use navigation::{Command, MouseAction, Navigation, StandardView, TouchId};
+pub use navigation::{Command, MouseCommand, Navigation, StandardView, TouchId};
 pub use rect::Rect;
 pub use theme::Theme;
 pub use zoom_rect::{ZoomEvent, ZoomRectModel};

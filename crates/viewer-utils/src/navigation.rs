@@ -76,24 +76,33 @@ pub enum Command {
     },
 }
 
-/// The action of the pressed mouse buttons, written in lower case, e.g. `orbit`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display, strum::IntoStaticStr)]
+/// The command of the pressed mouse buttons, written in lower case, e.g. `orbit`.
+///
+/// It is an [`Action`](crate::Action): its message is the label and its doc comment the
+/// description.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, strum::Display, strum::IntoStaticStr, strum::EnumMessage,
+)]
 #[strum(serialize_all = "lowercase")]
-pub enum MouseAction {
-    /// Select by clicking, `multi` adds to the selection.
+pub enum MouseCommand {
+    /// Select an object by clicking, with the modifiers of `multi_select` add it to the selection.
+    #[strum(message = "Select")]
     Select {
         /// Whether the object is added to the selection, instead of replacing it.
         multi: bool,
     },
-    /// Orbit by dragging.
+    /// Orbit around the point under the pointer by dragging.
+    #[strum(message = "Orbit")]
     Orbit,
-    /// Pan by dragging.
+    /// Pan the view by dragging.
+    #[strum(message = "Pan")]
     Pan,
-    /// Zoom by dragging.
+    /// Zoom at the pointer with the wheel or by dragging.
+    #[strum(message = "Zoom")]
     Zoom,
 }
 
-impl MouseAction {
+impl MouseCommand {
     /// Whether the action drags, i.e. orbits, pans or zooms.
     fn is_drag(self) -> bool {
         matches!(self, Self::Orbit | Self::Pan | Self::Zoom)
@@ -119,14 +128,14 @@ pub struct Navigation {
     controls: Controls,
     /// The pressed buttons in their order.
     pressed: Vec<MouseButton>,
-    action: Option<MouseAction>,
+    action: Option<MouseCommand>,
     /// The distance, which the mouse moved since the first button was pressed.
     moved: f32,
     /// Whether only a select action has been started since the first button was pressed.
     clicking: bool,
     /// The drag of the pressed buttons, which also select, until the mouse moves further than
     /// a click, e.g. panning with the left button.
-    pending_drag: Option<MouseAction>,
+    pending_drag: Option<MouseCommand>,
     /// The movement since the pending drag, which is applied when it starts.
     pending_delta: Vec2,
     /// The position, where the buttons were pressed, e.g. to orbit around.
@@ -190,8 +199,8 @@ impl Navigation {
         self.controller.set_window_size(window_size);
     }
 
-    /// The action of the pressed mouse buttons.
-    pub fn mouse_action(&self) -> Option<MouseAction> {
+    /// The command of the pressed mouse buttons.
+    pub fn mouse_action(&self) -> Option<MouseCommand> {
         self.action
     }
 
@@ -215,7 +224,7 @@ impl Navigation {
         position: DVec2,
     ) -> Option<Command> {
         let command = match self.action {
-            Some(MouseAction::Select { multi })
+            Some(MouseCommand::Select { multi })
                 if self.clicking && self.moved <= CLICK_TOLERANCE =>
             {
                 Some(Command::Select { position, multi })
@@ -252,10 +261,10 @@ impl Navigation {
     /// Orbit, pan or zoom by `delta` with the action.
     fn drag(&mut self, delta: Vec2, elapsed: Duration) {
         match self.action {
-            Some(MouseAction::Orbit) => self.controller.orbit_by_mouse(delta, elapsed),
-            Some(MouseAction::Pan) => self.controller.translate_by_mouse(delta),
-            Some(MouseAction::Zoom) => self.controller.zoom_by_mouse(delta, elapsed),
-            Some(MouseAction::Select { .. }) | None => {}
+            Some(MouseCommand::Orbit) => self.controller.orbit_by_mouse(delta, elapsed),
+            Some(MouseCommand::Pan) => self.controller.translate_by_mouse(delta),
+            Some(MouseCommand::Zoom) => self.controller.zoom_by_mouse(delta, elapsed),
+            Some(MouseCommand::Select { .. }) | None => {}
         }
     }
 
@@ -401,20 +410,13 @@ impl Navigation {
             PanDown => self.controller.translate(Vec2::new(0.0, -pan.y)),
             RotateLeft => self.rotate(-rotate_step),
             RotateRight => self.rotate(rotate_step),
-            ViewIsometric => self.show_view(StandardView::Isometric),
-            ViewFront => self.show_view(StandardView::Front),
-            ViewTop => self.show_view(StandardView::Top),
-            ViewRight => self.show_view(StandardView::Right),
-            ViewRear => self.show_view(StandardView::Rear),
-            ViewBottom => self.show_view(StandardView::Bottom),
-            ViewLeft => self.show_view(StandardView::Left),
+            ViewIsometric | ViewFront | ViewTop | ViewRight | ViewRear | ViewBottom | ViewLeft => {
+                if let Some(view) = command.view() {
+                    self.controller.set_view(view.view_vector(), view.up());
+                }
+            }
         }
         true
-    }
-
-    /// Show the standard `view`.
-    fn show_view(&mut self, view: StandardView) {
-        self.controller.set_view(view.view_vector(), view.up());
     }
 
     /// Orbit around the pivot by `pan` in degrees like dragging the mouse to the right, and
@@ -447,28 +449,28 @@ impl Navigation {
     }
 
     /// Start `action` at `position` and end the previous one.
-    fn set_action(&mut self, action: Option<MouseAction>, position: DVec2) {
+    fn set_action(&mut self, action: Option<MouseCommand>, position: DVec2) {
         if action == self.action {
             return;
         }
-        if self.action.is_some_and(MouseAction::is_drag) {
+        if self.action.is_some_and(MouseCommand::is_drag) {
             self.controller.set_inactive();
         }
         self.action = action;
         match action {
-            Some(MouseAction::Orbit) => {
+            Some(MouseCommand::Orbit) => {
                 self.controller.set_pivot_from_screen_coordinates(position);
                 self.controller.start_orbit();
             }
-            Some(MouseAction::Pan) => self.controller.start_translate(),
-            Some(MouseAction::Zoom) => {
+            Some(MouseCommand::Pan) => self.controller.start_translate(),
+            Some(MouseCommand::Zoom) => {
                 self.controller
                     .set_zoom_point_from_screen_coordinates(position);
                 self.controller.start_zoom();
             }
-            Some(MouseAction::Select { .. }) | None => {}
+            Some(MouseCommand::Select { .. }) | None => {}
         }
-        if action.is_some_and(MouseAction::is_drag) {
+        if action.is_some_and(MouseCommand::is_drag) {
             self.clicking = false;
         }
     }
@@ -480,12 +482,12 @@ impl Navigation {
     }
 
     /// The drag, whose binding are the pressed buttons with `modifiers`.
-    fn matching_drag(&self, modifiers: Modifiers) -> Option<MouseAction> {
+    fn matching_drag(&self, modifiers: Modifiers) -> Option<MouseCommand> {
         let mouse = &self.controls.mouse;
         [
-            (&mouse.orbit, MouseAction::Orbit),
-            (&mouse.pan, MouseAction::Pan),
-            (&mouse.zoom, MouseAction::Zoom),
+            (&mouse.orbit, MouseCommand::Orbit),
+            (&mouse.pan, MouseCommand::Pan),
+            (&mouse.zoom, MouseCommand::Zoom),
         ]
         .into_iter()
         .find_map(|(bindings, action)| {
@@ -497,7 +499,7 @@ impl Navigation {
     }
 
     /// The selection, whose binding are the pressed buttons with `modifiers`.
-    fn matching_select(&self, modifiers: Modifiers) -> Option<MouseAction> {
+    fn matching_select(&self, modifiers: Modifiers) -> Option<MouseCommand> {
         // Selecting with the multi select modifiers adds to the selection.
         let multi_select = self.controls.keyboard.multi_select;
         self.controls
@@ -507,12 +509,12 @@ impl Navigation {
             .filter(|binding| self.is_pressed(binding))
             .find_map(|binding| {
                 if binding.modifiers == modifiers {
-                    Some(MouseAction::Select { multi: false })
+                    Some(MouseCommand::Select { multi: false })
                 } else if !multi_select.is_empty()
                     && !binding.modifiers.contains(multi_select)
                     && binding.modifiers.union(multi_select) == modifiers
                 {
-                    Some(MouseAction::Select { multi: true })
+                    Some(MouseCommand::Select { multi: true })
                 } else {
                     None
                 }
