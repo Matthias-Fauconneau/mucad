@@ -76,13 +76,6 @@ export class Viewer {
     // The right button orbits, the view has no context menu.
     element.addEventListener("contextmenu", (event) => event.preventDefault());
 
-    const resetButton = document.createElement("button");
-    resetButton.className = "view-button";
-    resetButton.textContent = "Reset camera";
-    resetButton.title = "Look at the whole model";
-    resetButton.addEventListener("click", () => this.resetCamera());
-    element.appendChild(resetButton);
-
     new ResizeObserver(() => this.resize()).observe(element);
     this.renderer.setAnimationLoop(() => this.render());
   }

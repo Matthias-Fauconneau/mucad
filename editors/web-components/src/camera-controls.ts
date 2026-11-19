@@ -67,6 +67,8 @@ function modifiers(event: MouseEvent | KeyboardEvent): number {
  */
 export class CameraControls extends EventTarget {
   private navigation?: CameraNavigation;
+  /** The actions with the bindings of the navigation, e.g. for the help. */
+  private actions?: ActionRegistry;
   /** The calls before the WebAssembly module is loaded. */
   private pending: ((navigation: CameraNavigation) => void)[] = [];
   private loading = false;
@@ -165,6 +167,16 @@ export class CameraControls extends EventTarget {
     this.run((navigation) => navigation.toggleProjection());
   }
 
+  /**
+   * The bindings as a Markdown table, with `basic` only of the basic actions, see `helpMarkdown`
+   * of `ActionRegistry`, once the WebAssembly module is loaded.
+   */
+  help(basic: boolean): Promise<string> {
+    return new Promise((resolve) => {
+      this.run(() => resolve(this.actions?.helpMarkdown(basic) ?? ""));
+    });
+  }
+
   /** Apply the camera of the projection, e.g. in each frame before rendering. */
   update() {
     this.frameStart = performance.now();
@@ -195,6 +207,8 @@ export class CameraControls extends EventTarget {
     clearTimeout(this.contextMenuTimer);
     this.navigation?.free();
     this.navigation = undefined;
+    this.actions?.free();
+    this.actions = undefined;
   }
 
   /** Call `action` with the navigation, after loading the WebAssembly module. */
@@ -222,12 +236,10 @@ export class CameraControls extends EventTarget {
       .catch((error) => console.error("Cannot load the camera controls:", error));
   }
 
-  /** The navigation with the default bindings. */
+  /** The navigation with the default bindings of the actions. */
   private createNavigation(): CameraNavigation {
-    const actions = new ActionRegistry();
-    const navigation = new CameraNavigation(this.width, this.height, actions);
-    actions.free();
-    return navigation;
+    this.actions = new ActionRegistry();
+    return new CameraNavigation(this.width, this.height, this.actions);
   }
 
   /** The position of `event` in pixels from the top left of the element. */
