@@ -43,6 +43,11 @@ impl Format for ast::TrailingExtras {
     }
 }
 
+/// The leading and the trailing extras.
+pub(crate) fn extras(extras: &ast::ItemExtras, f: &FormatConfig) -> (Node, Node) {
+    (extras.leading.format(f), extras.trailing.format(f))
+}
+
 pub(crate) fn with_extras(
     extras: &ast::ItemExtras,
     f: &FormatConfig,

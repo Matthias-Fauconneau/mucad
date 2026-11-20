@@ -1,7 +1,11 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{FormatConfig, node};
+use crate::{
+    FormatConfig,
+    layout::{Column, Line, Paragraph},
+    node,
+};
 
 use mucad_lang_base::{CompactString, ToCompactString};
 
@@ -33,7 +37,8 @@ pub enum Break {
     /// A space, e.g. between two tokens, or where a line of the source broke.
     ///
     /// It is no space at the start of a line, behind a space, an opening bracket or a `.`, and in
-    /// front of a separator, a closing bracket, a `.` or a space.
+    /// front of a separator, a closing bracket, a `.` or a space, but always a space in front of
+    /// a single line comment.
     Soft,
     /// A line break, e.g. behind a statement or a single line comment.
     Hard,
@@ -47,6 +52,8 @@ pub enum Node {
     Nil,
     Text(CompactString),
     Break(Break),
+    /// The start of a cell at a column of a line, which aligns with the cells of other lines.
+    Column(Column),
     Indent {
         width: usize,
         node: Box<Node>,
@@ -103,15 +110,53 @@ impl Node {
     {
         let sep = separator.into();
         match break_mode {
-            BreakMode::NoBreak => Self::hlist(nodes, node!(sep Break::Soft)),
+            BreakMode::NoBreak => Self::hlist(
+                nodes,
+                node!(sep Node::Column(Column::Separator) Break::Soft),
+            ),
             BreakMode::WithIndent(indent_width) => Self::vlist(nodes, sep, indent_width),
+        }
+    }
+
+    /// Items with `,` in brackets, with the extras inside the brackets, e.g. `(a, b)`.
+    ///
+    /// Each item is on its own indented line, if the items are too many or too wide, see
+    /// [`BreakMode::from_layout`], or if the extras break a line, e.g. with a comment behind the
+    /// opening bracket.
+    pub fn bracketed(
+        (open, close): (char, char),
+        (leading, trailing): (Node, Node),
+        items: Vec<Node>,
+        max_items: usize,
+        f: &FormatConfig,
+    ) -> Node {
+        let broken = matches!(
+            BreakMode::from_layout(&items, max_items, f),
+            BreakMode::WithIndent(_)
+        ) || leading.has_line_break()
+            || trailing.has_line_break();
+
+        if broken {
+            let items: Vec<Node> = items
+                .into_iter()
+                .map(|item| node!(item ',' Break::Hard))
+                .collect();
+            node!(
+                open
+                Node::indent(f.indent_width, node!(leading Break::Hard items trailing))
+                Break::Hard
+                close
+            )
+        } else {
+            let separator = node!(',' Node::Column(Column::Separator) Break::Soft);
+            node!(open leading Node::hlist(items, separator) trailing close)
         }
     }
 
     /// The width in characters, if the node is on one line.
     pub fn estimate_width(&self) -> usize {
         match &self {
-            Node::Nil | Node::Break(Break::Hard | Break::Paragraph) => 0,
+            Node::Nil | Node::Column(_) | Node::Break(Break::Hard | Break::Paragraph) => 0,
             Node::Text(text) => text.chars().count(),
             Node::Break(Break::Soft) => 1,
             Node::Indent { width, node } => width + node.estimate_width(),
@@ -133,7 +178,7 @@ impl Node {
             Node::Break(line_break) => *line_break > Break::Soft,
             Node::Indent { node, .. } => node.has_line_break(),
             Node::Group(group) => group.iter().any(Node::has_line_break),
-            Node::Nil => false,
+            Node::Nil | Node::Column(_) => false,
         }
     }
 
@@ -143,7 +188,7 @@ impl Node {
             Node::Break(line_break) => *line_break > Break::Soft,
             Node::Indent { node, .. } => node.ends_with_line_break(),
             Node::Group(group) => group.last().is_some_and(Node::ends_with_line_break),
-            Node::Nil | Node::Text(_) => false,
+            Node::Nil | Node::Text(_) | Node::Column(_) => false,
         }
     }
 
@@ -219,7 +264,15 @@ impl From<CompactString> for Node {
 impl std::fmt::Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut state = RenderState::default();
-        self.render_recursive(f, &mut state)?;
+        self.render_recursive(&mut state);
+
+        for (i, paragraph) in state.paragraphs.iter_mut().enumerate() {
+            paragraph.align();
+            if i > 0 {
+                write!(f, "\n\n")?;
+            }
+            write!(f, "{paragraph}")?;
+        }
         // The output ends with a line break.
         match state.pending {
             Some(Break::Hard | Break::Paragraph) => writeln!(f),
@@ -228,58 +281,79 @@ impl std::fmt::Display for Node {
     }
 }
 
+/// The state of rendering nodes into paragraphs of lines.
 #[derive(Default)]
 struct RenderState {
     indent_level: usize,
     /// The strongest break since the last text, which is written in front of the next text.
     pending: Option<Break>,
-    /// Nothing has been written yet.
-    started: bool,
+    paragraphs: Vec<Paragraph>,
     /// The last text ends with a space, an opening bracket or a `.`, which has no space behind it.
     no_space: bool,
 }
 
-impl Node {
-    fn render_recursive(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-        state: &mut RenderState,
-    ) -> std::fmt::Result {
-        match self {
-            Node::Text(text) => {
-                // No space in front of a separator, a closing bracket, an access or a space.
-                let pending = match state.pending.take() {
-                    Some(Break::Soft) if text.starts_with([',', ';', ')', ']', '.', ' ']) => None,
-                    pending => pending,
-                };
-                let indent = " ".repeat(state.indent_level);
-                match pending {
-                    // No breaks at the start of the output.
-                    _ if !state.started => {}
-                    None => {}
-                    Some(Break::Soft) if state.no_space => {}
-                    Some(Break::Soft) => write!(f, " ")?,
-                    Some(Break::Hard) => write!(f, "\n{indent}")?,
-                    Some(Break::Paragraph) => write!(f, "\n\n{indent}")?,
+impl RenderState {
+    /// The current line, which is `None` at the start.
+    fn line(&mut self) -> Option<&mut Line> {
+        self.paragraphs.last_mut().and_then(|p| p.lines.last_mut())
+    }
+
+    /// Write a text behind the pending break.
+    fn write(&mut self, text: &str) {
+        // No space in front of a separator, a closing bracket, an access or a space.
+        let pending = match self.pending.take() {
+            Some(Break::Soft) if text.starts_with([',', ';', ')', ']', '.', ' ']) => None,
+            pending => pending,
+        };
+        let line = Line::new(self.indent_level);
+        match pending {
+            // No breaks at the start of the output.
+            _ if self.paragraphs.is_empty() => {
+                self.paragraphs.push(Paragraph { lines: vec![line] })
+            }
+            None => {}
+            Some(Break::Soft) if self.no_space && !text.starts_with("//") => {}
+            Some(Break::Soft) => {
+                if let Some(line) = self.line() {
+                    line.push_str(" ");
                 }
-                state.started = true;
-                state.no_space = text.ends_with(['(', '[', '.', ' ']);
-                write!(f, "{text}")
             }
-            Node::Break(line_break) => {
-                state.pending = state.pending.max(Some(*line_break));
-                Ok(())
+            Some(Break::Hard) => {
+                if let Some(paragraph) = self.paragraphs.last_mut() {
+                    paragraph.lines.push(line);
+                }
             }
-            Node::Group(group) => group
-                .iter()
-                .try_for_each(|node| node.render_recursive(f, state)),
+            Some(Break::Paragraph) => self.paragraphs.push(Paragraph { lines: vec![line] }),
+        }
+        self.no_space = text.ends_with(['(', '[', '.', ' ']);
+        if let Some(line) = self.line() {
+            line.push_str(text);
+        }
+    }
+
+    /// Start a cell of the current line at a column, unless a line break is pending.
+    fn mark(&mut self, column: Column) {
+        if matches!(self.pending, None | Some(Break::Soft))
+            && let Some(line) = self.line()
+        {
+            line.mark(column);
+        }
+    }
+}
+
+impl Node {
+    fn render_recursive(&self, state: &mut RenderState) {
+        match self {
+            Node::Text(text) => state.write(text),
+            Node::Break(line_break) => state.pending = state.pending.max(Some(*line_break)),
+            Node::Column(column) => state.mark(*column),
+            Node::Group(group) => group.iter().for_each(|node| node.render_recursive(state)),
             Node::Indent { width, node } => {
                 state.indent_level += width;
-                node.render_recursive(f, state)?;
+                node.render_recursive(state);
                 state.indent_level -= width;
-                Ok(())
             }
-            Node::Nil => Ok(()),
+            Node::Nil => {}
         }
     }
 }

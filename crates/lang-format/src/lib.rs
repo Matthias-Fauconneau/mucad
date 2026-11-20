@@ -6,12 +6,16 @@ use mucad_lang_parse::{Ast, ParseIssue, ast, parse};
 
 mod expression;
 mod extras;
+mod layout;
 mod literal;
 mod node;
 mod statement;
 mod ty;
 
-pub(crate) use crate::node::{Break, BreakMode, Node};
+pub(crate) use crate::{
+    layout::Column,
+    node::{Break, BreakMode, Node},
+};
 
 #[derive(Debug, Clone)]
 pub struct FormatConfig {
@@ -61,10 +65,10 @@ impl Format for ast::Comment {
     fn format(&self, _: &FormatConfig) -> Node {
         match &self.inner {
             ast::CommentInner::SingleLine(line) => {
-                node!(Break::Soft line.clone() Break::Hard)
+                node!(Node::Column(Column::Comment) Break::Soft line.clone() Break::Hard)
             }
             ast::CommentInner::MultiLine(line) => {
-                node!(Break::Soft "/* " line.clone() " */" Break::Soft)
+                node!(Node::Column(Column::Comment) Break::Soft "/* " line.clone() " */" Break::Soft)
             }
         }
     }

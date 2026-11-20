@@ -1,7 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{Break, BreakMode, Format, FormatConfig, Node, node};
+use crate::{Break, BreakMode, Column, Format, FormatConfig, Node, extras::extras, node};
 
 use mucad_lang_parse::ast;
 
@@ -19,9 +19,9 @@ impl Format for ast::Parameter {
         node!(f, self.extras =>
             match (&self.ty, &self.default) {
                 (None, None) => self.id.format(f),
-                (None, Some(def)) => node!(f => self.id " = " def),
+                (None, Some(def)) => node!(f => self.id Node::Column(Column::Assign) " = " def),
                 (Some(ty), None) => node!(f => self.id ": " ty),
-                (Some(ty), Some(def)) => node!(f => self.id ": " ty " = " def),
+                (Some(ty), Some(def)) => node!(f => self.id ": " ty Node::Column(Column::Assign) " = " def),
             }
         )
     }
@@ -30,11 +30,7 @@ impl Format for ast::Parameter {
 impl Format for ast::ParameterList {
     fn format(&self, f: &FormatConfig) -> Node {
         let nodes: Vec<Node> = self.parameters.iter().map(|item| item.format(f)).collect();
-        let break_mode = BreakMode::from_layout(&nodes, 4, f);
-
-        node!(f =>
-            '(' node!(f, self.extras => Node::list(nodes, ',', break_mode)) ')'
-        )
+        Node::bracketed(('(', ')'), extras(&self.extras, f), nodes, 4, f)
     }
 }
 
@@ -134,7 +130,7 @@ impl Format for ast::def::Constant {
         node!(f, self.extras =>
             self.doc
             self.attr
-            vis "const " self.id " = " self.expr
+            vis "const " self.id Node::Column(Column::Assign) " = " self.expr
         )
     }
 }
@@ -169,7 +165,7 @@ impl Format for ast::LocalAssignment {
                 Some(ty) => node!(f => ':' Break::Soft ty),
                 None => Node::Nil,
             }
-            Break::Soft '=' Break::Soft
+            Node::Column(Column::Assign) Break::Soft '=' Break::Soft
         );
 
         node!(f, self.extras =>
@@ -186,7 +182,7 @@ impl Format for ast::PropertyAssignment {
             self.attr
             "prop" Break::Soft self.id
             self.ty.as_ref().map(|ty| node!(f => ':' Break::Soft ty))
-            " = " self.value
+            Node::Column(Column::Assign) " = " self.value
         )
     }
 }

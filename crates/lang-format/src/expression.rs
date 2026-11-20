@@ -1,7 +1,9 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{Break, BreakMode, Format, FormatConfig, Node, node, statement::statements_and_tail};
+use crate::{
+    Break, Column, Format, FormatConfig, Node, extras::extras, node, statement::statements_and_tail,
+};
 
 use mucad_lang_parse::{ast, token::escape_char};
 
@@ -145,7 +147,7 @@ impl Format for ast::TupleItem {
     fn format(&self, f: &FormatConfig) -> Node {
         node!(f, self.extras =>
             match &self.id {
-                Some(name) => node!(f => name " = " self.expr),
+                Some(name) => node!(f => name Node::Column(Column::Assign) " = " self.expr),
                 None => node!(f => self.expr)
             }
         )
@@ -155,10 +157,7 @@ impl Format for ast::TupleItem {
 impl Format for ast::TupleExpression {
     fn format(&self, f: &FormatConfig) -> Node {
         let nodes: Vec<Node> = self.values.iter().map(|item| item.format(f)).collect();
-        let break_mode = BreakMode::from_layout(&nodes, 4, f);
-        node!(f, self.extras =>
-            '(' Node::list(nodes, ',', break_mode) ')'
-        )
+        Node::bracketed(('(', ')'), extras(&self.extras, f), nodes, 4, f)
     }
 }
 
@@ -170,18 +169,28 @@ impl Format for ast::ListItem {
 
 impl Format for ast::RangeExpression {
     fn format(&self, f: &FormatConfig) -> Node {
-        node!(f, self.extras =>
-            '[' self.start ".." self.end ']' self.unit
-        )
+        // The extras are inside the brackets, a comment breaks the range like a list.
+        let (leading, trailing) = extras(&self.extras, f);
+        let range = node!(f => self.start ".." self.end);
+        if leading.has_line_break() || trailing.has_line_break() {
+            node!(f =>
+                '['
+                Node::indent(f.indent_width, node!(leading Break::Hard range trailing))
+                Break::Hard
+                ']'
+                self.unit
+            )
+        } else {
+            node!(f => '[' leading range trailing ']' self.unit)
+        }
     }
 }
 
 impl Format for ast::ListExpression {
     fn format(&self, f: &FormatConfig) -> Node {
         let nodes: Vec<Node> = self.items.iter().map(|item| item.format(f)).collect();
-        let break_mode = BreakMode::from_layout(&nodes, 0, f);
-        node!(f, self.extras =>
-            '[' Node::list(nodes, ',', break_mode) ']' self.unit
+        node!(f =>
+            Node::bracketed(('[', ']'), extras(&self.extras, f), nodes, 0, f) self.unit
         )
     }
 }
@@ -224,16 +233,14 @@ impl Format for ast::UnnamedArgument {
 
 impl Format for ast::NamedArgument {
     fn format(&self, f: &FormatConfig) -> Node {
-        node!(f, self.extras => self.id " = " self.expr)
+        node!(f, self.extras => self.id Node::Column(Column::Assign) " = " self.expr)
     }
 }
 
 impl Format for ast::ArgumentList {
     fn format(&self, f: &FormatConfig) -> Node {
         let nodes: Vec<Node> = self.arguments.iter().map(|item| item.format(f)).collect();
-        let break_mode = BreakMode::from_layout(&nodes, 4, f);
-
-        node!('(' node!(f, self.extras => Node::list(nodes, ',', break_mode)) ')')
+        Node::bracketed(('(', ')'), extras(&self.extras, f), nodes, 4, f)
     }
 }
 
