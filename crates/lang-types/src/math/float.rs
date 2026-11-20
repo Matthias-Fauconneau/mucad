@@ -83,7 +83,7 @@ impl FromFixed<Angle> for ScalarF {
 impl FromFloat<ScalarF> for Angle {
     #[inline]
     fn from_float(val: ScalarF) -> Self {
-        cgmath::Rad(Scalar::from_num(val))
+        Angle(Scalar::from_num(val))
     }
 }
 

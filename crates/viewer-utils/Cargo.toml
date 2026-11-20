@@ -33,8 +33,6 @@ toml = { version = "1.1.2", features = ["serde"] }
 mucad-core = { workspace = true }
 
 [dev-dependencies]
-# The vectors of the meshes of mucad-core in tests.
-cgmath = "0.18"
 # Checks the layout of the uniforms against their WGSL.
 naga = { version = "27", features = ["wgsl-in"] }
 

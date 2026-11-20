@@ -11,8 +11,6 @@ version.workspace = true
 
 [dependencies]
 bytemuck = "1.24.0"
-# The vectors and matrices of fixed point scalars.
-cgmath = { version = "0.18", features = ["serde"] }
 derive_more = { version = "2.0.1", features = [
     "deref",
     "deref_mut",

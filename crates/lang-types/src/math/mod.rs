@@ -12,7 +12,7 @@ pub use affine_transform::AffineTransform;
 pub use float::*;
 pub use ops::MathOps;
 
-use crate::{Angle, Mat3, Mat4, Scalar, Vec3};
+use crate::{Angle, Mat3, Mat4, Scalar, Vec3, Vec4};
 
 use glam::{DMat3, DVec3};
 
@@ -108,10 +108,11 @@ pub fn align_vectors_rodrigues(from: Vec3, to: Vec3) -> Mat3 {
 }
 
 pub fn mat3_to_mat4(mat3: Mat3) -> Mat4 {
-    let zero = Scalar::from_num(0.0);
-    let one = Scalar::from_num(1.0);
-    Mat4::new(
-        mat3.x.x, mat3.x.y, mat3.x.z, zero, mat3.y.x, mat3.y.y, mat3.y.z, zero, mat3.z.x, mat3.z.y,
-        mat3.z.z, zero, zero, zero, zero, one,
+    let column = |c: crate::Vec3| Vec4::new(c.x, c.y, c.z, Scalar::ZERO);
+    Mat4::from_cols(
+        column(mat3.x),
+        column(mat3.y),
+        column(mat3.z),
+        Vec4::new(Scalar::ZERO, Scalar::ZERO, Scalar::ZERO, Scalar::ONE),
     )
 }

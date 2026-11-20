@@ -95,7 +95,7 @@ impl std::fmt::Display for AffineTransform {
                 write!(f, "Translate({x}, {y}, {z})")
             }
             AffineTransform::RotateMatrix { m } => {
-                // The columns, like cgmath did.
+                // The columns.
                 write!(
                     f,
                     "RotateMatrix(Matrix3 {m:?})",
@@ -157,8 +157,7 @@ impl std::hash::Hash for AffineTransform {
                 z.hash(state);
             }
             AffineTransform::RotateMatrix { m } => {
-                let slice: &[Scalar; 9] = m.as_ref();
-                bytemuck::bytes_of(slice).hash(state);
+                m.hash(state);
             }
             AffineTransform::RotateAroundAxis { angle, vec } => {
                 angle.0.hash(state);
@@ -177,8 +176,7 @@ impl std::hash::Hash for AffineTransform {
                 s.hash(state);
             }
             AffineTransform::Arbitrary(m) => {
-                let slice: &[Scalar; 16] = m.as_ref();
-                bytemuck::bytes_of(slice).hash(state);
+                m.hash(state);
             }
         }
     }

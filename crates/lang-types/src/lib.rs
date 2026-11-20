@@ -12,6 +12,9 @@ mod color;
 pub use color::Color;
 
 mod arguments;
+mod vector;
+pub use vector::{Vec2, Vec3, Vec4};
+
 pub use arguments::{ArgumentName, ArgumentValue, ArgumentValueList, Arguments};
 
 use derive_more::Display;
@@ -40,15 +43,16 @@ pub type Integer = fixed::FixedI64<fixed::types::extra::U0>;
 
 pub type Scalar = fixed::FixedI128<fixed::types::extra::U64>;
 
-/// 2D vector type.
-pub type Vec2 = cgmath::Vector2<Scalar>;
-/// 3D vector type.
-pub type Vec3 = cgmath::Vector3<Scalar>;
-/// 4D vector type.
-pub type Vec4 = cgmath::Vector4<Scalar>;
-
 /// Primitive angle type in radians.
-pub type Angle = cgmath::Rad<Scalar>;
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Angle(pub Scalar);
+
+/// The radians, e.g. `1.5 rad`.
+impl std::fmt::Debug for Angle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} rad", self.0)
+    }
+}
 
 /// A length in mm
 #[derive(

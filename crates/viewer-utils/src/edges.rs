@@ -209,7 +209,7 @@ mod tests {
         TriangleMesh {
             positions: positions
                 .iter()
-                .map(|p| cgmath::Vector3::new(p[0], p[1], p[2]))
+                .map(|p| glam::Vec3::from_array(*p))
                 .collect(),
             normals: None,
             triangle_indices: triangles

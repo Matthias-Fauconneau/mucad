@@ -221,7 +221,7 @@ impl TryFrom<Value> for Angle {
                 value,
                 quantity_type: QuantityType::Angle,
                 ..
-            }) => Ok(cgmath::Rad(value)),
+            }) => Ok(Angle(value)),
             _ => Err(ValueError::CannotConvert(value.to_string(), "Angle".into())),
         }
     }
