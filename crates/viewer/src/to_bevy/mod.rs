@@ -43,8 +43,7 @@ impl ToBevy<bevy::prelude::Vec3> for mu::core::Color {
 
 impl ToBevy<bevy::prelude::Mat4> for mu::core::DMat4 {
     fn to_bevy(self) -> bevy::prelude::Mat4 {
-        // Transposed like before, when the matrix was of cgmath.
-        self.transpose().as_mat4()
+        self.as_mat4()
     }
 }
 
@@ -52,4 +51,18 @@ impl ToBevy<bevy::prelude::Transform> for mu::core::DMat4 {
     fn to_bevy(self) -> bevy::prelude::Transform {
         Transform::from_matrix(self.to_bevy())
     }
+}
+
+#[test]
+fn matrix_to_transform() {
+    let matrix = mu::core::DMat4::from_translation(mu::core::DVec3::new(1.0, 2.0, 3.0))
+        * mu::core::DMat4::from_rotation_z(std::f64::consts::FRAC_PI_2);
+    let transform: Transform = matrix.to_bevy();
+    assert_eq!(
+        transform.translation,
+        bevy::prelude::Vec3::new(1.0, 2.0, 3.0)
+    );
+    assert!(
+        (transform.rotation * bevy::prelude::Vec3::X).abs_diff_eq(bevy::prelude::Vec3::Y, 1e-6)
+    );
 }
