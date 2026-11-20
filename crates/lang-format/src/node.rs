@@ -56,6 +56,14 @@ pub enum Node {
     Group(Box<Node>),
     /// A node, which is only rendered, if its group breaks, e.g. a trailing `,`.
     IfBroken(Box<Node>),
+    /// The pieces of a string between `"`, which is continued with `+` on the next line in front
+    /// of a piece, which does not fit, e.g.:
+    ///
+    /// ```mu
+    /// path = "M -9,-15 H 4 C 12,-15 12,-7 "
+    ///     + "4,-7 H -9 Z";
+    /// ```
+    Str(Vec<Node>),
     /// A line comment, e.g. `// …`, which is wrapped into the maximal width, with its column in
     /// the source, if it started a line there.
     Comment(CompactString, Option<usize>),
@@ -87,10 +95,11 @@ impl Node {
         extras: &ast::ItemExtras,
         items: Vec<Node>,
     ) -> Node {
-        let trailing_comma = match items.is_empty() {
-            true => Node::Nil,
-            false => Node::IfBroken(Box::new(','.into())),
-        };
+        // Empty brackets do not break, e.g. `()`, only behind a comment.
+        if items.is_empty() {
+            return node!(open extras.leading extras.trailing close);
+        }
+        let trailing_comma = Node::IfBroken(Box::new(','.into()));
         let separator = node!(',' Break::Line Node::Column(Column::Separator));
         Node::group(node!(
             open
@@ -125,6 +134,7 @@ impl Node {
             Node::Break(Break::Space | Break::Line) => 1,
             Node::Indent(node) | Node::Group(node) => node.flat_width(),
             Node::Concat(nodes) => nodes.iter().map(Node::flat_width).sum(),
+            Node::Str(pieces) => 2 + pieces.iter().map(Node::flat_width).sum::<usize>(),
             Node::Nil
             | Node::Column(_)
             | Node::IfBroken(_)
@@ -139,6 +149,8 @@ impl Node {
             Node::Break(Break::SoftLine | Break::Line | Break::Hard | Break::Paragraph)
             | Node::Comment(..) => (0, true),
             Node::Indent(node) | Node::Group(node) => node.width_to_break(),
+            // A string can break behind its first piece.
+            Node::Str(pieces) if pieces.len() > 1 => (1 + pieces[0].flat_width(), true),
             Node::Concat(nodes) => {
                 let mut width = 0;
                 for node in nodes {
@@ -160,7 +172,7 @@ impl Node {
             Node::Text(text) => text.contains('\n'),
             Node::Break(line_break) => *line_break >= Break::Hard,
             Node::Indent(node) | Node::Group(node) | Node::IfBroken(node) => node.has_line_break(),
-            Node::Concat(nodes) => nodes.iter().any(Node::has_line_break),
+            Node::Concat(nodes) | Node::Str(nodes) => nodes.iter().any(Node::has_line_break),
             Node::Nil | Node::Column(_) | Node::Comment(..) => false,
         }
     }
@@ -390,6 +402,27 @@ impl Node {
                     Mode::Broken => Mode::Broken,
                 };
                 node.render_recursive(mode, trailing, state);
+            }
+            Node::Str(pieces) => {
+                state.write("\"");
+                let indent_level = state.indent_level;
+                for (i, piece) in pieces.iter().enumerate() {
+                    // The closing `"` and the text behind the string must fit, too.
+                    let behind = if i + 1 == pieces.len() {
+                        1 + trailing
+                    } else {
+                        1
+                    };
+                    if i > 0 && state.column() + piece.flat_width() + behind > state.max_width {
+                        state.write("\"");
+                        state.indent_level = indent_level + state.indent_width;
+                        state.add_break(Break::Hard, mode);
+                        state.write("+ \"");
+                    }
+                    piece.render_recursive(Mode::Flat, 0, state);
+                }
+                state.write("\"");
+                state.indent_level = indent_level;
             }
             Node::IfBroken(node) => {
                 if mode == Mode::Broken {

@@ -27,4 +27,5 @@ sketch S(
     pressure_angle = 20°,
     backlash       = 0mm,
     clearance: Length,
+    profile_shift: Length,
 ) {}

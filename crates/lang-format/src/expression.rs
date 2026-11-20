@@ -1,7 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{Break, Column, Format, Node, node};
+use crate::{Break, Column, Format, Node, literal::string_literal, node};
 
 use mucad_lang_parse::{ast, token::escape_char};
 
@@ -136,15 +136,34 @@ impl Format for ast::StringFormatSpecification {
 
 impl Format for ast::FormatString {
     fn format(&self) -> Node {
-        node!(self.extras =>
-            '"'
-            self.parts
-                .iter()
-                .map(|part| part.format())
-                .collect::<Vec<_>>()
-            '"'
-        )
+        format_string(self, true)
     }
+}
+
+/// A string, which is split into pieces behind its spaces, if `split` is set, at which it is
+/// continued with `+` on the next line, if it does not fit, see [`Node::Str`].
+///
+/// A string is not split inside of an escape sequence or an expression of a format string.
+fn format_string(string: &ast::FormatString, split: bool) -> Node {
+    let mut pieces = Vec::new();
+    let mut piece = Vec::new();
+    for part in &string.parts {
+        match part {
+            ast::StringPart::Content(content) if split => {
+                for text in content.content.split_inclusive(' ') {
+                    piece.push(Node::from(text));
+                    if text.ends_with(' ') {
+                        pieces.push(Node::from(std::mem::take(&mut piece)));
+                    }
+                }
+            }
+            part => piece.push(part.format()),
+        }
+    }
+    if !piece.is_empty() {
+        pieces.push(Node::from(piece));
+    }
+    node!(string.extras => Node::Str(pieces))
 }
 
 impl Format for ast::TupleItem {
@@ -328,7 +347,16 @@ impl Format for ast::ElementAccess {
             .collect();
         // The chain is not indented without line breaks, e.g. not the arguments of a single call,
         // unless a comment breaks the line in front of it.
-        let expr = self.expr.format();
+        // A string is not split in front of a method call, e.g. `"text".len()`.
+        let expr = match self.expr.as_ref() {
+            ast::Expression::String(string) => format_string(string, false),
+            ast::Expression::Literal(ast::Literal {
+                literal: ast::LiteralKind::String(string),
+                extras,
+                ..
+            }) => node!(extras => string_literal(string, false)),
+            expr => expr.format(),
+        };
         let chain = match self.expr.as_ref() {
             ast::Expression::Body(_) => node!(chain),
             _ if methods <= 1 && !expr.has_line_break() => node!(chain),

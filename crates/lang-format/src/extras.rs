@@ -7,9 +7,9 @@ use crate::{Column, Format, Node, node, node::Break};
 
 /// The comments and line breaks of extras.
 ///
-/// A line break of the source is a [`Break::Space`], so the formatter decides about it, but it
-/// is a [`Break::Hard`] in front of a comment, which stays on its own line. Blank lines are a
-/// [`Break::Paragraph`].
+/// A line break of the source is dropped, because the formatter decides about line breaks and
+/// spaces, but it is a [`Break::Hard`] in front of a comment, which stays on its own line. Blank
+/// lines are a [`Break::Paragraph`].
 fn format_extras(extras: &[ast::ItemExtra]) -> Node {
     extras
         .iter()
@@ -37,9 +37,8 @@ fn format_extras(extras: &[ast::ItemExtra]) -> Node {
             ast::ItemExtra::Whitespace(ast::Whitespace(ws)) => {
                 let before_comment = matches!(extras.get(i + 1), Some(ast::ItemExtra::Comment(_)));
                 match ws.matches('\n').count() {
-                    0 => Node::Nil,
                     1 if before_comment => Break::Hard.into(),
-                    1 => Break::Space.into(),
+                    0 | 1 => Node::Nil,
                     _ => Break::Paragraph.into(),
                 }
             }

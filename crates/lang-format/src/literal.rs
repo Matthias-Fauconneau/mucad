@@ -26,15 +26,23 @@ impl Format for ast::LiteralKind {
 
 impl Format for ast::StringLiteral {
     fn format(&self) -> Node {
-        let mut literal = String::from('"');
-        for c in self.content.chars() {
-            match escape_char(c) {
-                Some(escaped) => literal.push_str(escaped),
-                None => literal.push(c),
-            }
+        string_literal(self, true)
+    }
+}
+
+/// A string literal, which is split into pieces behind its spaces, if `split` is set, at which
+/// it is continued with `+` on the next line, if it does not fit, see [`Node::Str`].
+pub(crate) fn string_literal(literal: &ast::StringLiteral, split: bool) -> Node {
+    let mut escaped = String::new();
+    for c in literal.content.chars() {
+        match escape_char(c) {
+            Some(sequence) => escaped.push_str(sequence),
+            None => escaped.push(c),
         }
-        literal.push('"');
-        literal.into()
+    }
+    match split {
+        true => Node::Str(escaped.split_inclusive(' ').map(Node::from).collect()),
+        false => Node::Str(vec![escaped.into()]),
     }
 }
 
