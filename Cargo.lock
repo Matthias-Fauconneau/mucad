@@ -5314,6 +5314,7 @@ dependencies = [
  "mucad-lang-types",
  "mucad-render",
  "mucad-std",
+ "mucad-viewer-utils",
  "notify",
  "serde",
  "tempfile",
@@ -5602,12 +5603,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mucad-viewer-utils"
+version = "0.6.3"
+dependencies = [
+ "cgmath",
+ "encase",
+ "glam 0.30.10",
+ "mucad-core",
+ "naga",
+ "naga_oil",
+ "regex",
+ "serde",
+ "serde_with",
+ "strum",
+ "toml 1.2.1+spec-1.1.0",
+]
+
+[[package]]
 name = "mucad-wasm"
 version = "0.6.3"
 dependencies = [
  "cgmath",
  "console_error_panic_hook",
  "geo",
+ "glam 0.30.10",
  "js-sys",
  "mucad-driver",
  "qrcode",
@@ -10834,6 +10853,7 @@ dependencies = [
  "mucad-driver",
  "regex",
  "semver",
+ "serde_json",
  "tempfile",
  "toml_edit 0.25.19+spec-1.1.0",
  "walkdir",

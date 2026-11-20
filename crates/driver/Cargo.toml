@@ -11,6 +11,14 @@ rust-version.workspace = true
 license.workspace = true
 keywords.workspace = true
 
+[features]
+# The utilities of the viewers as `prelude::viewer`, e.g. the camera navigation.
+viewer = ["dep:mucad-viewer-utils"]
+# The parameters of the shaders as uniforms of Bevy, see `mucad-viewer-utils`.
+viewer-encase = ["viewer", "mucad-viewer-utils/encase"]
+# The conversion of the shaders to GLSL, e.g. for `cargo xtask web`.
+viewer-glsl = ["viewer", "mucad-viewer-utils/glsl"]
+
 [dependencies]
 base64 = "0.23"
 brotli = "9.1"
@@ -35,6 +43,7 @@ mucad-lang-parse = { workspace = true }
 mucad-lang-resolve = { workspace = true }
 mucad-lang-types = { workspace = true }
 mucad-std = { workspace = true }
+mucad-viewer-utils = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = "1.48.0"

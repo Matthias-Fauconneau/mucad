@@ -30,7 +30,7 @@ use miette::IntoDiagnostic;
 pub enum ProcessorResponse {
     /// Remove model instances from the registry (this mean the model will rerendered in the next render call).
     RemoveModelInstances(Vec<Uuid>),
-    /// Create a new bevy mesh asset for a model with the mesh of its contour edges, if any.
+    /// Create a new bevy mesh asset for a model with the mesh of its edge lines, if any.
     ///
     /// The edges are stored with the uuid of [`registry::edge_mesh_uuid`].
     NewMeshAsset(Uuid, Mesh, Option<Mesh>),

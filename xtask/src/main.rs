@@ -4,7 +4,9 @@
 mod change_version;
 mod check_readme;
 mod doctest;
+mod generated;
 mod update_copyright;
+mod web;
 
 use clap::{Parser, Subcommand};
 use std::error::Error;
@@ -58,6 +60,14 @@ enum Commands {
         output_path: Option<std::path::PathBuf>,
     },
 
+    /// Generate files of the web components from Rust, e.g. the colors of the theme as CSS
+    /// and TypeScript
+    Web {
+        /// Only check that the generated files are up to date
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Test an mdbook and update test results, if needed.
     Doctest {
         /// Do not write any output files (no export and no logs)
@@ -77,14 +87,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         Commands::UpdateCopyright => {
             // Assign AGPLv3.0 license by default.
             CopyrightUpdater::new(".")
-                .extensions(&["rs", "slint", "wgsl"], "//")
+                .extensions(&["rs", "slint", "ts", "wgsl", "css"])
                 .exclude("target/*")
                 .with_git_exclusions()
                 .update()?;
 
             // Assign MIT license to .mu files.
             CopyrightUpdater::new(".")
-                .extensions(MUCAD_EXTENSIONS, "//")
+                .extensions(MUCAD_EXTENSIONS)
                 .license("MIT")
                 .exclude("target/*")
                 .exclude(format!("crates/*/tests/*.{MUCAD_EXTENSION}"))
@@ -104,6 +114,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             };
             check_readme::check_readme(&paths, list)
         }
+        Commands::Web { check } => web::web(check),
         Commands::DocgenBuiltin { output_path } => {
             let builtin_lib = mu::BuiltinLibrary::new();
             mu::docgen::BuiltinLibraryDocGenerator::new(&builtin_lib)

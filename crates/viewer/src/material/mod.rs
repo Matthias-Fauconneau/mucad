@@ -5,6 +5,8 @@
 
 use std::marker::PhantomData;
 
+use mucad_driver::prelude as mu;
+
 use bevy::{
     app::{App, Plugin, Startup},
     asset::{Assets, Handle, uuid::Uuid},
@@ -14,11 +16,15 @@ use bevy::{
 };
 
 mod angle;
+mod edge;
 mod grid;
+mod model;
 mod ruler;
 
 pub use angle::Angle;
-pub use grid::{Grid, GridUniform};
+pub use edge::{ATTRIBUTE_MIDPOINT, ATTRIBUTE_NORMAL_A, ATTRIBUTE_NORMAL_B, EdgeMaterial};
+pub use grid::Grid;
+pub use model::{ModelLighting, ModelMaterial, model_material};
 pub use ruler::Ruler;
 
 /// Common types to be used from bevy.
@@ -35,7 +41,7 @@ pub mod bevy_types {
 /// The shader material asset id. This assures that we can query the correct material from a model node.
 pub static BUILTIN_MATERIAL_ASSET_ID: u64 = 0x1234123412341234;
 
-fn asset_uuid_from_str(s: &'static str) -> Uuid {
+fn asset_uuid_from_str(s: &str) -> Uuid {
     use std::hash::{Hash, Hasher};
     let mut hasher = rustc_hash::FxHasher::default();
     s.hash(&mut hasher);
@@ -81,19 +87,8 @@ pub fn create_3d_material(base_color: bevy::prelude::Color) -> bevy_types::Stand
     }
 }
 
-/// The uuid of the material of the contour edges of 3D models, which all models share.
+/// The uuid of the material of the edge lines of 3D models, which all models share.
 pub const EDGE_MATERIAL_UUID: Uuid = Uuid::from_u64_pair(BUILTIN_MATERIAL_ASSET_ID, 0xED6E);
-
-/// Create the material of contour edges (unlit), which are drawn in front of their faces.
-pub fn create_edge_material(color: bevy::prelude::Color) -> bevy_types::StandardMaterial {
-    bevy_types::StandardMaterial {
-        base_color: color,
-        unlit: true,
-        // The edges lie on the faces, so they are moved closer to the camera to stay visible.
-        depth_bias: 100.0,
-        ..Default::default()
-    }
-}
 
 /// Material plugin.
 pub struct MaterialPlugin;
@@ -102,6 +97,8 @@ impl Plugin for MaterialPlugin {
     fn build(&self, app: &mut App) {
         type Material<T> = bevy::prelude::MaterialPlugin<T>;
         app.add_plugins(Material::<Grid>::default())
+            .add_plugins(Material::<ModelMaterial>::default())
+            .add_plugins(Material::<EdgeMaterial>::default())
             .add_plugins(Material::<Angle>::default())
             .add_plugins(Material::<Ruler>::default())
             .add_systems(Startup, load_materials);
@@ -120,6 +117,18 @@ macro_rules! add_shader_asset {
 }
 
 fn load_materials(mut shaders: ResMut<Assets<Shader>>) {
+    // The libraries of `mucad_viewer_utils`, which the shaders import, e.g. `grid.wgsl`.
+    for library in mu::viewer::shaders::LIBRARIES {
+        let path = format!("mucad_viewer_utils/{}", library.name);
+        shaders
+            .insert(
+                asset_uuid_from_str(&path),
+                Shader::from_wgsl(library.source, path),
+            )
+            .ok();
+    }
+    add_shader_asset!(shaders, "model.wgsl");
+    add_shader_asset!(shaders, "edge.wgsl");
     //add_shader_asset!(shaders, "angle.wgsl");
     //add_shader_asset!(shaders, "arrow.wgsl");
     add_shader_asset!(shaders, "grid.wgsl");

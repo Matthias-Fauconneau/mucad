@@ -12,7 +12,7 @@ import type {
   Severity,
   SteppedLiteral,
 } from "./compiler/types";
-import { theme } from "./theme";
+import { theme } from "./generated/theme";
 import "./editor.css";
 
 /** A Monaco editor of µcad code. */
@@ -80,14 +80,14 @@ function defineTheme() {
       { token: "keyword", foreground: color(theme.guide), fontStyle: "bold" },
       { token: "type", foreground: color(theme.signal) },
       { token: "number", foreground: color(theme.signal) },
-      { token: "string", foreground: color(theme.brighter) },
+      { token: "string", foreground: color(theme.bright) },
       { token: "comment", foreground: color(theme.darker), fontStyle: "italic" },
-      { token: "annotation", foreground: color(theme.brighter) },
-      { token: "identifier", foreground: color(theme.bright) },
+      { token: "annotation", foreground: color(theme.bright) },
+      { token: "identifier", foreground: color(theme.brighter) },
     ],
     colors: {
       "editor.background": theme.primary,
-      "editor.foreground": theme.bright,
+      "editor.foreground": theme.brighter,
       "editorLineNumber.foreground": theme.darker,
       "editorCursor.foreground": theme.signal,
       "editor.selectionBackground": theme.darker,

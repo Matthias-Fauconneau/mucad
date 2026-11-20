@@ -1,21 +1,34 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The µcad toolchain for WebAssembly: compile µcad code, render it and export it,
-//! e.g. in a browser. See the README for the usage from JavaScript.
+//! The µcad toolchain for WebAssembly: compile µcad code, render it and export it, and
+//! navigate the camera of a viewer, e.g. in a browser. See the README for the usage from
+//! JavaScript.
 
 use std::sync::Arc;
 
+mod actions;
 mod completion;
 mod diagnostic;
 mod geometry;
 mod literal;
+mod navigation;
 mod share;
 
+pub use actions::ActionRegistry;
 pub use completion::Completion;
 pub use diagnostic::{Diagnostic, Severity};
 pub use literal::{LiteralRange, SteppedLiteral};
+pub use navigation::{ALT, CTRL, CameraNavigation, META, SHIFT, Selection};
 pub use share::SharedLink;
+
+/// The angle in degrees between the normals of two faces, above which their edge is sharp: it
+/// is a contour edge of a mesh, and the normals are not smoothed across it, e.g. with
+/// `toCreasedNormals` of three.js.
+#[wasm_bindgen(js_name = creaseAngle)]
+pub fn crease_angle() -> f64 {
+    mu::viewer::CREASE_ANGLE_DEGREES
+}
 
 use mu::{
     base::DiagRenderOptions,
@@ -46,6 +59,8 @@ pub struct Mucad {
     renderer: Renderer,
     /// The model of the last successful compilation.
     model: Option<mu::ModelTree>,
+    /// The actions of the viewer.
+    actions: ActionRegistry,
 }
 
 #[wasm_bindgen]
@@ -66,7 +81,14 @@ impl Mucad {
             compiler,
             renderer: Renderer::new().with_cache(mu::SharedMut::new(RenderCache::new())),
             model: None,
+            actions: ActionRegistry::new(),
         }
+    }
+
+    /// The actions of the viewer, e.g. for its help.
+    #[wasm_bindgen(getter)]
+    pub fn actions(&self) -> ActionRegistry {
+        self.actions.clone()
     }
 
     /// Set the linear render resolution in millimeters, e.g. `0.1` for fine circles.

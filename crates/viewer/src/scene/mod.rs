@@ -5,49 +5,36 @@
 
 use crate::*;
 use bevy::prelude::*;
+use mu::viewer::CameraControl;
+
+use crate::actions::RegisterAction;
+use mucad_driver::prelude as mu;
 
 mod angle;
 mod camera;
-pub use camera::CameraView;
+pub use camera::{
+    CameraView,
+    camera_controller::{
+        CameraControllerPlugin, CameraControllerSystems, CameraNavigation, SelectAt,
+    },
+};
 mod grid;
-mod lighting;
 mod overlay;
 mod ruler;
 
-/// Get current zoom level.
-pub fn get_current_zoom_level(projection: &Projection) -> f32 {
-    match projection {
-        Projection::Orthographic(orthographic_projection) => orthographic_projection.scale,
-        _ => todo!(),
-    }
+/// The inverse zoom level of the camera, e.g. like the scale of an orthographic projection:
+/// 1 shows the whole scene, a smaller one shows the model bigger.
+pub fn get_current_zoom_level(controller: &dyn CameraControl) -> f32 {
+    1.0 / controller.zoom_level() as f32
 }
 
-/// Get current resolution in mm.
-pub fn get_current_resolution(projection: &Projection, window: &Window) -> f32 {
-    let area_size = match projection {
-        Projection::Orthographic(orthographic_projection) => orthographic_projection
-            .area
-            .width()
-            .max(orthographic_projection.area.height()),
-        _ => todo!(),
-    };
-
-    area_size / window.width().max(window.height()) * 10.0
-}
-
-/// Set zoom level to 100%.
-pub fn zoom_to_fit(projection: &mut Projection, window: &Window) {
-    match projection {
-        Projection::Orthographic(ortho) => {
-            // Change the projection parameters
-            use bevy::camera::CameraProjection;
-            ortho.scale = 1.0;
-            ortho.update(window.width(), window.height());
-        }
-        _ => {
-            // Not an orthographic camera
-        }
-    }
+/// The current resolution in mm: the larger side of the visible area at the pivot per the
+/// larger side of the window, times 10.
+pub fn get_current_resolution(controller: &dyn CameraControl) -> f32 {
+    let height = controller.visible_area().1;
+    let area_size = height.max(height * controller.aspect_ratio());
+    let window = controller.window_size();
+    (area_size / window.x.max(window.y) * 10.0) as f32
 }
 
 /// A system that draws hit indicators for every pointer.
@@ -55,16 +42,17 @@ pub fn draw_mesh_intersections(
     pointers: Query<&bevy::picking::pointer::PointerInteraction>,
     mut gizmos: Gizmos,
     view_model: Res<ViewModel>,
-    projections: Query<&Projection>,
+    navigations: Query<&CameraNavigation>,
 ) {
     for (_entity, hit) in pointers
         .iter()
         .filter_map(|interaction| interaction.get_nearest_hit())
     {
         if let Some(position) = hit.position {
-            let proj = projections.single().expect("Some projections");
-
-            let zoom = get_current_zoom_level(proj);
+            let Ok(navigation) = navigations.single() else {
+                return;
+            };
+            let zoom = get_current_zoom_level(&**navigation.controller());
             let color: Color = view_model.config.theme.guide.to_bevy();
             gizmos.sphere(position, zoom * 0.1, color);
         }
@@ -77,8 +65,6 @@ pub struct Scene {
     pub radius: f32,
     /// The scene grid (will be `Some` after the grid has been spawned).
     pub grid_entity: Option<Entity>,
-    /// Light entities.
-    pub light_entities: Vec<Entity>,
     /// Model entities.
     pub model_entities: Vec<Entity>,
 }
@@ -93,7 +79,6 @@ impl Default for Scene {
         Self {
             radius: 100.0,
             grid_entity: Default::default(),
-            light_entities: Default::default(),
             model_entities: Default::default(),
         }
     }
@@ -104,8 +89,12 @@ pub struct ScenePlugin;
 
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(camera::camera_controller::CameraControllerPlugin)
-            .add_systems(Update, lighting::spawn_lights)
+        app.add_plugins(CameraControllerPlugin)
+            .register_action(grid::ToggleGrid)
+            .add_systems(
+                Update,
+                camera::update_bounds.before(CameraControllerSystems),
+            )
             .add_systems(Startup, grid::spawn_grid_plane)
             //.add_systems(Startup, angle::spawn_angle_plane)
             //.add_systems(Startup, ruler::spawn_ruler_plane)
@@ -113,8 +102,7 @@ impl Plugin for ScenePlugin {
             .add_systems(Startup, overlay::setup_overlay)
             .add_systems(Update, draw_mesh_intersections)
             .add_systems(Update, overlay::update_overlay)
-            .add_systems(Update, grid::update_grid)
-            .add_systems(Update, grid::toggle_grid)
-            .add_systems(Update, grid::update_grid_on_view_angle_change);
+            .add_systems(Update, grid::update_grid.after(CameraControllerSystems))
+            .add_systems(Update, grid::toggle_grid);
     }
 }

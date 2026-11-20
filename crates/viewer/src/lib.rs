@@ -3,6 +3,7 @@
 
 //! µcad viewer library.
 
+pub mod actions;
 pub mod config;
 pub mod material;
 pub mod plugin;

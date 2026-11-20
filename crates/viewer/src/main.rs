@@ -55,6 +55,11 @@ pub struct Args {
     #[arg(long, value_name = "PERCENT", value_parser = parse_zoom, default_value = "100%")]
     zoom: f32,
 
+    /// The controls of the camera with the mouse, the keys and touch in a TOML file, with the
+    /// bindings of the actions in `[bindings]`, see `Controls` of `mucad-viewer-utils`.
+    #[arg(long, value_name = "TOML", value_parser = parse_controls)]
+    controls: Option<mu::viewer::Controls>,
+
     /// Paths to search for files.
     ///
     /// By default, `./std/lib` (if it exists) and `~/.mucad/lib` are used.
@@ -99,6 +104,12 @@ fn parse_direction(text: &str) -> Result<bevy::math::Vec3, String> {
         [_, _, _] => Err("The direction must not be zero".into()),
         _ => Err("Three values expected, e.g. `1,-1,1`".into()),
     }
+}
+
+/// Read the controls of a TOML file.
+fn parse_controls(path: &str) -> Result<mu::viewer::Controls, String> {
+    let toml = std::fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
+    mu::viewer::Controls::from_toml(&toml).map_err(|error| format!("{path}: {error}"))
 }
 
 /// Parse a zoom in percent, e.g. `200%`, or as factor, e.g. `2.0`.
@@ -156,6 +167,7 @@ fn main() -> std::process::ExitCode {
             zoom: args.zoom,
         },
         screenshot: args.screenshot,
+        controls: args.controls.unwrap_or_default(),
         ..Default::default()
     };
 

@@ -22,7 +22,7 @@ pub fn generate_mesh_uuid(hash: mu::HashId, index: usize) -> Uuid {
     Uuid::from_u64_pair(MESH_UUID_SEED ^ index as u64, hash.raw())
 }
 
-/// The uuid of the contour edges of the mesh `mesh_uuid`, which belong to that mesh.
+/// The uuid of the edge lines of the mesh `mesh_uuid`, which belong to that mesh.
 ///
 /// A changed mesh gets a new uuid, and so do its edges.
 pub fn edge_mesh_uuid(mesh_uuid: Uuid) -> Uuid {

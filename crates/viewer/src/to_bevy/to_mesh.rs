@@ -22,7 +22,7 @@ pub trait ToBevyMesh {
         self.to_bevy_mesh(Self::Parameters::default())
     }
 
-    /// A line mesh of the contour edges, which is drawn with the meshes of
+    /// A line mesh of the edge lines, which is drawn with the meshes of
     /// [`ToBevyMesh::to_bevy_mesh`], `None` without contours, e.g. for 2D geometries.
     fn to_bevy_edge_mesh(&self, _parameters: Self::Parameters) -> Option<Mesh> {
         None
@@ -244,22 +244,27 @@ impl ToBevyMesh for mu::core::TriangleMesh {
         vec![mesh]
     }
 
-    /// The edges, where the normals of the faces differ more than `threshold_degrees`,
-    /// or which have not two faces, see [`mu::core::TriangleMesh::edges`].
+    /// The edge lines with the attributes of [`crate::material::EdgeMaterial`]: the contour
+    /// edges, where the normals of the faces differ more than `threshold_degrees` or which have
+    /// not two faces, and the smooth edges on the silhouette, see
+    /// [`mu::viewer::edge_lines`].
     fn to_bevy_edge_mesh(&self, threshold_degrees: Self::Parameters) -> Option<Mesh> {
-        let edges = self.edges(cgmath::Rad(f64::from(threshold_degrees).to_radians()));
+        use crate::material::{ATTRIBUTE_MIDPOINT, ATTRIBUTE_NORMAL_A, ATTRIBUTE_NORMAL_B};
+        let lines = mu::viewer::edge_lines(self, f64::from(threshold_degrees));
+        let arrays = |vectors: Vec<Vec3>| {
+            vectors
+                .into_iter()
+                .map(<[f32; 3]>::from)
+                .collect::<Vec<_>>()
+        };
         let mut mesh = Mesh::new(
             bevy::mesh::PrimitiveTopology::LineList,
             RenderAssetUsages::default(),
         );
-        mesh.insert_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            self.positions
-                .iter()
-                .map(|position| [position.x, position.y, position.z])
-                .collect::<Vec<_>>(),
-        );
-        mesh.insert_indices(Indices::U32(edges.into_flattened()));
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, arrays(lines.positions));
+        mesh.insert_attribute(ATTRIBUTE_NORMAL_A, arrays(lines.normals_a));
+        mesh.insert_attribute(ATTRIBUTE_NORMAL_B, arrays(lines.normals_b));
+        mesh.insert_attribute(ATTRIBUTE_MIDPOINT, arrays(lines.midpoints));
         Some(mesh)
     }
 }

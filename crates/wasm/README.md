@@ -2,6 +2,7 @@
 
 The µcad toolchain compiled to WebAssembly: compile µcad code, render its model and export it,
 e.g. in a browser. The standard library is embedded, there is no file system access.
+It also contains the camera navigation of the µcad viewers, see [Camera navigation](#camera-navigation).
 
 ## Build
 
@@ -121,9 +122,110 @@ link.download = "model.stl";
 link.click();
 ```
 
+### Camera navigation
+
+`CameraNavigation` controls the camera of a viewer with the mouse, the keys and touch, e.g. for
+Three.js: the camera controller and the configurable controls of
+[mucad-viewer-utils](https://crates.io/crates/mucad-viewer-utils). It takes the actions of the
+viewer, e.g. `mucad.actions`, or a `new ActionRegistry()` without a `Mucad`.
+
+The methods take the values of DOM events. Coordinates are pixels from the top left of the
+element, e.g. `offsetX` and `offsetY`. Modifiers are bits: Ctrl 1, Shift 2, Alt 4 and Meta 8.
+
+```js
+import init, { ActionRegistry, CameraNavigation } from "./pkg/mucad_wasm.js";
+
+await init(); // Load the WebAssembly binary.
+
+const actions = new ActionRegistry();
+const navigation = new CameraNavigation(element.clientWidth, element.clientHeight, actions);
+const modifiers = (e) => e.ctrlKey | (e.shiftKey << 1) | (e.altKey << 2) | (e.metaKey << 3);
+
+// Mouse events, because pointer events are not sent for a second button, e.g. of a chord.
+element.addEventListener("mousedown", (e) =>
+  navigation.mouseDown(e.button, e.offsetX, e.offsetY, modifiers(e)));
+element.addEventListener("mouseup", (e) => {
+  const selection = navigation.mouseUp(e.button, e.offsetX, e.offsetY, modifiers(e));
+  if (selection) {
+    // Pick the object at selection.x and selection.y, add it with selection.multi.
+  }
+});
+
+// After the events, apply the camera, e.g. to a camera of Three.js.
+camera.matrixAutoUpdate = false;
+camera.matrixWorld.fromArray(navigation.cameraMatrix());
+camera.matrixWorldInverse.fromArray(navigation.viewMatrix());
+camera.projectionMatrix.fromArray(navigation.projectionMatrix());
+camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+```
+
+The projection is orthographic and maps to the normalized device coordinates of WebGL, from -1
+to 1 in z, like the projections of Three.js with the `WebGLRenderer`.
+
+| Method | Does |
+|---|---|
+| `new CameraNavigation(width, height, actions)` | The navigation with the bindings of `actions`, e.g. `mucad.actions` |
+
+The events of the element: `elapsedMs` is the time since the last frame, which keeps the speed
+of orbiting and zooming the same at any frame rate.
+
+| Method | Event |
+|---|---|
+| `mouseDown(button, x, y, modifiers)` | `mousedown` with `MouseEvent.button` |
+| `mouseUp(button, x, y, modifiers)` | `mouseup`, returns a `Selection` after a click |
+| `mouseMove(dx, dy, elapsedMs)` | `mousemove` with the difference of `clientX` and `clientY` to the previous event, so that panning follows the pointer exactly |
+| `wheel(deltaY, deltaMode, x, y, modifiers, elapsedMs)` | `wheel`, returns whether it is bound to prevent scrolling |
+| `keyDown(key, modifiers)` | `keydown` with `KeyboardEvent.key`, returns whether it is bound to prevent e.g. zooming the page |
+| `touchStart(id, x, y)` | `touchstart` with `Touch.identifier`, for each changed touch |
+| `touchMove(touches, elapsedMs)` | `touchmove` with all changed touches together as `[id1, x1, y1, id2, x2, y2]` |
+| `touchEnd(id, x, y)` | `touchend`, for each changed touch, returns a `Selection` after a tap |
+| `touchCancel(id)` | `touchcancel`, for each changed touch |
+| `resize(width, height)` | The element is resized |
+
+One finger orbits (or pans, see `[touch]` of the controls), two fingers pinch to zoom and pan
+with their center. The touches of one `touchmove` event are passed together, so that moving
+two fingers in parallel pans without zooming.
+
+`mouseAction()` is `select`, `orbit`, `pan`, `zoom` or undefined, e.g. for the cursor. While
+`pointerPinned()`, the pointer is locked with `requestPointerLock`.
+
+| Method | Returns or does |
+|---|---|
+| `cameraMatrix()`, `viewMatrix()`, `projectionMatrix()` | 16 numbers by columns, like `Matrix4.fromArray` |
+| `position()`, `viewCenter()`, `up()`, `pivot()` | `[x, y, z]` |
+| `setBounds(x, y, z, radius)` | Sets the center and the radius of what the camera shows, e.g. of the bounding sphere of the model |
+| `setView(name)` | Shows `isometric`, `front`, `top`, `right`, `rear`, `bottom` or `left` |
+| `projection()`, `setProjection(name)`, `toggleProjection()` | The projection `orthographic` or `perspective`, e.g. for a `THREE.OrthographicCamera` or `THREE.PerspectiveCamera`; switching keeps the visible area at the pivot |
+| `showAll()` | Shows the whole scene in the middle of the view, e.g. to reset the camera |
+| `zoomFit()`, `zoomLevel()`, `resetPivot()` | Zooms to level 1 around the center of the view, the zoom level, sets the pivot to the center of the bounds |
+| `takeEvents()` | The changes since the last call: `zoomLevelChanged` and `pivotChanged` |
+
+### Help
+
+An `ActionRegistry` has the actions of the viewer with their bindings, e.g. for its help and
+tooltips: `mucad.actions`, or `new ActionRegistry()` without a `Mucad`.
+
+```js
+const actions = mucad.actions;
+help.innerHTML = markdownToHtml(actions.helpMarkdown(true));
+fitButton.title = actions.tooltip("zoom_fit"); // "Zoom to fit (f)"
+actions.free();
+```
+
+| Method | Does |
+|---|---|
+| `ids()` | The ids of the actions in the order of the help, e.g. `zoom_fit` |
+| `tooltip(id)` | The label with the bindings, e.g. `Zoom to fit (f)`, throws an error for an unknown id |
+| `helpMarkdown(basic)` | A Markdown table of the actions with their bindings and descriptions, with `basic` only of the basic ones |
+
+The ids are the ones of the key commands, e.g. `zoom_in`, and `select`, `orbit`, `pan` and
+`zoom` for the mouse.
+
+`Selection`, `CameraNavigation` and `ActionRegistry` are freed with `free()`.
+
 ## Scope
 
-Only compiling, rendering and exporting are available yet.
+Only compiling, rendering, exporting and the camera navigation are available yet.
 The model tree and the symbol library may be exposed in the future, e.g. for a model browser.
 
 ## Tests

@@ -4,8 +4,11 @@
 import type { Compiler, CompilerSession, Geometry } from "../compiler/types";
 import { errorMessage } from "../compiler/types";
 import { wasmCompiler } from "../compiler/wasm";
+import { theme } from "../generated/theme";
 import { decodeLink } from "../services/share";
 import { Viewer } from "../viewer";
+import "./mucad-info-widget";
+import "./mucad-viewer-overlay";
 
 /**
  * The styles in the shadow root, with the colors of the µcad theme, also on pages without them,
@@ -17,7 +20,7 @@ const STYLE = `
   position: relative;
   min-height: 12rem;
   overflow: hidden;
-  background: var(--primary, #020d1a);
+  background: var(--primary, ${theme.primary});
 }
 
 :host([hidden]) {
@@ -29,29 +32,14 @@ const STYLE = `
   inset: 0;
 }
 
-/* A button in the view, e.g. to reset the camera. */
-.view-button {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  height: 2.2rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--signal, #ff9f0a);
-  border-radius: 4px;
-  background: var(--primary, #020d1a);
-  color: var(--signal, #ff9f0a);
-  font: inherit;
-  cursor: pointer;
-}
-
-/* The errors of the code of a standalone viewer. */
+/* The errors of the code of a standalone viewer, left of the help button. */
 .message {
   position: absolute;
   left: 0.5rem;
-  right: 0.5rem;
+  right: 3.5rem;
   bottom: 0.5rem;
   margin: 0;
-  color: var(--complementary, #c5221f);
+  color: var(--complementary, ${theme.complementary});
   font: 0.8rem monospace;
   white-space: pre-wrap;
 }
@@ -62,7 +50,9 @@ const STYLE = `
 `;
 
 /**
- * `<mucad-viewer>`: a three.js view of µcad models in a shadow root.
+ * `<mucad-viewer>`: a three.js view of µcad models in a shadow root, with the widgets of a
+ * `<mucad-viewer-overlay>` over it: a button to reset the camera and the help of the controls,
+ * a `<mucad-info-widget>`.
  *
  * The geometry is shown by an app with `show()`, e.g. of the code of an editor, or the viewer
  * is standalone with its code, e.g. in the documentation: in its text content, in the file of
@@ -98,8 +88,14 @@ export class MucadViewer extends HTMLElement {
       view.className = "view";
       this.message = document.createElement("pre");
       this.message.className = "message";
-      shadow.append(style, view, this.message);
-      this.viewer = new Viewer(view);
+      const overlay = document.createElement("mucad-viewer-overlay");
+      overlay.addEventListener("reset-camera", () => this.resetCamera());
+      shadow.append(style, view, this.message, overlay);
+      const viewer = (this.viewer = new Viewer(view));
+      const info = document.createElement("mucad-info-widget");
+      info.slot = "bottom-right";
+      info.help = (basic) => viewer.controls.help(basic);
+      overlay.append(info);
     }
     if (this.standalone && !this.loaded) this.loadWhenVisible();
   }

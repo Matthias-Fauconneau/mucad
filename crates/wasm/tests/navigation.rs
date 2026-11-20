@@ -1,0 +1,168 @@
+// Copyright © 2026 The µcad authors <info@mucad.org>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Tests of the camera navigation of the WebAssembly interface, which run natively.
+
+use glam::{Mat4, Vec3};
+use mucad_wasm::{ActionRegistry, CTRL, CameraNavigation, Mucad, SHIFT};
+
+const WIDTH: f64 = 400.0;
+const HEIGHT: f64 = 200.0;
+const FRAME_MS: f64 = 16.0;
+
+/// A navigation with the default controls.
+fn navigation() -> CameraNavigation {
+    CameraNavigation::new(WIDTH, HEIGHT, &ActionRegistry::new())
+}
+
+fn matrix(columns: Vec<f32>) -> Mat4 {
+    Mat4::from_cols_slice(&columns)
+}
+
+#[test]
+fn matrices() {
+    let navigation = navigation();
+    let camera = matrix(navigation.camera_matrix());
+    let view = matrix(navigation.view_matrix());
+    assert!((camera * view).abs_diff_eq(Mat4::IDENTITY, 1e-5));
+    let position = Vec3::from_slice(&navigation.position());
+    assert!(
+        camera
+            .transform_point3(Vec3::ZERO)
+            .abs_diff_eq(position, 1e-3)
+    );
+    // The bounds of radius 100 fit into the height of the orthographic projection.
+    let projection = matrix(navigation.projection_matrix());
+    let top = projection * view * Vec3::new(0.0, 100.0, 0.0).extend(1.0);
+    assert!((top.y / top.w - 1.0).abs() < 1e-5);
+}
+
+#[test]
+fn click_selects() {
+    let mut navigation = navigation();
+    navigation.mouse_down(0, 10.0, 20.0, CTRL);
+    assert_eq!(navigation.mouse_action().as_deref(), Some("select"));
+    let selection = navigation.mouse_up(0, 10.0, 20.0, CTRL).expect("A click");
+    assert_eq!(
+        (selection.x(), selection.y(), selection.multi()),
+        (10.0, 20.0, true)
+    );
+    assert_eq!(navigation.mouse_action(), None);
+}
+
+#[test]
+fn drag_orbits() {
+    let mut navigation = navigation();
+    let view = navigation.view_matrix();
+    navigation.mouse_down(2, 200.0, 100.0, 0);
+    assert_eq!(navigation.mouse_action().as_deref(), Some("orbit"));
+    assert!(navigation.pointer_pinned());
+    navigation.mouse_move(30.0, 10.0, FRAME_MS);
+    assert!(navigation.mouse_up(2, 200.0, 100.0, 0).is_none());
+    assert!(!navigation.pointer_wrapped());
+    assert_ne!(navigation.view_matrix(), view);
+}
+
+#[test]
+fn wheel_zooms() {
+    let mut navigation = navigation();
+    navigation.take_events();
+    // Scrolling away from the user, i.e. a negative deltaY, zooms in.
+    assert!(navigation.wheel(-3.0, 1, 200.0, 100.0, 0, FRAME_MS));
+    assert!(navigation.zoom_level() > 1.0);
+    assert_eq!(navigation.take_events(), ["zoomLevelChanged"]);
+    // Shift with the wheel is not bound, e.g. to scroll.
+    assert!(!navigation.wheel(-3.0, 1, 200.0, 100.0, SHIFT, FRAME_MS));
+}
+
+#[test]
+fn keys() {
+    let mut navigation = navigation();
+    assert!(navigation.key_down("PageUp", 0));
+    assert!((navigation.zoom_level() - 1.25).abs() < 1e-9);
+    assert!(navigation.key_down("2", 0));
+    let position = Vec3::from_slice(&navigation.position());
+    assert!(position.abs_diff_eq(Vec3::new(0.0, 0.0, 1000.0), 1e-2));
+    assert!(!navigation.key_down("x", 0));
+}
+
+#[test]
+fn views_and_bounds() {
+    let mut navigation = navigation();
+    assert!(navigation.set_view("front").is_ok());
+    assert_eq!(navigation.up(), [0.0, 0.0, 1.0]);
+    navigation.set_bounds(10.0, 0.0, 0.0, 50.0);
+    assert_eq!(navigation.view_center(), [10.0, 0.0, 0.0]);
+    navigation.key_down("PageUp", 0);
+    navigation.zoom_fit();
+    assert!((navigation.zoom_level() - 1.0).abs() < 1e-9);
+}
+
+#[test]
+fn touch() {
+    let mut navigation = navigation();
+    // A tap selects.
+    navigation.touch_start(5.0, 10.0, 20.0);
+    let selection = navigation.touch_end(5.0, 10.0, 20.0).expect("A tap");
+    assert_eq!(
+        (selection.x(), selection.y(), selection.multi()),
+        (10.0, 20.0, false)
+    );
+
+    // Pinching zooms in.
+    navigation.touch_start(1.0, 150.0, 100.0);
+    navigation.touch_start(2.0, 250.0, 100.0);
+    navigation.touch_move(&[1.0, 100.0, 100.0, 2.0, 300.0, 100.0], FRAME_MS);
+    assert!((navigation.zoom_level() - 2.0).abs() < 1e-6);
+    assert!(navigation.touch_end(2.0, 300.0, 100.0).is_none());
+    navigation.touch_cancel(1.0);
+}
+
+#[test]
+fn grid_config() {
+    let mut navigation = navigation();
+    navigation.set_bounds(0.0, 0.0, 0.0, 50.0);
+    let config = navigation.grid_config();
+    // radius, zoom level and 4 vectors.
+    assert_eq!(config.len(), 2 + 4 * 3);
+    assert_eq!(config[0], 50.0);
+    // The view direction is normalized.
+    let view = glam::Vec3::from_slice(&config[2..5]);
+    assert!((view.length() - 1.0).abs() < 1e-5);
+}
+
+#[test]
+fn projection() {
+    let mut navigation = navigation();
+    assert_eq!(navigation.projection(), "orthographic");
+    let orthographic = navigation.projection_matrix();
+    navigation.toggle_projection();
+    assert_eq!(navigation.projection(), "perspective");
+    // The perspective projection divides by the depth.
+    let perspective = navigation.projection_matrix();
+    assert_ne!(perspective, orthographic);
+    assert_eq!(perspective[11], -1.0);
+    assert!(navigation.key_down("p", 0));
+    assert_eq!(navigation.projection(), "orthographic");
+    assert!(navigation.set_projection("perspective").is_ok());
+    assert_eq!(navigation.projection(), "perspective");
+}
+
+#[test]
+fn actions() {
+    let mucad = Mucad::new();
+    let mut navigation = CameraNavigation::new(WIDTH, HEIGHT, &mucad.actions());
+    // The navigation has the bindings of the actions.
+    navigation.mouse_down(0, 0.0, 0.0, 0);
+    assert_eq!(navigation.mouse_action().as_deref(), Some("select"));
+
+    let actions = mucad.actions();
+    assert_eq!(actions.ids()[..4], ["select", "orbit", "pan", "zoom"]);
+    let Ok(tooltip) = actions.tooltip("zoom_fit") else {
+        panic!("Known action");
+    };
+    assert_eq!(tooltip, "Zoom to fit (f)");
+    let help = actions.help_markdown(true);
+    assert!(help.contains("| Zoom to fit | `f` |"));
+    assert!(!help.contains("Pan left"));
+}

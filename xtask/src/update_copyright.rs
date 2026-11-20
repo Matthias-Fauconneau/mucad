@@ -12,6 +12,8 @@ use std::{
 };
 use walkdir::WalkDir;
 
+use crate::generated::{CommentStyle, LICENSE_ID};
+
 /// Executes `git log` once for the repository and maps file paths to their commit year ranges.
 fn get_revision_years(repo_path: impl AsRef<Path>) -> HashMap<PathBuf, RangeInclusive<u32>> {
     let mut file_years = HashMap::new();
@@ -44,10 +46,34 @@ fn get_revision_years(repo_path: impl AsRef<Path>) -> HashMap<PathBuf, RangeIncl
     file_years
 }
 
+/// The copyright notice of a file in `comment_style` for `years` like `2025-2026` and
+/// `license_id`, followed by an empty line.
+pub fn copyright_header(comment_style: CommentStyle, years: &str, license_id: &str) -> String {
+    format!(
+        "{}\n{}\n\n",
+        comment_style.comment(&format!(
+            "Copyright © {years} The µcad authors <info@mucad.org>"
+        )),
+        comment_style.comment(&format!("SPDX-License-Identifier: {license_id}")),
+    )
+}
+
+/// The copyright notice in `comment_style` at the start of `content` up to the empty line
+/// after it, if it has one.
+pub fn copyright_notice(content: &str, comment_style: CommentStyle) -> Option<&str> {
+    let first_line = content.lines().next()?;
+    let text = first_line.strip_prefix(comment_style.prefix())?;
+    if !text.trim_start().starts_with("Copyright ©") {
+        return None;
+    }
+    content.find("\n\n").map(|end| &content[..end + 2])
+}
+
 /// Manages updating copyright notices across source files in a repository.
 pub struct CopyrightUpdater {
     path: PathBuf,
-    extensions: HashMap<String, String>,
+    /// The comment style of each extension.
+    extensions: HashMap<String, CommentStyle>,
     excluded_patterns: HashSet<PathBuf>,
 
     /// SPDX-License-Identifier
@@ -60,7 +86,7 @@ impl CopyrightUpdater {
             path: path.into(),
             extensions: Default::default(),
             excluded_patterns: Default::default(),
-            license_id: "AGPL-3.0-or-later".to_string(),
+            license_id: LICENSE_ID.to_string(),
         }
     }
 
@@ -70,20 +96,25 @@ impl CopyrightUpdater {
         self
     }
 
-    /// Add a single extension and its associated comment prefix (e.g. `"rs"`, `"//"`).
-    pub fn extension(mut self, extension: impl Into<String>, prefix: impl Into<String>) -> Self {
-        let ext = extension.into();
+    /// Add an extension with its comment style, e.g. of an unknown file type.
+    pub fn extension(mut self, extension: &str, comment_style: CommentStyle) -> Self {
         self.extensions
-            .insert(ext.trim_start_matches('.').to_string(), prefix.into());
+            .insert(extension.trim_start_matches('.').to_string(), comment_style);
         self
     }
 
-    /// Add multiple extensions mapped to the same comment prefix.
-    pub fn extensions(mut self, extensions: &[&str], prefix: &str) -> Self {
-        for &ext in extensions {
-            self = self.extension(ext, prefix);
-        }
-        self
+    /// Add extensions of known file types with their comment styles, see
+    /// [`CommentStyle::from_extension`].
+    ///
+    /// # Panics
+    ///
+    /// If the comment style of an extension is not known.
+    pub fn extensions(self, extensions: &[&str]) -> Self {
+        extensions.iter().fold(self, |updater, extension| {
+            let comment_style = CommentStyle::from_extension(extension)
+                .unwrap_or_else(|| panic!("Unknown comment style of `{extension}` files"));
+            updater.extension(extension, comment_style)
+        })
     }
 
     /// Add an explicit excluded path or glob pattern.
@@ -138,7 +169,7 @@ impl CopyrightUpdater {
             let Some(ext) = path.extension().and_then(OsStr::to_str) else {
                 continue;
             };
-            let Some(prefix) = self.extensions.get(ext) else {
+            let Some(comment_style) = self.extensions.get(ext) else {
                 continue;
             };
 
@@ -161,11 +192,7 @@ impl CopyrightUpdater {
                     .replace(&content, format!("Copyright © {formatted_years}"))
                     .to_string()
             } else {
-                format!(
-                    "{prefix} Copyright © {formatted_years} The µcad authors <info@mucad.org>\n\
-                     {prefix} SPDX-License-Identifier: {license_id}\n\n\
-                     {content}"
-                )
+                copyright_header(*comment_style, &formatted_years, license_id) + &content
             };
 
             if updated_content != content {
@@ -175,5 +202,38 @@ impl CopyrightUpdater {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A file without notice gets one in the comments of its extension, e.g. `/* */` in CSS.
+    #[test]
+    fn notices_in_comments_of_extensions() {
+        let dir = tempfile::tempdir().expect("A temporary directory");
+        fs::write(dir.path().join("theme.css"), ":root {}\n").expect("CSS");
+        fs::write(dir.path().join("theme.ts"), "export {};\n").expect("TS");
+
+        CopyrightUpdater::new(dir.path())
+            .extensions(&["ts", "css"])
+            .update()
+            .expect("Updated notices");
+
+        let year = chrono::Datelike::year(&chrono::Utc::now()).to_string();
+        let css = fs::read_to_string(dir.path().join("theme.css")).expect("CSS");
+        assert_eq!(
+            css,
+            format!(
+                "/* Copyright © {year} The µcad authors <info@mucad.org> */\n\
+                 /* SPDX-License-Identifier: AGPL-3.0-or-later */\n\n:root {{}}\n"
+            )
+        );
+        let ts = fs::read_to_string(dir.path().join("theme.ts")).expect("TS");
+        assert!(
+            ts.starts_with(&format!("// Copyright © {year} The µcad")),
+            "{ts}"
+        );
     }
 }

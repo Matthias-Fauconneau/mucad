@@ -9,11 +9,11 @@ use bevy::{
     asset::Assets,
     ecs::system::{Commands, Res, ResMut},
     mesh::{Mesh, Mesh3d},
-    pbr::StandardMaterial,
     prelude::*,
 };
 use bevy_mod_outline::{OutlineMode, OutlineVolume};
 
+use crate::material::{EdgeMaterial, ModelMaterial};
 use crate::stdin::StdinMessageReceiver;
 use crate::view_model::ModelViewState;
 use crate::*;
@@ -137,14 +137,15 @@ pub fn file_reload(state: ResMut<crate::view_model::ViewModel>) {
     }
 }
 
-/// A marker for the contour edges of a mesh, e.g. to toggle their visibility.
+/// A marker for the edge lines of a mesh, e.g. to toggle their visibility.
 #[derive(Component)]
 pub struct ContourEdges;
 
 /// This system handles responses coming from the processor and fills the Bevy command pipeline.
 pub fn handle_processor_responses(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut edge_materials: ResMut<Assets<EdgeMaterial>>,
+    mut model_materials: ResMut<Assets<ModelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut model_view_states: ResMut<Assets<ModelViewState>>,
     mut view_model: ResMut<ViewModel>,
@@ -157,7 +158,7 @@ pub fn handle_processor_responses(
         match response {
             ProcessorResponse::RemoveModelInstances(uuids) => uuids.iter().for_each(|uuid| {
                 model_view_states.remove(*uuid);
-                materials.remove(*uuid);
+                model_materials.remove(*uuid);
             }),
             ProcessorResponse::NewMeshAsset(uuid, mesh, edges) => {
                 log::info!("New mesh: {uuid}");
@@ -173,15 +174,15 @@ pub fn handle_processor_responses(
             ProcessorResponse::UpdateMaterials(uuids) => {
                 uuids.iter().for_each(|uuid| {
                     let view_state = model_view_states.get(*uuid).expect("Model info");
-                    let _ = materials.insert(*uuid, view_state.generate_material());
+                    let _ = model_materials.insert(*uuid, view_state.generate_material());
                 });
             }
             ProcessorResponse::SpawnModelInstances(uuids) => {
-                let _ = materials.insert(
+                let _ = edge_materials.insert(
                     crate::material::EDGE_MATERIAL_UUID,
-                    crate::material::create_edge_material(
-                        view_model.config.theme.primary.to_bevy(),
-                    ),
+                    EdgeMaterial {
+                        color: ToBevy::<Color>::to_bevy(view_model.config.theme.primary).into(),
+                    },
                 );
                 // A model is spawned as one entity per mesh, which share the model's material.
                 for (uuid, view_state) in uuids
@@ -195,13 +196,13 @@ pub fn handle_processor_responses(
                     for mesh_uuid in &view_state.info().mesh_uuids {
                         let mut entity = commands.spawn((
                             Mesh3d(Handle::Uuid(*mesh_uuid, PhantomData)),
-                            MeshMaterial3d::<StandardMaterial>(Handle::Uuid(uuid, PhantomData)),
+                            MeshMaterial3d::<ModelMaterial>(Handle::Uuid(uuid, PhantomData)),
                             view_state.info().transform,
                             view_state.outline_volume.clone(),
                             OutlineMode::FloodFlat,
                             view_state.clone(),
                         ));
-                        // The contour edges are a child of their mesh's entity: they share its
+                        // The edge lines are a child of their mesh's entity: they share its
                         // transform and are despawned with it, but can be hidden on their own.
                         let edge_mesh_uuid = registry::edge_mesh_uuid(*mesh_uuid);
                         if meshes.contains(AssetId::<Mesh>::Uuid {
@@ -209,7 +210,7 @@ pub fn handle_processor_responses(
                         }) {
                             entity.with_child((
                                 Mesh3d(Handle::Uuid(edge_mesh_uuid, PhantomData)),
-                                MeshMaterial3d::<StandardMaterial>(Handle::Uuid(
+                                MeshMaterial3d::<EdgeMaterial>(Handle::Uuid(
                                     crate::material::EDGE_MATERIAL_UUID,
                                     PhantomData,
                                 )),
@@ -248,7 +249,7 @@ pub fn handle_pick_event(
     buttons: Res<ButtonInput<MouseButton>>,
     mut query: Query<(
         &ModelViewState,
-        &mut MeshMaterial3d<StandardMaterial>,
+        &mut MeshMaterial3d<ModelMaterial>,
         &mut OutlineVolume,
     )>,
     mut events: MessageWriter<ViewerEvent>,
