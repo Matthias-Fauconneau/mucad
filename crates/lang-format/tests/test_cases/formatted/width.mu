@@ -20,3 +20,10 @@ Ring(outer_radius = HOUSING_RADIUS, inner_radius = RING_RADIUS - 2mm).extrude(3m
 very_long_function_name(first_argument = 1mm, second_argument = 2mm).method_with_long_name(
     third_argument = 3mm,
 );
+
+// A bracketed expression breaks inside its brackets, if it does not fit.
+x = (a + b) * c;
+(
+    Circle(r = 11mm).extrude(WIDTH + 30mm)
+        - Circle(r = 2.5mm).extrude(10mm).translate(z = WIDTH + 21mm + SOME_MORE_LENGTH)
+).translate(z = -10mm);

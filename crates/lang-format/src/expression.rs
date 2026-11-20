@@ -67,7 +67,13 @@ impl Format for ast::Expression {
     fn format(&self) -> Node {
         match &self {
             ast::Expression::Literal(literal) => literal.format(),
-            ast::Expression::Bracketed(bracket, _) => node!('(' bracket.format() ')'),
+            // On one line, if it fits, otherwise the expression is on its own indented lines.
+            ast::Expression::Bracketed(bracket, _) => Node::group(node!(
+                '('
+                Node::indent(node!(Break::SoftLine bracket))
+                Break::SoftLine
+                ')'
+            )),
             ast::Expression::Tuple(tuple_expression) => tuple_expression.format(),
             ast::Expression::Range(range_expr) => range_expr.format(),
             ast::Expression::List(list_expr) => list_expr.format(),
