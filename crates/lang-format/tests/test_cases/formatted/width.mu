@@ -27,3 +27,9 @@ x = (a + b) * c;
     Circle(r = 11mm).extrude(WIDTH + 30mm)
         - Circle(r = 2.5mm).extrude(10mm).translate(z = WIDTH + 21mm + SOME_MORE_LENGTH)
 ).translate(z = -10mm);
+
+// Lines do not align, if the padding makes a line wider than the maximal width.
+ab = f(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx);
+abcdefgh = 1;
+short    = 2;
+longer   = 3;

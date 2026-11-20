@@ -209,11 +209,12 @@ impl<'a> Table<'a> {
     /// Split lines into tables of at least two lines.
     ///
     /// A table ends at a line, whose aligned cell has another key, or another indentation, or
-    /// which needs more padding than [`MAX_PADDING`].
-    fn split(mut lines: &'a mut [Line], align: Align) -> Vec<Self> {
+    /// which needs more padding than [`MAX_PADDING`], or with which a line of the table would
+    /// be wider than the maximal width.
+    fn split(mut lines: &'a mut [Line], align: Align, max_width: usize) -> Vec<Self> {
         let mut tables = Vec::new();
         while !lines.is_empty() {
-            let len = Self::len(lines, align);
+            let len = Self::len(lines, align, max_width);
             let (table, rest) = std::mem::take(&mut lines).split_at_mut(len);
             if table.len() > 1 {
                 tables.push(Self {
@@ -227,12 +228,12 @@ impl<'a> Table<'a> {
     }
 
     /// The number of lines of the table at the start of the lines, at least one.
-    fn len(lines: &[Line], align: Align) -> usize {
+    fn len(lines: &[Line], align: Align, max_width: usize) -> usize {
         let first = &lines[0];
         let Some((_, key)) = first.aligned(align) else {
             return 1;
         };
-        let (mut min, mut max) = (usize::MAX, 0);
+        let (mut min, mut max, mut limit) = (usize::MAX, 0, usize::MAX);
         let len = lines
             .iter()
             .take_while(|line| match (align, line.aligned(align)) {
@@ -242,10 +243,12 @@ impl<'a> Table<'a> {
                 (Align::Comment, Some(_)) => true,
                 (_, None) => false,
             })
-            .filter_map(|line| line.start(align))
-            .take_while(|&start| {
+            .filter_map(|line| Some((line.start(align)?, line.width())))
+            .take_while(|&(start, width)| {
                 (min, max) = (min.min(start), max.max(start));
-                max - min <= MAX_PADDING
+                // The padding moves the text behind the start, which must still fit.
+                limit = limit.min(max_width.saturating_sub(width - start));
+                max - min <= MAX_PADDING && max <= limit
             })
             .count();
         len.max(1)
@@ -283,17 +286,17 @@ pub struct Paragraph {
 
 impl Paragraph {
     /// Align the cells of the lines in tables, column by column, then their trailing comments.
-    pub fn align(&mut self) {
+    pub fn align(&mut self, max_width: usize) {
         /// Align the cells at an index, then the next cells of each table.
-        fn align_cells(lines: &mut [Line], cell: usize) {
-            for mut table in Table::split(lines, Align::Cell(cell)) {
+        fn align_cells(lines: &mut [Line], cell: usize, max_width: usize) {
+            for mut table in Table::split(lines, Align::Cell(cell), max_width) {
                 table.pad();
-                align_cells(table.lines, cell + 1);
+                align_cells(table.lines, cell + 1, max_width);
             }
         }
 
-        align_cells(&mut self.lines, 1);
-        for mut table in Table::split(&mut self.lines, Align::Comment) {
+        align_cells(&mut self.lines, 1, max_width);
+        for mut table in Table::split(&mut self.lines, Align::Comment, max_width) {
             table.pad();
         }
     }

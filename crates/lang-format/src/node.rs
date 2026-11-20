@@ -200,7 +200,7 @@ impl Node {
 
         let mut code = String::new();
         for (i, paragraph) in state.paragraphs.iter_mut().enumerate() {
-            paragraph.align();
+            paragraph.align(f.max_width);
             if i > 0 {
                 code.push_str("\n\n");
             }
