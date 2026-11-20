@@ -114,6 +114,16 @@ impl Line {
         });
     }
 
+    /// The width of the line with its indentation.
+    pub fn width(&self) -> usize {
+        self.indent
+            + self
+                .cells
+                .iter()
+                .map(|cell| cell.text.chars().count())
+                .sum::<usize>()
+    }
+
     /// The key of a cell.
     fn key(&self, cell: usize) -> Option<&Key> {
         self.cells.get(cell).and_then(|cell| cell.key.as_ref())

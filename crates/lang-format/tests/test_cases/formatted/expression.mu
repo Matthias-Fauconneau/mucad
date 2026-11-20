@@ -22,13 +22,7 @@ builder
     .bof();
 
 a_more_complex_builder
-    .foo(
-        a = 1mm,
-        b = 2mm,
-        c = 3mm,
-        d = 4mm,
-        e = 5mm,
-    )
+    .foo(a = 1mm, b = 2mm, c = 3mm, d = 4mm, e = 5mm)
     .bar(a = 1, b = 2)
     .baz()
     .bof();

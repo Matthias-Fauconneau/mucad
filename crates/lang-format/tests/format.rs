@@ -61,6 +61,7 @@ formatted_test_case!(extras_attribute);
 formatted_test_case!(definition);
 formatted_test_case!(string);
 formatted_test_case!(alignment);
+formatted_test_case!(width);
 
 unformatted_test_case!(init);
 unformatted_test_case!(line_breaks);

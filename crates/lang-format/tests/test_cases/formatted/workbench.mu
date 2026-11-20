@@ -22,13 +22,7 @@ sketch C(d: Length) {
 #[some, attributes]
 #[color = RED]
 #[export("to_file.svg")]
-sketch D(
-    a: Length,
-    b: Length,
-    c: Length,
-    d: Length,
-    e: Length,
-) {
+sketch D(a: Length, b: Length, c: Length, d: Length, e: Length) {
     prop test = 3.0;
 
     init(a: Length) {}
