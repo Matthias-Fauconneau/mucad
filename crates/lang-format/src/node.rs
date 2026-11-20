@@ -56,6 +56,9 @@ pub enum Node {
     Group(Box<Node>),
     /// A node, which is only rendered, if its group breaks, e.g. a trailing `,`.
     IfBroken(Box<Node>),
+    /// A line comment, e.g. `// …`, which is wrapped into the maximal width, with its column in
+    /// the source, if it started a line there.
+    Comment(CompactString, Option<usize>),
 }
 
 impl Node {
@@ -107,6 +110,10 @@ impl Node {
         Node::Indent(Box::new(node.into()))
     }
 
+    pub fn comment(text: impl Into<CompactString>, source_column: Option<usize>) -> Self {
+        Node::Comment(text.into(), source_column)
+    }
+
     pub fn group(node: impl Into<Node>) -> Self {
         Node::Group(Box::new(node.into()))
     }
@@ -114,7 +121,7 @@ impl Node {
     /// The width in characters, if the node is on one line.
     fn flat_width(&self) -> usize {
         match &self {
-            Node::Text(text) => text.chars().count(),
+            Node::Text(text) | Node::Comment(text, _) => text.chars().count(),
             Node::Break(Break::Space | Break::Line) => 1,
             Node::Indent(node) | Node::Group(node) => node.flat_width(),
             Node::Concat(nodes) => nodes.iter().map(Node::flat_width).sum(),
@@ -128,9 +135,9 @@ impl Node {
     /// The width in characters up to the first possible line break, and whether there is one.
     fn width_to_break(&self) -> (usize, bool) {
         match &self {
-            Node::Break(Break::SoftLine | Break::Line | Break::Hard | Break::Paragraph) => {
-                (0, true)
-            }
+            // A comment is wrapped, so the code in front of it does not need its width.
+            Node::Break(Break::SoftLine | Break::Line | Break::Hard | Break::Paragraph)
+            | Node::Comment(..) => (0, true),
             Node::Indent(node) | Node::Group(node) => node.width_to_break(),
             Node::Concat(nodes) => {
                 let mut width = 0;
@@ -154,7 +161,7 @@ impl Node {
             Node::Break(line_break) => *line_break >= Break::Hard,
             Node::Indent(node) | Node::Group(node) | Node::IfBroken(node) => node.has_line_break(),
             Node::Concat(nodes) => nodes.iter().any(Node::has_line_break),
-            Node::Nil | Node::Column(_) => false,
+            Node::Nil | Node::Column(_) | Node::Comment(..) => false,
         }
     }
 
@@ -200,7 +207,7 @@ impl Node {
 
         let mut code = String::new();
         for (i, paragraph) in state.paragraphs.iter_mut().enumerate() {
-            paragraph.align(f.max_width);
+            paragraph.layout(f.max_width);
             if i > 0 {
                 code.push_str("\n\n");
             }
@@ -349,6 +356,12 @@ impl Node {
     fn render_recursive(&self, mode: Mode, trailing: usize, state: &mut RenderState) {
         match self {
             Node::Text(text) => state.write(text),
+            Node::Comment(text, source_column) => {
+                state.write(text);
+                if let Some(line) = state.line() {
+                    line.mark_comment(*source_column);
+                }
+            }
             Node::Break(line_break) => state.add_break(*line_break, mode),
             Node::Column(column) => state.mark(*column),
             Node::Concat(nodes) => {

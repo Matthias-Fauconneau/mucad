@@ -12,6 +12,8 @@ license.workspace = true
 keywords.workspace = true
 
 [dependencies]
+# The markdown blocks of comments, whose text is wrapped.
+pulldown-cmark = { version = "0.13", default-features = false }
 thiserror = "2.0"
 
 mucad-lang-base = { workspace = true }

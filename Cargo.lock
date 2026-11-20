@@ -5386,6 +5386,7 @@ dependencies = [
  "mucad-lang-base",
  "mucad-lang-parse",
  "pretty_assertions",
+ "pulldown-cmark",
  "thiserror 2.0.21",
 ]
 

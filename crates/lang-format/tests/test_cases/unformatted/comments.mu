@@ -1,0 +1,46 @@
+// Copyright © 2026 The µcad authors <info@mucad.org>
+// SPDX-License-Identifier: MIT
+
+//! A module doc with a very long line which goes far beyond the maximal width of one hundred characters and needs wrapping.
+//! A second line of the same paragraph.
+//!
+//! * A list item, which is also quite long and should be wrapped with an indentation under its marker text.
+//! * Short item.
+//!
+//! ```mu
+//! a_code_line = which_is_very_long_and_must_not_be_wrapped(because, it, is, code, in, a, fenced, block);
+//! ```
+
+/// A short doc.
+const A = 1; // A trailing comment, which is too long to fit into the maximal width of a line, so it wraps.
+const BB = 2; // short
+
+// A comment on its own line.
+x = 1;
+
+a = 1; // first
+// Section header, which is not a continuation.
+b = 2;
+
+part P() {
+    x = [ // a long comment behind the opening bracket of a list, which must wrap under itself somehow
+        1, 2];
+    /// A doc comment in a body with a long line, which goes beyond the maximal width of one hundred characters.
+    const C = 3;
+}
+
+/// # A heading, which is far too long for the maximal width of a line, but which must not be wrapped
+///
+/// * An outer item with a long text, which needs to be wrapped, because it is longer than the width.
+///   * A nested item with a long text, which needs to be wrapped, because it is longer than the width.
+/// * An item with a lazy continuation line, which belongs to the item in markdown,
+/// so this second line is part of it and is wrapped together with the first line of the item.
+///
+/// | A | table, which is long | and must not be wrapped, even if it is longer than the maximal width |
+/// |---|---|---|
+///
+/// > A quote, which is long, and which is kept as it is, even if it is longer than the maximal width.
+///
+/// A line with a hard break at its end, which is long enough to be wrapped by the formatter, yes.\
+/// The next line after the hard break.
+const A = 1;

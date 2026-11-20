@@ -8,6 +8,8 @@
 //! a   = Rect(10);
 //! ```
 
+use crate::wrap::CommentBlock;
+
 /// The most spaces, which align a column.
 ///
 /// A column, which needs more, is not aligned, so that one long line does not spread a table.
@@ -36,15 +38,24 @@ struct Key {
 }
 
 /// A part of a line, which starts at a column.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Cell {
     /// The column, at which the cell starts, which is `None` for the first cell.
     key: Option<Key>,
     text: String,
 }
 
+/// A line comment of a line, e.g. `// …`, which can be wrapped.
+#[derive(Debug, Clone, Copy)]
+struct LineComment {
+    /// The cell of the comment, which is the last one.
+    cell: usize,
+    /// The column of the comment in the source, if it started a line.
+    source_column: Option<usize>,
+}
+
 /// A line of cells.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Line {
     indent: usize,
     cells: Vec<Cell>,
@@ -55,6 +66,7 @@ pub struct Line {
     in_string: bool,
     /// The line contains a line break, e.g. of a multi-line comment, and is not aligned.
     multiline: bool,
+    comment: Option<LineComment>,
 }
 
 impl Line {
@@ -69,6 +81,62 @@ impl Line {
             brackets: Vec::new(),
             in_string: false,
             multiline: false,
+            comment: None,
+        }
+    }
+
+    /// Mark the last cell as a line comment, e.g. `// …`, with its column in the source, if it
+    /// started a line there.
+    pub fn mark_comment(&mut self, source_column: Option<usize>) {
+        self.comment = Some(LineComment {
+            cell: self.cells.len() - 1,
+            source_column,
+        });
+    }
+
+    /// The text of a line comment, which is the whole line.
+    pub fn full_comment(&self) -> Option<&str> {
+        match self.comment {
+            Some(LineComment { cell: 0, .. }) if !self.multiline => Some(&self.cells[0].text),
+            _ => None,
+        }
+    }
+
+    /// The column and the text of a line comment behind code.
+    pub fn trailing_line_comment(&self) -> Option<(usize, &str)> {
+        let cell = self.comment.filter(|comment| comment.cell > 0)?.cell;
+        let text = &self.cells[cell].text;
+        let spaces = text.len() - text.trim_start().len();
+        Some((
+            self.indent + self.width_before(cell) + spaces,
+            text.trim_start(),
+        ))
+    }
+
+    /// Replace the text of the line comment behind code, at the same column.
+    pub fn set_trailing_line_comment(&mut self, comment: &str) {
+        if let Some(LineComment { cell, .. }) = self.comment.filter(|comment| comment.cell > 0) {
+            let text = &mut self.cells[cell].text;
+            let spaces = text.len() - text.trim_start().len();
+            text.truncate(spaces);
+            text.push_str(comment);
+        }
+    }
+
+    /// Whether the line is a line comment `// …`, which continues a comment behind code above
+    /// it, because it was indented deeper than the code in the source.
+    pub fn continues_comment(&self) -> bool {
+        let source_column = self.comment.and_then(|comment| comment.source_column);
+        self.full_comment().is_some_and(|text| {
+            text.starts_with("//") && !text.starts_with("///") && !text.starts_with("//!")
+        }) && source_column.is_some_and(|column| column > self.indent)
+    }
+
+    /// The width of the line without a line comment behind code, which can be wrapped.
+    fn code_width(&self) -> usize {
+        match self.comment {
+            Some(LineComment { cell, .. }) if cell > 0 => self.indent + self.width_before(cell),
+            _ => self.width(),
         }
     }
 
@@ -112,6 +180,11 @@ impl Line {
             }),
             text: String::new(),
         });
+    }
+
+    /// The indentation of the line.
+    pub fn indent(&self) -> usize {
+        self.indent
     }
 
     /// The width of the line with its indentation.
@@ -243,7 +316,7 @@ impl<'a> Table<'a> {
                 (Align::Comment, Some(_)) => true,
                 (_, None) => false,
             })
-            .filter_map(|line| Some((line.start(align)?, line.width())))
+            .filter_map(|line| Some((line.start(align)?, line.code_width())))
             .take_while(|&(start, width)| {
                 (min, max) = (min.min(start), max.max(start));
                 // The padding moves the text behind the start, which must still fit.
@@ -285,8 +358,12 @@ pub struct Paragraph {
 }
 
 impl Paragraph {
-    /// Align the cells of the lines in tables, column by column, then their trailing comments.
-    pub fn align(&mut self, max_width: usize) {
+    /// Align the cells of the lines in tables, column by column, then their trailing comments,
+    /// then wrap the line comments into the maximal width.
+    pub fn layout(&mut self, max_width: usize) {
+        let blocks = CommentBlock::split(std::mem::take(&mut self.lines));
+        self.lines = blocks.into_iter().flat_map(CommentBlock::joined).collect();
+
         /// Align the cells at an index, then the next cells of each table.
         fn align_cells(lines: &mut [Line], cell: usize, max_width: usize) {
             for mut table in Table::split(lines, Align::Cell(cell), max_width) {
@@ -299,6 +376,11 @@ impl Paragraph {
         for mut table in Table::split(&mut self.lines, Align::Comment, max_width) {
             table.pad();
         }
+        let blocks = CommentBlock::split(std::mem::take(&mut self.lines));
+        self.lines = blocks
+            .into_iter()
+            .flat_map(|block| block.wrap(max_width))
+            .collect();
     }
 }
 

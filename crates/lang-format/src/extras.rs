@@ -3,7 +3,7 @@
 
 use mucad_lang_parse::ast;
 
-use crate::{Format, Node, node, node::Break};
+use crate::{Column, Format, Node, node, node::Break};
 
 /// The comments and line breaks of extras.
 ///
@@ -15,6 +15,24 @@ fn format_extras(extras: &[ast::ItemExtra]) -> Node {
         .iter()
         .enumerate()
         .map(|(i, extra)| match extra {
+            // A comment on its own line has the column behind the line break in the source.
+            ast::ItemExtra::Comment(ast::Comment {
+                inner: ast::CommentInner::SingleLine(line),
+                ..
+            }) => {
+                let source_column = match i.checked_sub(1).and_then(|i| extras.get(i)) {
+                    Some(ast::ItemExtra::Whitespace(ast::Whitespace(ws))) => ws
+                        .rfind('\n')
+                        .map(|newline| ws[newline + 1..].chars().count()),
+                    _ => None,
+                };
+                node!(
+                    Node::Column(Column::Comment)
+                    Break::Space
+                    Node::comment(line.as_str(), source_column)
+                    Break::Hard
+                )
+            }
             ast::ItemExtra::Comment(comment) => comment.format(),
             ast::ItemExtra::Whitespace(ast::Whitespace(ws)) => {
                 let before_comment = matches!(extras.get(i + 1), Some(ast::ItemExtra::Comment(_)));

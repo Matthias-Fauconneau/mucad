@@ -191,7 +191,7 @@ impl Format for ast::ExpressionStatement {
 
 impl Format for ast::InnerDocComment {
     fn format(&self) -> Node {
-        self.line.clone().into()
+        Node::comment(self.line.as_str(), None)
     }
 }
 

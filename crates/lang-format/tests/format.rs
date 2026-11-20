@@ -65,6 +65,7 @@ formatted_test_case!(width);
 
 unformatted_test_case!(init);
 unformatted_test_case!(line_breaks);
+unformatted_test_case!(comments);
 
 /// The `.mu` files in a directory and its subdirectories, without the build directories and the
 /// checkouts of the grammars of the editors.

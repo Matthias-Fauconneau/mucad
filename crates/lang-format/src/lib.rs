@@ -11,6 +11,7 @@ mod literal;
 mod node;
 mod statement;
 mod ty;
+mod wrap;
 
 pub(crate) use crate::{
     layout::Column,
@@ -69,9 +70,12 @@ impl Format for ast::Identifier {
 impl Format for ast::Comment {
     fn format(&self) -> Node {
         match &self.inner {
-            ast::CommentInner::SingleLine(line) => {
-                node!(Node::Column(Column::Comment) Break::Space line.clone() Break::Hard)
-            }
+            ast::CommentInner::SingleLine(line) => node!(
+                Node::Column(Column::Comment)
+                Break::Space
+                Node::comment(line.as_str(), None)
+                Break::Hard
+            ),
             ast::CommentInner::MultiLine(line) => {
                 node!(Node::Column(Column::Comment) Break::Space "/* " line.clone() " */" Break::Space)
             }
@@ -83,7 +87,7 @@ impl Format for ast::DocBlock {
     fn format(&self) -> Node {
         self.lines
             .iter()
-            .map(|line| node!(line.clone() Break::Hard))
+            .map(|line| node!(Node::comment(line.as_str(), None) Break::Hard))
             .collect::<Vec<_>>()
             .into()
     }
