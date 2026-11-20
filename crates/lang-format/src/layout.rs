@@ -162,6 +162,119 @@ impl std::fmt::Display for Line {
     }
 }
 
+/// Which cells of lines align.
+#[derive(Debug, Clone, Copy)]
+enum Align {
+    /// The cells at an index, which start at the same column of lines with the same indentation.
+    Cell(usize),
+    /// The trailing comments.
+    Comment,
+}
+
+impl Line {
+    /// The index of the aligned cell, and its key, which must be the same in all lines of a
+    /// table, unless the line is not aligned.
+    fn aligned(&self, align: Align) -> Option<(usize, Option<&Key>)> {
+        if self.multiline {
+            return None;
+        }
+        match align {
+            Align::Cell(cell) => {
+                let key = self.key(cell).filter(|key| key.column != Column::Comment)?;
+                Some((cell, Some(key)))
+            }
+            Align::Comment => Some((self.trailing_comment()?, None)),
+        }
+    }
+
+    /// The width in front of the aligned cell, with the indentation.
+    fn start(&self, align: Align) -> Option<usize> {
+        let (cell, _) = self.aligned(align)?;
+        Some(self.indent + self.width_before(cell))
+    }
+}
+
+/// Consecutive lines, whose aligned cells start at the same width, e.g.:
+///
+/// ```mu
+/// foo = Circle(10mm);
+/// a   = Rect(10);
+/// ```
+struct Table<'a> {
+    lines: &'a mut [Line],
+    align: Align,
+}
+
+impl<'a> Table<'a> {
+    /// Split lines into tables of at least two lines.
+    ///
+    /// A table ends at a line, whose aligned cell has another key, or another indentation, or
+    /// which needs more padding than [`MAX_PADDING`].
+    fn split(mut lines: &'a mut [Line], align: Align) -> Vec<Self> {
+        let mut tables = Vec::new();
+        while !lines.is_empty() {
+            let len = Self::len(lines, align);
+            let (table, rest) = std::mem::take(&mut lines).split_at_mut(len);
+            if table.len() > 1 {
+                tables.push(Self {
+                    lines: table,
+                    align,
+                });
+            }
+            lines = rest;
+        }
+        tables
+    }
+
+    /// The number of lines of the table at the start of the lines, at least one.
+    fn len(lines: &[Line], align: Align) -> usize {
+        let first = &lines[0];
+        let Some((_, key)) = first.aligned(align) else {
+            return 1;
+        };
+        let (mut min, mut max) = (usize::MAX, 0);
+        let len = lines
+            .iter()
+            .take_while(|line| match (align, line.aligned(align)) {
+                (Align::Cell(_), Some((_, line_key))) => {
+                    line.indent == first.indent && line_key == key
+                }
+                (Align::Comment, Some(_)) => true,
+                (_, None) => false,
+            })
+            .filter_map(|line| line.start(align))
+            .take_while(|&start| {
+                (min, max) = (min.min(start), max.max(start));
+                max - min <= MAX_PADDING
+            })
+            .count();
+        len.max(1)
+    }
+
+    /// The width, at which the aligned cells start.
+    fn width(&self) -> usize {
+        self.lines
+            .iter()
+            .filter_map(|line| line.start(self.align))
+            .max()
+            .unwrap_or_default()
+    }
+
+    /// Pad the cells in front of the aligned cells, so that they start at the width.
+    fn pad(&mut self) {
+        let width = self.width();
+        for line in self.lines.iter_mut() {
+            if let (Some(start), Some((cell, _))) =
+                (line.start(self.align), line.aligned(self.align))
+            {
+                line.cells[cell - 1]
+                    .text
+                    .push_str(&" ".repeat(width - start));
+            }
+        }
+    }
+}
+
 /// Lines without blank lines between them.
 #[derive(Debug, Default)]
 pub struct Paragraph {
@@ -169,89 +282,19 @@ pub struct Paragraph {
 }
 
 impl Paragraph {
-    /// Align the columns of the lines.
-    ///
-    /// The cells of consecutive lines with the same indentation align, column by column, while
-    /// their keys are the same, then their trailing comments align.
+    /// Align the cells of the lines in tables, column by column, then their trailing comments.
     pub fn align(&mut self) {
-        let mut start = 0;
-        while start < self.lines.len() {
-            let indent = self.lines[start].indent;
-            let end = start
-                + self.lines[start..]
-                    .iter()
-                    .take_while(|line| line.indent == indent && !line.multiline)
-                    .count();
-            align_cells(&mut self.lines[start..end], 1);
-            start = end.max(start + 1);
+        /// Align the cells at an index, then the next cells of each table.
+        fn align_cells(lines: &mut [Line], cell: usize) {
+            for mut table in Table::split(lines, Align::Cell(cell)) {
+                table.pad();
+                align_cells(table.lines, cell + 1);
+            }
         }
 
-        align_comments(&mut self.lines);
-    }
-}
-
-/// Align a cell of the lines, which have the same keys of the cells in front of it.
-fn align_cells(lines: &mut [Line], cell: usize) {
-    let mut start = 0;
-    while start < lines.len() {
-        let key = lines[start]
-            .key(cell)
-            .filter(|key| key.column != Column::Comment)
-            .cloned();
-        let len = match &key {
-            Some(key) => table_len(&lines[start..], |line| {
-                (line.key(cell) == Some(key)).then(|| line.width_before(cell))
-            }),
-            None => 1,
-        };
-
-        let table = &mut lines[start..start + len];
-        if len > 1 {
-            pad_table(table, |_| Some(cell));
-            align_cells(table, cell + 1);
-        }
-        start += len;
-    }
-}
-
-/// Align the trailing comments of consecutive lines.
-fn align_comments(lines: &mut [Line]) {
-    let mut start = 0;
-    while start < lines.len() {
-        let len = table_len(&lines[start..], |line| {
-            let cell = line.trailing_comment().filter(|_| !line.multiline)?;
-            Some(line.indent + line.width_before(cell))
-        });
-
-        if len > 1 {
-            pad_table(&mut lines[start..start + len], Line::trailing_comment);
-        }
-        start += len.max(1);
-    }
-}
-
-/// The number of the first lines, whose cells start at widths, which differ by
-/// [`MAX_PADDING`] at most.
-fn table_len(lines: &[Line], width: impl Fn(&Line) -> Option<usize>) -> usize {
-    let (mut min, mut max) = (usize::MAX, 0);
-    lines
-        .iter()
-        .map_while(width)
-        .take_while(|&width| {
-            (min, max) = (min.min(width), max.max(width));
-            max - min <= MAX_PADDING
-        })
-        .count()
-}
-
-/// Pad the lines, so that a cell of each line starts at the same width.
-fn pad_table(lines: &mut [Line], cell: impl Fn(&Line) -> Option<usize>) {
-    let start = |line: &Line| cell(line).map(|cell| line.indent + line.width_before(cell));
-    let width = lines.iter().filter_map(start).max().unwrap_or_default();
-    for line in lines {
-        if let Some(cell) = cell(line) {
-            let padding = width - start(line).unwrap_or(width);
-            line.cells[cell - 1].text.push_str(&" ".repeat(padding));
+        align_cells(&mut self.lines, 1);
+        for mut table in Table::split(&mut self.lines, Align::Comment) {
+            table.pad();
         }
     }
 }
