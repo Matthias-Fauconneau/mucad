@@ -11,14 +11,14 @@
 (
     a = "a very long expression",
     b = "another very long expression",
-    c = "yet another very long expression",
+    c = "yet another very long expression, which is long",
 );
 
 (
     foo = (
         a = "a very long expression",
         b = "another very long expression",
-        c = "yet another very long expression",
+        c = "yet another very long expression, which is long",
     ),
     bar = 2,
 );

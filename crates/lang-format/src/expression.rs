@@ -1,7 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{BreakMode, Format, FormatConfig, Node, extras::leading_extras_without_newline, node};
+use crate::{Break, BreakMode, Format, FormatConfig, Node, node, statement::statements_and_tail};
 
 use mucad_lang_parse::{ast, token::escape_char};
 
@@ -19,34 +19,48 @@ impl Format for ast::UnaryOperator {
 
 impl Format for ast::Body {
     fn format(&self, f: &FormatConfig) -> Node {
-        let body = &self.statements;
+        format_body(self, true, f)
+    }
+}
 
-        match (body.statements.is_empty(), &body.tail) {
-            (true, Some(tail)) => {
-                let tail_node = node!(f, body.extras => tail.format(f));
-                if tail_node.contains_hardline() {
-                    node!(
-                        "{" Node::indent(f.indent_width, tail_node)
-                        "}"
-                    )
-                } else {
-                    node!("{ " tail_node " }")
+/// A body, which is on one line, if it only has a tail without line breaks and `inline` is
+/// set, e.g. `{ a }`.
+///
+/// Otherwise, the statements start a line, behind a comment on the line of the `{`.
+fn format_body(body: &ast::Body, inline: bool, f: &FormatConfig) -> Node {
+    let list = &body.statements;
+
+    if list.statements.is_empty() {
+        match &list.tail {
+            None => {
+                let extras = node!(f, list.extras => Node::Nil);
+                // Without comments, an empty body is `{}`.
+                return match extras {
+                    Node::Nil | Node::Break(_) if !extras.has_line_break() => "{}".into(),
+                    extras => node!("{" Node::indent(f.indent_width, extras) "}"),
+                };
+            }
+            Some(tail) if inline => {
+                let tail = node!(f, list.extras => tail.format(f));
+                if !tail.has_line_break() {
+                    return node!("{ " tail " }");
                 }
             }
-            (true, None) => {
-                node!("{" Node::indent(f.indent_width, node!(f, body.extras => Node::Nil)) "}")
-            }
-            _ => {
-                let leading = body.extras.leading.format(f);
-                let node = Node::indent(f.indent_width, body.format(f));
-                node!(
-                "{" if leading.starts_with_hardline() { Node::Nil } else { Node::Hardline }
-                    node.clone()
-                    if node.ends_with_hardline() { Node::Nil } else { Node::Hardline }
-                "}")
-            }
+            Some(_) => {}
         }
     }
+
+    node!(
+        "{"
+        Node::indent(f.indent_width, node!(f =>
+            list.extras.leading
+            Break::Hard
+            statements_and_tail(list, f)
+            list.extras.trailing
+        ))
+        Break::Hard
+        "}"
+    )
 }
 
 impl Format for ast::Expression {
@@ -129,7 +143,7 @@ impl Format for ast::FormatString {
 
 impl Format for ast::TupleItem {
     fn format(&self, f: &FormatConfig) -> Node {
-        node!(f, leading_extras_without_newline(&self.extras) =>
+        node!(f, self.extras =>
             match &self.id {
                 Some(name) => node!(f => name " = " self.expr),
                 None => node!(f => self.expr)
@@ -142,7 +156,7 @@ impl Format for ast::TupleExpression {
     fn format(&self, f: &FormatConfig) -> Node {
         let nodes: Vec<Node> = self.values.iter().map(|item| item.format(f)).collect();
         let break_mode = BreakMode::from_layout(&nodes, 4, f);
-        node!(f, leading_extras_without_newline(&self.extras) =>
+        node!(f, self.extras =>
             '(' Node::list(nodes, ',', break_mode) ')'
         )
     }
@@ -183,7 +197,7 @@ impl Format for ast::SymbolPath {
 
 impl Format for ast::BinaryOperation {
     fn format(&self, f: &FormatConfig) -> Node {
-        node!(f => self.lhs Node::Softline self.op Node::Softline self.rhs)
+        node!(f => self.lhs Break::Soft self.op Break::Soft self.rhs)
     }
 }
 
@@ -219,7 +233,7 @@ impl Format for ast::ArgumentList {
         let nodes: Vec<Node> = self.arguments.iter().map(|item| item.format(f)).collect();
         let break_mode = BreakMode::from_layout(&nodes, 4, f);
 
-        node!('(' node!(f, leading_extras_without_newline(&self.extras) => Node::list(nodes, ',', break_mode)) ')')
+        node!('(' node!(f, self.extras => Node::list(nodes, ',', break_mode)) ')')
     }
 }
 
@@ -243,68 +257,82 @@ impl Format for ast::ElementInner {
 
 impl Format for ast::Element {
     fn format(&self, f: &FormatConfig) -> Node {
-        node!(f, leading_extras_without_newline(&self.extras) => self.inner)
+        node!(f, self.extras => self.inner)
     }
 }
 
+/// A chain with more than two method calls, or a comment, has each method call on its own
+/// line, e.g.:
+///
+/// ```mu
+/// Circle(r = 5mm)
+///     .extrude(5mm)
+///     .translate(z = 2mm)
+///     .center();
+/// ```
+///
+/// The method calls are indented, unless the chain starts with a body, e.g.:
+///
+/// ```mu
+/// {
+///     Circle(r = 5mm);
+/// }
+/// .extrude(5mm)
+/// .translate(z = 2mm)
+/// .center();
+/// ```
 impl Format for ast::ElementAccess {
     fn format(&self, f: &FormatConfig) -> Node {
-        // If this is true, we place an indent on the next line
-        let mut indent = match &self.expr.as_ref() {
-            ast::Expression::Literal(_) => false,
-            ast::Expression::Bracketed(_, _) => true,
-            ast::Expression::Tuple(_) => true,
-            ast::Expression::Range(_) => false,
-            ast::Expression::List(_) => true,
-            ast::Expression::String(_) => true,
-            ast::Expression::SymbolPath(_) => true,
-            ast::Expression::Marker(_) => true,
-            ast::Expression::BinaryOperation(_) => true,
-            ast::Expression::UnaryOperation(_) => true,
-            ast::Expression::Body(_) => false,
-            ast::Expression::Call(_) => true,
-            ast::Expression::ElementAccess(_) => false,
-            ast::Expression::If(_) => false,
-            ast::Expression::Error(_) => false,
-        };
+        /// The most method calls on one line.
+        const MAX_METHODS: usize = 2;
 
-        let nodes: Vec<Node> = self
+        let expr = self.expr.format(f);
+        let elements: Vec<Node> = self
             .element_chain
             .iter()
-            .map(|element| node!(f => element))
+            .map(|element| element.format(f))
             .collect();
 
-        // Indent if the first node already starts with a hardline
-        indent |= nodes
+        let methods = self
+            .element_chain
             .iter()
-            .take(1)
-            .any(|node| !node.starts_with_hardline());
+            .filter(|element| matches!(element.inner, ast::ElementInner::Method(_)))
+            .count();
+        let commented =
+            expr.ends_with_line_break() || elements.iter().any(Node::ends_with_line_break);
+        if methods <= MAX_METHODS && !commented {
+            return node!(expr elements);
+        }
 
-        let element_chain_node = match BreakMode::from_layout(&nodes, 3, f) {
-            BreakMode::NoBreak if !indent => Node::hlist(nodes, Node::Nil),
-            BreakMode::NoBreak => Node::indent(f.indent_width, nodes),
-            BreakMode::WithIndent(indent_width) => {
-                Node::indent(if indent { indent_width } else { 0 }, nodes)
-            }
-        };
-
-        node!(f => self.expr element_chain_node)
+        let chain: Vec<Node> = self
+            .element_chain
+            .iter()
+            .zip(elements)
+            .map(|(element, node)| match element.inner {
+                ast::ElementInner::Method(_) => node!(Break::Hard node),
+                _ => node,
+            })
+            .collect();
+        match self.expr.as_ref() {
+            ast::Expression::Body(_) => node!(expr chain),
+            _ => node!(expr Node::indent(f.indent_width, chain)),
+        }
     }
 }
 
 impl Format for ast::If {
     fn format(&self, f: &FormatConfig) -> Node {
         node!(f, self.extras =>
-            "if " self.condition ' ' self.body
+            "if " self.condition ' ' format_body(&self.body, false, f)
             match &self.else_body {
-                Some(else_body) => node!(f => Node::Softline "else " else_body),
+                Some(else_body) => node!(f => Break::Soft "else " format_body(else_body, false, f)),
                 None => match &self.next_if {
                     Some(_) => Node::Nil,
-                    None => Node::Hardline
+                    None => Break::Hard.into()
                 }
             }
             match &self.next_if {
-                Some(next_if) => node!(f => Node::Softline "else " next_if),
+                Some(next_if) => node!(f => Break::Soft "else " next_if),
                 None => Node::Nil
             }
         )

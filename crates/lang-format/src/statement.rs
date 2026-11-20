@@ -1,7 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::{BreakMode, Format, FormatConfig, Node, extras::leading_extras_without_newline, node};
+use crate::{Break, BreakMode, Format, FormatConfig, Node, node};
 
 use mucad_lang_parse::ast;
 
@@ -16,7 +16,7 @@ impl Format for Option<ast::def::Visibility> {
 
 impl Format for ast::Parameter {
     fn format(&self, f: &FormatConfig) -> Node {
-        node!(f, leading_extras_without_newline(&self.extras) =>
+        node!(f, self.extras =>
             match (&self.ty, &self.default) {
                 (None, None) => self.id.format(f),
                 (None, Some(def)) => node!(f => self.id " = " def),
@@ -33,7 +33,7 @@ impl Format for ast::ParameterList {
         let break_mode = BreakMode::from_layout(&nodes, 4, f);
 
         node!(f =>
-            '(' node!(f, leading_extras_without_newline(&self.extras) => Node::list(nodes, ',', break_mode)) ')'
+            '(' node!(f, self.extras => Node::list(nodes, ',', break_mode)) ')'
         )
     }
 }
@@ -144,7 +144,7 @@ impl Format for ast::Init {
         node!(f, self.extras =>
             self.doc
             self.attr
-            "init" self.parameters Node::Softline self.body
+            "init" self.parameters Break::Soft self.body
         )
     }
 }
@@ -154,7 +154,7 @@ impl Format for ast::Return {
         node!(f, self.extras =>
             "return"
             match &self.expr {
-                Some(value) => node!(f => Node::Softline value),
+                Some(value) => node!(f => Break::Soft value),
                 None => Node::Nil
             }
         )
@@ -166,15 +166,15 @@ impl Format for ast::LocalAssignment {
         let assignment = node!(f =>
             self.id
             match &self.ty {
-                Some(ty) => node!(f => ':' Node::Softline ty),
+                Some(ty) => node!(f => ':' Break::Soft ty),
                 None => Node::Nil,
             }
-            Node::Softline '=' Node::Softline
+            Break::Soft '=' Break::Soft
         );
 
         node!(f, self.extras =>
             self.attr
-            assignment Node::AdditionalIndent(assignment.estimate_width()) self.expr
+            assignment self.expr
         )
     }
 }
@@ -184,8 +184,8 @@ impl Format for ast::PropertyAssignment {
         node!(f, self.extras =>
             self.doc
             self.attr
-            "prop" Node::Softline self.id
-            self.ty.as_ref().map(|ty| node!(f => ':' Node::Softline ty))
+            "prop" Break::Soft self.id
+            self.ty.as_ref().map(|ty| node!(f => ':' Break::Soft ty))
             " = " self.value
         )
     }
@@ -235,14 +235,7 @@ impl Format for Vec<ast::Attribute> {
             Node::Nil
         } else {
             self.iter()
-                .map(|attr| {
-                    let node = attr.format(f);
-                    if node.contains_hardline() {
-                        node
-                    } else {
-                        node!(node Node::Hardline)
-                    }
-                })
+                .map(|attr| node!(f => attr Break::Hard))
                 .collect::<Vec<_>>()
                 .into()
         }
@@ -278,14 +271,14 @@ impl Format for ast::Statement {
 
 impl Format for Vec<(ast::Statement, ast::TrailingExtras)> {
     fn format(&self, f: &FormatConfig) -> Node {
-        // Join statements with a hardline so they sit on separate lines
+        // Each statement is on its own line.
         self.iter()
             .map(|(statement, extras)| {
                 node!(f =>
                     statement
-                    if statement.ends_with_semicolon() { node!(';' Node::Softline) } else { Node::Nil }
+                    if statement.ends_with_semicolon() { ';'.into() } else { Node::Nil }
                     extras
-                    Node::AdditionalIndent(0)
+                    Break::Hard
                 )
             })
             .collect::<Vec<Node>>()
@@ -293,20 +286,13 @@ impl Format for Vec<(ast::Statement, ast::TrailingExtras)> {
     }
 }
 
+/// The statements and the tail of a statement list, without its extras.
+pub(crate) fn statements_and_tail(list: &ast::StatementList, f: &FormatConfig) -> Node {
+    node!(list.statements.format(f) list.tail.as_ref().map(|tail| tail.format(f)).unwrap_or_default())
+}
+
 impl Format for ast::StatementList {
     fn format(&self, f: &FormatConfig) -> Node {
-        node!(f, self.extras =>
-            match (self.statements.is_empty(), &self.tail) {
-                (true, Some(tail)) => tail.format(f),
-                (false, Some(tail)) => {
-                    node!(f =>
-                        self.statements
-                        tail
-                    )
-                }
-                (false, None) => self.statements.format(f),
-                (true, None) => Node::Nil,
-            }
-        )
+        node!(f, self.extras => statements_and_tail(self, f))
     }
 }

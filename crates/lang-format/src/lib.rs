@@ -11,7 +11,7 @@ mod node;
 mod statement;
 mod ty;
 
-pub(crate) use crate::node::{BreakMode, Node};
+pub(crate) use crate::node::{Break, BreakMode, Node};
 
 #[derive(Debug, Clone)]
 pub struct FormatConfig {
@@ -22,7 +22,7 @@ pub struct FormatConfig {
 impl Default for FormatConfig {
     fn default() -> Self {
         Self {
-            max_width: 60,
+            max_width: 100,
             indent_width: 4,
         }
     }
@@ -61,10 +61,10 @@ impl Format for ast::Comment {
     fn format(&self, _: &FormatConfig) -> Node {
         match &self.inner {
             ast::CommentInner::SingleLine(line) => {
-                node!(Node::Softline Node::SingleLineComment(line.into()))
+                node!(Break::Soft line.clone() Break::Hard)
             }
             ast::CommentInner::MultiLine(line) => {
-                node!(Node::Softline "/* " Node::from(line.clone()) " */" Node::Softline)
+                node!(Break::Soft "/* " line.clone() " */" Break::Soft)
             }
         }
     }

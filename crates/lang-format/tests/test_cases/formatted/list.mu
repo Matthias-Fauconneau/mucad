@@ -4,4 +4,5 @@
     "a very long expression",
     "another very long expression",
     "yet another very very long expression",
+    "and a last one",
 ];
