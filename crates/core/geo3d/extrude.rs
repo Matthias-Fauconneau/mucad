@@ -5,8 +5,6 @@
 
 use std::f64::consts::PI;
 
-use cgmath::{Point3, SquareMatrix, Transform, Vector3};
-
 use geo::{MultiPolygon, TriangulateEarcut};
 
 use crate::*;
@@ -15,15 +13,15 @@ use crate::*;
 ///
 /// The profile's X is the distance from the axis and its Y the height (Z).
 /// A positive angle rotates counter-clockwise (right-hand rule), from the X towards the Y axis.
-fn revolve_matrix(angle: Angle) -> Mat4 {
+fn revolve_matrix(angle: Angle) -> DMat4 {
     // Columns: X stays X, Y becomes Z, Z becomes Y.
-    let profile_to_xz = Mat4::new(
+    let profile_to_xz = DMat4::from_cols_array(&[
         1.0, 0.0, 0.0, 0.0, //
         0.0, 0.0, 1.0, 0.0, //
         0.0, 1.0, 0.0, 0.0, //
         0.0, 0.0, 0.0, 1.0, //
-    );
-    Mat4::from_angle_z(angle) * profile_to_xz
+    ]);
+    DMat4::from_rotation_z(angle.0) * profile_to_xz
 }
 
 /// A type of an extrusion with certain parameters.
@@ -64,10 +62,10 @@ pub trait Extrude {
     }
 
     /// Extrude a single slice of the geometry with top and bottom plane.
-    fn extrude_slice(&self, m_a: &Mat4, m_b: &Mat4) -> TriangleMesh;
+    fn extrude_slice(&self, m_a: &DMat4, m_b: &DMat4) -> TriangleMesh;
 
     /// Generate the cap geometry.
-    fn cap(&self, _m: &Mat4, _bottom: bool) -> TriangleMesh {
+    fn cap(&self, _m: &DMat4, _bottom: bool) -> TriangleMesh {
         TriangleMesh::default()
     }
 
@@ -79,10 +77,10 @@ pub trait Extrude {
         scale_y: Scalar,
         twist: Angle,
     ) -> WithBounds3D<TriangleMesh> {
-        let m_a = Mat4::identity();
-        let m_b = Mat4::from_angle_z(twist)
-            * Mat4::from_translation(Vec3::new(0.0, 0.0, *height))
-            * Mat4::from_nonuniform_scale(scale_x, scale_y, 1.0);
+        let m_a = DMat4::IDENTITY;
+        let m_b = DMat4::from_rotation_z(twist.0)
+            * DMat4::from_translation(DVec3::new(0.0, 0.0, *height))
+            * DMat4::from_scale(DVec3::new(scale_x, scale_y, 1.0));
         let mut mesh = self.extrude_slice(&m_a, &m_b);
         mesh.append(&self.cap(&m_a, true));
         mesh.append(&self.cap(&m_b, false));
@@ -164,7 +162,7 @@ pub trait Extrude {
         let delta_radius = (outer_radius - inner_radius) / (total_segments as Scalar);
 
         // Generate transforms: move the profile away from the axis and upward, then rotate.
-        let transforms: Vec<Mat4> = (0..=total_segments)
+        let transforms: Vec<DMat4> = (0..=total_segments)
             .map(|i| {
                 let angle_i = delta_angle * (i as Scalar);
                 let height_i = delta_height * (i as Scalar);
@@ -172,8 +170,8 @@ pub trait Extrude {
 
                 // Rotate around the Z axis like `revolve_extrude`,
                 // where the profile's X is the distance from the axis and its Y is the height.
-                revolve_matrix(cgmath::Rad(angle_i))
-                    * Mat4::from_translation(Vec3::new(radius_i, height_i, 0.0))
+                revolve_matrix(Angle(angle_i))
+                    * DMat4::from_translation(DVec3::new(radius_i, height_i, 0.0))
             })
             .collect();
 
@@ -201,7 +199,7 @@ pub trait Extrude {
 }
 
 impl Extrude for LineString {
-    fn extrude_slice(&self, m_a: &Mat4, m_b: &Mat4) -> TriangleMesh {
+    fn extrude_slice(&self, m_a: &DMat4, m_b: &DMat4) -> TriangleMesh {
         let mut mesh = TriangleMesh::default();
 
         let points = self.points();
@@ -213,19 +211,14 @@ impl Extrude for LineString {
         mesh.positions.reserve(len * 2); // each point produces 2 vertices
         mesh.triangle_indices.reserve(len * 2); // each side produces 2 triangles
 
-        let m_a: cgmath::Matrix4<f32> = m_a.cast().expect("Successful cast");
-        let m_b: cgmath::Matrix4<f32> = m_b.cast().expect("Successful cast");
-
-        let transform_point =
-            |p: &cgmath::Point3<f32>, m: &cgmath::Matrix4<f32>| -> cgmath::Vector3<f32> {
-                m.transform_point(*p).to_homogeneous().truncate()
-            };
+        let m_a = m_a.as_mat4();
+        let m_b = m_b.as_mat4();
 
         // Interleave bottom and top vertex positions
         for point in points {
-            let point = cgmath::Point3::new(point.x() as f32, point.y() as f32, 0.0_f32);
-            mesh.positions.push(transform_point(&point, &m_a)); // bottom
-            mesh.positions.push(transform_point(&point, &m_b)); // top
+            let point = Vec3::new(point.x() as f32, point.y() as f32, 0.0_f32);
+            mesh.positions.push(m_a.project_point3(point)); // bottom
+            mesh.positions.push(m_b.project_point3(point)); // top
         }
 
         let range = if self.is_closed() {
@@ -250,7 +243,7 @@ impl Extrude for LineString {
 }
 
 impl Extrude for Polygon {
-    fn extrude_slice(&self, m_a: &Mat4, m_b: &Mat4) -> TriangleMesh {
+    fn extrude_slice(&self, m_a: &DMat4, m_b: &DMat4) -> TriangleMesh {
         let mut mesh = TriangleMesh::default();
         mesh.append(&self.exterior().extrude_slice(m_a, m_b));
         for interior in self.interiors() {
@@ -259,19 +252,15 @@ impl Extrude for Polygon {
         mesh
     }
 
-    fn cap(&self, m: &Mat4, flip: bool) -> TriangleMesh {
+    fn cap(&self, m: &DMat4, flip: bool) -> TriangleMesh {
         let raw_triangulation = self.earcut_triangles_raw();
-        let m: cgmath::Matrix4<f32> = m.cast().expect("Successful cast");
+        let m = m.as_mat4();
 
         TriangleMesh {
             positions: raw_triangulation
                 .vertices
                 .iter()
-                .map(|chunk| {
-                    let p = Point3::new(chunk[0] as f32, chunk[1] as f32, 0.0_f32);
-                    let p = m.transform_point(p);
-                    Vector3::<f32>::new(p.x, p.y, p.z)
-                })
+                .map(|chunk| m.project_point3(Vec3::new(chunk[0] as f32, chunk[1] as f32, 0.0_f32)))
                 .collect(),
             normals: None,
             triangle_indices: raw_triangulation
@@ -290,7 +279,7 @@ impl Extrude for Polygon {
 }
 
 impl Extrude for MultiPolygon {
-    fn extrude_slice(&self, m_a: &Mat4, m_b: &Mat4) -> TriangleMesh {
+    fn extrude_slice(&self, m_a: &DMat4, m_b: &DMat4) -> TriangleMesh {
         let mut mesh = TriangleMesh::default();
         self.iter().for_each(|polygon| {
             mesh.append(&polygon.extrude_slice(m_a, m_b));
@@ -298,7 +287,7 @@ impl Extrude for MultiPolygon {
         mesh
     }
 
-    fn cap(&self, m: &Mat4, flip: bool) -> TriangleMesh {
+    fn cap(&self, m: &DMat4, flip: bool) -> TriangleMesh {
         let mut mesh = TriangleMesh::default();
         self.iter().for_each(|polygon| {
             mesh.append(&polygon.cap(m, flip));
@@ -308,12 +297,12 @@ impl Extrude for MultiPolygon {
 }
 
 impl Extrude for Geometries2D {
-    fn extrude_slice(&self, m_a: &Mat4, m_b: &Mat4) -> TriangleMesh {
+    fn extrude_slice(&self, m_a: &DMat4, m_b: &DMat4) -> TriangleMesh {
         let multi_polygon: MultiPolygon = self.clone().into();
         multi_polygon.extrude_slice(m_a, m_b)
     }
 
-    fn cap(&self, m: &Mat4, flip: bool) -> TriangleMesh {
+    fn cap(&self, m: &DMat4, flip: bool) -> TriangleMesh {
         let multi_polygon: MultiPolygon = self.clone().into();
         multi_polygon.cap(m, flip)
     }

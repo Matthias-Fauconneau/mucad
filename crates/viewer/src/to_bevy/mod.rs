@@ -41,34 +41,14 @@ impl ToBevy<bevy::prelude::Vec3> for mu::core::Color {
     }
 }
 
-impl ToBevy<bevy::prelude::Mat4> for mu::core::Mat4 {
+impl ToBevy<bevy::prelude::Mat4> for mu::core::DMat4 {
     fn to_bevy(self) -> bevy::prelude::Mat4 {
-        use cgmath::Matrix;
-
-        // cgmath stores as column-major, same as glam/Bevy
-        let m = self.transpose(); // optional if you’re unsure about order
-        bevy::prelude::Mat4::from_cols_array(&[
-            m.x.x as f32,
-            m.x.y as f32,
-            m.x.z as f32,
-            m.x.w as f32,
-            m.y.x as f32,
-            m.y.y as f32,
-            m.y.z as f32,
-            m.y.w as f32,
-            m.z.x as f32,
-            m.z.y as f32,
-            m.z.z as f32,
-            m.z.w as f32,
-            m.w.x as f32,
-            m.w.y as f32,
-            m.w.z as f32,
-            m.w.w as f32,
-        ])
+        // Transposed like before, when the matrix was of cgmath.
+        self.transpose().as_mat4()
     }
 }
 
-impl ToBevy<bevy::prelude::Transform> for mu::core::Mat4 {
+impl ToBevy<bevy::prelude::Transform> for mu::core::DMat4 {
     fn to_bevy(self) -> bevy::prelude::Transform {
         Transform::from_matrix(self.to_bevy())
     }

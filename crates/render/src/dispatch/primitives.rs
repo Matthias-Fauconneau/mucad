@@ -68,12 +68,12 @@ struct Sector {
 impl Sector {
     /// A sector is a full circle when `offset_angle >= 360°`.
     pub fn is_circle(&self) -> bool {
-        self.offset_angle() >= cgmath::Deg(360.0).into()
+        self.offset_angle() >= mucad_core::Angle::FULL_TURN
     }
 
     /// Calculate offset angle.
     pub fn offset_angle(&self) -> mucad_core::Angle {
-        cgmath::Rad((self.end - self.start).0.abs())
+        mucad_core::Angle((self.end - self.start).0.abs())
     }
 }
 
@@ -81,8 +81,8 @@ impl RenderPolygon for __mu::geo2d::Sector {
     fn render_polygon(&self, resolution: &RenderResolution) -> mucad_core::Polygon {
         let sector = Sector {
             radius: self.radius.as_mm(),
-            start: self.start.into_float(),
-            end: self.end.into_float(),
+            start: mucad_core::Angle(self.start.into_float()),
+            end: mucad_core::Angle(self.end.into_float()),
         };
         let Sector { radius: r, .. } = &sector;
 
@@ -159,7 +159,7 @@ impl RenderPolygon for __mu::geo2d::InvoluteGearProfile {
 
         let teeth: i64 = self.teeth.to_num();
         let module = self.module.as_mm();
-        let pressure_angle: mucad_core::Angle = self.pressure_angle.into_float();
+        let pressure_angle = mucad_core::Angle(self.pressure_angle.into_float());
         let empty = || Polygon::new(LineString::new(vec![]), vec![]);
         if teeth < 3 || module <= 0.0 || !(0.0..PI / 2.0).contains(&pressure_angle.0) {
             return empty();
@@ -292,13 +292,11 @@ mod tests {
         backlash: Scalar,
         clearance: Scalar,
     ) -> Polygon {
-        use mucad_lang_types::Length;
+        use mucad_lang_types::{Length, math::IntoFixed};
         __mu::geo2d::InvoluteGearProfile {
             module: Length::mm(module),
             teeth: mucad_lang_types::Integer::from_num(teeth),
-            pressure_angle: cgmath::Rad(mucad_lang_types::Scalar::from_num(
-                pressure_angle.to_radians(),
-            )),
+            pressure_angle: pressure_angle.to_radians().into_fixed(),
             backlash: Length::mm(backlash),
             clearance: Length::mm(clearance),
         }

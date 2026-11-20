@@ -3,15 +3,15 @@
 
 //! Specializations for 3D triangles.
 
-use crate::Vec3;
+use crate::DVec3;
 
 /// Vertex
 #[derive(Clone, Copy, Debug)]
 pub struct Vertex {
     /// position
-    pub pos: Vec3,
+    pub pos: DVec3,
     /// normal vector
-    pub normal: Vec3,
+    pub normal: DVec3,
 }
 
 impl Vertex {

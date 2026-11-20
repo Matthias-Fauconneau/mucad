@@ -15,8 +15,9 @@ path = "lib.rs"
 
 [dependencies]
 bytemuck = "1.24.0"
-cgmath = { version = "0.18", features = ["serde"] }
 derive_more = { version = "2", features = ["deref", "deref_mut", "from"] }
+# The vectors and matrices, which are the ones of Bevy.
+glam = { version = "0.30", features = ["bytemuck"] }
 geo = { version = "0.33", features = ["use-serde"] }
 manifold-rust = { version = "0.19" }
 strum = { version = "0.28", features = ["derive"] }

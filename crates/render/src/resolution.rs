@@ -3,8 +3,6 @@
 
 //! Render trait.
 
-use cgmath::InnerSpace;
-
 use mucad_core as core;
 
 /// Render resolution when rendering things to polygons or meshes.
@@ -44,22 +42,23 @@ impl RenderResolution {
     }
 }
 
-impl std::ops::Mul<core::Mat3> for RenderResolution {
+impl std::ops::Mul<core::DMat3> for RenderResolution {
     type Output = RenderResolution;
 
-    fn mul(self, rhs: core::Mat3) -> Self::Output {
-        let scale = (rhs.x.magnitude() * rhs.y.magnitude()).sqrt();
+    fn mul(self, rhs: core::DMat3) -> Self::Output {
+        let scale = (rhs.x_axis.length() * rhs.y_axis.length()).sqrt();
         Self {
             linear: self.linear / scale,
         }
     }
 }
 
-impl std::ops::Mul<core::Mat4> for RenderResolution {
+impl std::ops::Mul<core::DMat4> for RenderResolution {
     type Output = RenderResolution;
 
-    fn mul(self, rhs: core::Mat4) -> Self::Output {
-        let scale = (rhs.x.magnitude() * rhs.y.magnitude() * rhs.z.magnitude()).powf(1.0 / 3.0);
+    fn mul(self, rhs: core::DMat4) -> Self::Output {
+        let scale =
+            (rhs.x_axis.length() * rhs.y_axis.length() * rhs.z_axis.length()).powf(1.0 / 3.0);
         Self {
             linear: self.linear / scale,
         }

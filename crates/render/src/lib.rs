@@ -15,8 +15,6 @@ mod renderer;
 mod resolution;
 mod tree;
 
-use cgmath::SquareMatrix;
-
 pub use attribute::*;
 pub use cache::*;
 pub use context::*;
@@ -145,7 +143,7 @@ impl Render for GeometryNodeData {
                 Some((_, None)) | None => context.collect_outputs(tree).primary(),
             };
 
-            if !self.local_matrix.is_identity() {
+            if self.local_matrix != core::DMat4::IDENTITY {
                 outputs.transform_affine(&self.local_matrix);
             }
             if let Some(color) = model.attr.color() {

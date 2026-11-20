@@ -6,7 +6,7 @@
 //! `Mirror` duplicates and keep the original geometry, where is `Reflect` only transform the original geometry.
 
 use super::*;
-use cgmath::InnerSpace;
+use crate::{DVec3, Vec3};
 
 /// Reflects a 2D geometry along a line.
 pub trait Reflect3D<T = Self> {
@@ -24,7 +24,7 @@ pub trait Mirror3D<T = Self>: Reflect3D<T> + Into<Geometry3D> {
     }
 }
 
-impl Reflect3D for crate::Vec3 {
+impl Reflect3D for DVec3 {
     fn reflect_3d(&self, plane: &Plane) -> Self {
         let n = plane.n.normalize(); // Ensure the normal is unit length
         let v = *self - plane.p; // Vector from plane point to the point
@@ -33,10 +33,10 @@ impl Reflect3D for crate::Vec3 {
     }
 }
 
-impl Reflect3D for cgmath::Vector3<f32> {
+impl Reflect3D for Vec3 {
     fn reflect_3d(&self, plane: &Plane) -> Self {
-        let n: cgmath::Vector3<f32> = plane.n.normalize().cast().expect("Valid cast"); // Ensure the normal is unit length
-        let p: cgmath::Vector3<f32> = plane.p.cast().expect("Valid cast");
+        let n = plane.n.normalize().as_vec3(); // Ensure the normal is unit length
+        let p = plane.p.as_vec3();
         let v = *self - p; // Vector from plane point to the point
         let dist = v.dot(n); // Signed distance from plane
         *self - 2.0 * dist * n // Reflect across the plane

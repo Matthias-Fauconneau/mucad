@@ -86,7 +86,7 @@ impl Render for mu::ops::Extrude {
             mucad_core::Length::mm(self.height.as_mm()),
             self.scale_x.into_float(),
             self.scale_y.into_float(),
-            self.twist.into_float(),
+            core::Angle(self.twist.into_float()),
         ))
         .into())
     }
@@ -102,7 +102,7 @@ impl Render for mu::ops::Revolve {
         let radius = multi_polygon.calc_bounds_2d().radius();
 
         Ok(GeometryOutput::from(multi_polygon.revolve_extrude(
-            self.angle.into_float(),
+            core::Angle(self.angle.into_float()),
             context.current_resolution(tree).circular_segments(radius) as usize,
         ))
         .into())
@@ -176,8 +176,8 @@ impl Render for mu::ops::Align {
         map_geometries(
             tree,
             context,
-            |geometries| geometries.align_2d(core::Vec2::new(x, y), spacing),
-            |geometries| geometries.align_3d(core::Vec3::new(x, y, z), spacing),
+            |geometries| geometries.align_2d(core::DVec2::new(x, y), spacing),
+            |geometries| geometries.align_3d(core::DVec3::new(x, y, z), spacing),
         )
     }
 }
@@ -211,8 +211,8 @@ fn mirror_plane(
     (
         core::geo2d::Line(Point::new(x, y), Point::new(x - ny, y + nx)),
         core::geo3d::Plane {
-            p: core::Vec3::new(x, y, z),
-            n: core::Vec3::new(nx, ny, nz),
+            p: core::DVec3::new(x, y, z),
+            n: core::DVec3::new(nx, ny, nz),
         },
     )
 }
@@ -275,10 +275,10 @@ impl Render for mu::ops::Spiralize {
     ) -> RenderResult<GeometryOutputs> {
         let multi_polygon = context.collect_outputs(tree).primary().to_2d().union();
         let mut bounds = multi_polygon.calc_bounds_2d();
-        bounds.extend_by_point(core::Vec2::new(0.0, 0.0));
+        bounds.extend_by_point(core::DVec2::new(0.0, 0.0));
         // The profile is moved away from the axis by up to the larger radius.
         let radius = bounds.max_extent() + self.inner_radius.as_mm().max(self.outer_radius.as_mm());
-        let angle: core::Angle = self.angle.into_float();
+        let angle = core::Angle(self.angle.into_float());
 
         Ok(GeometryOutput::from(multi_polygon.spiralize(
             self.height.as_mm(),

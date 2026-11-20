@@ -14,7 +14,7 @@ pub struct Circle {
     pub radius: Scalar,
 
     /// Offset.
-    pub offset: Vec2,
+    pub offset: DVec2,
 }
 
 impl CalcBounds2D for Circle {
@@ -22,7 +22,7 @@ impl CalcBounds2D for Circle {
         use geo::Coord;
 
         if self.radius > 0.0 {
-            let r = Vec2::new(self.radius, self.radius);
+            let r = DVec2::new(self.radius, self.radius);
             let min: (Scalar, Scalar) = (self.offset - r).into();
             let max: (Scalar, Scalar) = (self.offset + r).into();
 
@@ -35,7 +35,7 @@ impl CalcBounds2D for Circle {
 }
 
 impl FetchPoints2D for Circle {
-    fn fetch_points_2d(&self) -> Vec<Vec2> {
+    fn fetch_points_2d(&self) -> Vec<DVec2> {
         vec![self.offset]
     }
 }

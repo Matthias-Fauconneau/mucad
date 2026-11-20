@@ -1,11 +1,11 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use cgmath::Vector3;
+use mucad_core::Vec3;
 use mucad_core::{Geometries3D, Geometry, Geometry3D, Manifold, Triangle, TriangleMesh};
 use mucad_render::{GeometryNodeData, GeometryNodeRef, GeometryOutputs, GeometryTree};
 
-pub type TriangleIter = Box<dyn Iterator<Item = Triangle<Vector3<f32>>>>;
+pub type TriangleIter = Box<dyn Iterator<Item = Triangle<Vec3>>>;
 
 pub trait AsTriangleIterator {
     fn triangle_iter(&self) -> TriangleIter;
@@ -74,7 +74,7 @@ impl AsTriangleIterator for GeometryNodeData {
 
 impl AsTriangleIterator for GeometryTree {
     fn triangle_iter(&self) -> TriangleIter {
-        fn recurse(node: GeometryNodeRef) -> Vec<Triangle<Vector3<f32>>> {
+        fn recurse(node: GeometryNodeRef) -> Vec<Triangle<Vec3>> {
             if node.outputs.is_empty() {
                 // Traverse into children until we have an output
                 node.children().flat_map(recurse).collect()

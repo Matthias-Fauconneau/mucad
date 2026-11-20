@@ -6,7 +6,6 @@
 //! `Mirror` duplicates and keep the original geometry, where is `Reflect` only transform the original geometry.
 
 use super::*;
-use cgmath::InnerSpace;
 
 /// Reflects a 2D geometry along a line.
 pub trait Reflect2D<T = Self> {
@@ -27,8 +26,8 @@ pub trait Mirror2D<T = Self>: Reflect2D<T> + Into<Geometry2D> {
 impl Reflect2D for Point {
     fn reflect_2d(&self, l: &Line) -> Self {
         let d = l.vec();
-        let t = ((self.x() - l.0.x()) * d.x + (self.y() - l.0.y()) * d.y) / d.magnitude();
-        let q = 2.0 * (Vec2::from(l.0.0.x_y()) + t * d);
+        let t = ((self.x() - l.0.x()) * d.x + (self.y() - l.0.y()) * d.y) / d.length();
+        let q = 2.0 * (DVec2::from(l.0.0.x_y()) + t * d);
         Self::new(q.x - self.x(), q.y - self.y())
     }
 }

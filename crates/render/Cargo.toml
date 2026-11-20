@@ -10,7 +10,6 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
-cgmath = { version = "0.18", features = ["serde"] }
 log = "0.4"
 miette = { version = "7.6.0", features = ["derive", "fancy"] }
 web-time = "1"

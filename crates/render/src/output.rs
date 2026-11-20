@@ -5,10 +5,8 @@
 
 use std::sync::Arc;
 
-use cgmath::SquareMatrix;
-
 use mucad_core::{
-    self as core, Bounds2D, Bounds3D, CalcBounds3D, Geometry3D, GeometryType, Mat4, Transformed3D,
+    self as core, Bounds2D, Bounds3D, CalcBounds3D, DMat4, Geometry3D, GeometryType, Transformed3D,
     traits::TransformAffine,
 };
 
@@ -73,14 +71,14 @@ impl GeometryOutput {
     /// The radius of a centered circle that wraps the output geometries bounds on the ground.
     pub fn ground_radius(&self) -> core::Length {
         let mut bounds = Bounds2D::new(self.bounds.min.truncate(), self.bounds.max.truncate());
-        bounds.extend_by_point(core::Vec2::new(0.0, 0.0));
+        bounds.extend_by_point(core::DVec2::new(0.0, 0.0));
         core::Length::mm(bounds.radius())
     }
 
     /// The radius of a centered sphere, that wrap the geometries bounds.
     pub fn scene_radius(&self) -> core::Length {
         let mut bounds = self.bounds.clone();
-        bounds.extend_by_point(core::Vec3::new(0.0, 0.0, 0.0));
+        bounds.extend_by_point(core::DVec3::new(0.0, 0.0, 0.0));
         core::Length::mm(bounds.radius())
     }
 }
@@ -98,7 +96,7 @@ impl From<core::Geometry> for GeometryOutput {
 }
 
 impl TransformAffine for GeometryOutput {
-    fn transform_affine(&mut self, m: &Mat4) {
+    fn transform_affine(&mut self, m: &DMat4) {
         self.geometry.transform_affine(m);
         self.bounds = self.geometry.calc_bounds_3d();
     }
@@ -190,14 +188,14 @@ impl GeometryOutputs {
     /// The radius of a centered circle that wraps the outputs bounds on the ground.
     pub fn ground_radius(&self) -> core::Length {
         let mut bounds = Bounds2D::new(self.bounds.min.truncate(), self.bounds.max.truncate());
-        bounds.extend_by_point(core::Vec2::new(0.0, 0.0));
+        bounds.extend_by_point(core::DVec2::new(0.0, 0.0));
         core::Length::mm(bounds.radius())
     }
 
     /// The radius of a centered sphere, that wraps the outputs bounds.
     pub fn scene_radius(&self) -> core::Length {
         let mut bounds = self.bounds.clone();
-        bounds.extend_by_point(core::Vec3::new(0.0, 0.0, 0.0));
+        bounds.extend_by_point(core::DVec3::new(0.0, 0.0, 0.0));
         core::Length::mm(bounds.radius())
     }
 }
@@ -276,7 +274,7 @@ where
 }
 
 impl TransformAffine for GeometryOutputs {
-    fn transform_affine(&mut self, m: &Mat4) {
+    fn transform_affine(&mut self, m: &DMat4) {
         let mut new_bounds = Bounds3D::default();
         for output_arc in &mut self.outputs {
             // Arc::make_mut clones the inner GeometryOutput ONLY if shared.
@@ -296,9 +294,9 @@ pub struct GeometryNodeData {
     /// The output (2D/3D) this render output is expected to produce.
     pub output_type: ModelType,
     /// Local transformation matrix.
-    pub local_matrix: core::Mat4,
+    pub local_matrix: core::DMat4,
     /// World transformation matrix.
-    pub world_matrix: core::Mat4,
+    pub world_matrix: core::DMat4,
     /// The render resolution, calculated from transformation matrix.
     pub resolution: Option<RenderResolution>,
     /// The output geometry.
@@ -321,7 +319,7 @@ impl GeometryNodeData {
         GeometryNodeData {
             output_type,
             local_matrix,
-            world_matrix: Mat4::identity(),
+            world_matrix: DMat4::IDENTITY,
             resolution: None,
             outputs: Default::default(),
             hash: model.hash_id,

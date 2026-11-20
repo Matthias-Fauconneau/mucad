@@ -35,18 +35,25 @@ pub type Coord = geo::Coord<Scalar>;
 /// Trait to return all points of 2D geometry.
 pub trait FetchPoints2D {
     /// Returns all points.
-    fn fetch_points_2d(&self) -> Vec<Vec2>;
+    fn fetch_points_2d(&self) -> Vec<DVec2>;
 }
 
 /// Transformed version of a 2D geometry.
 pub trait Transformed2D<T = Self> {
     /// Transform from matrix.
-    fn transformed_2d(&self, mat: &Mat3) -> T;
+    fn transformed_2d(&self, mat: &DMat3) -> T;
 }
 
-/// Convert a [`Mat3`]` into an affine transform.
-pub(crate) fn mat3_to_affine_transform(mat: &Mat3) -> AffineTransform {
-    geo::AffineTransform::new(mat.x.x, mat.y.x, mat.z.x, mat.x.y, mat.y.y, mat.z.y)
+/// Convert a [`DMat3`]` into an affine transform.
+pub(crate) fn mat3_to_affine_transform(mat: &DMat3) -> AffineTransform {
+    geo::AffineTransform::new(
+        mat.x_axis.x,
+        mat.y_axis.x,
+        mat.z_axis.x,
+        mat.x_axis.y,
+        mat.y_axis.y,
+        mat.z_axis.y,
+    )
 }
 
 /// Iterator over `n` points of a regular convex polygon (Ngon).

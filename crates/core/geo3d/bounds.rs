@@ -1,13 +1,11 @@
 // Copyright © 2025-2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
-
-use cgmath::{ElementWise, InnerSpace};
 use derive_more::Deref;
 
 use crate::*;
 
 /// Bounds3D type alias.
-pub type Bounds3D = Bounds<Vec3>;
+pub type Bounds3D = Bounds<DVec3>;
 
 /// Corners iterator struct.
 pub struct Bounds3DCorners {
@@ -16,7 +14,7 @@ pub struct Bounds3DCorners {
 }
 
 impl Iterator for Bounds3DCorners {
-    type Item = Vec3;
+    type Item = DVec3;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= 8 {
@@ -42,7 +40,7 @@ impl Iterator for Bounds3DCorners {
             self.bounds.max.z
         };
 
-        Some(Vec3 { x, y, z })
+        Some(DVec3 { x, y, z })
     }
 }
 
@@ -54,12 +52,12 @@ impl Bounds3D {
             (false, true) => other,
             (true, false) => self,
             (true, true) => Self::new(
-                Vec3::new(
+                DVec3::new(
                     self.min.x.min(other.min.x),
                     self.min.y.min(other.min.y),
                     self.min.z.min(other.min.z),
                 ),
-                Vec3::new(
+                DVec3::new(
                     self.max.x.max(other.max.x),
                     self.max.y.max(other.max.y),
                     self.max.z.max(other.max.z),
@@ -74,7 +72,7 @@ impl Bounds3D {
     }
 
     /// Extend these bounds by point.
-    pub fn extend_by_point(&mut self, p: Vec3) {
+    pub fn extend_by_point(&mut self, p: DVec3) {
         self.min.x = p.x.min(self.min.x);
         self.min.y = p.y.min(self.min.y);
         self.min.z = p.z.min(self.min.z);
@@ -93,23 +91,23 @@ impl Bounds3D {
 
     /// Maps a vec3 to bounds.
     ///
-    /// The resulting `Vec3` is normalized between (0,0,0) = min  and (1,1,1) = max.
-    pub fn map_vec3(&self, v: Vec3) -> Vec3 {
-        (v - self.min).div_element_wise(self.max - self.min)
+    /// The resulting `DVec3` is normalized between (0,0,0) = min  and (1,1,1) = max.
+    pub fn map_vec3(&self, v: DVec3) -> DVec3 {
+        (v - self.min) / (self.max - self.min)
     }
 
     /// Return bounding radius.
     pub fn radius(&self) -> Scalar {
-        (self.max - self.min).magnitude() * 0.5
+        (self.max - self.min).length() * 0.5
     }
 
     /// Calculate center of the bounds.
-    pub fn center(&self) -> Vec3 {
+    pub fn center(&self) -> DVec3 {
         (self.min + self.max) * 0.5
     }
 
     /// Distance to boundary from the bounds' center.
-    pub fn distance_center_to_boundary(&self, dir: Vec3) -> Length {
+    pub fn distance_center_to_boundary(&self, dir: DVec3) -> Length {
         let center = self.center();
 
         // Handle x-axis intersections
@@ -149,12 +147,12 @@ impl Default for Bounds3D {
         // Bounds are invalid by default.
         let min = Scalar::MAX;
         let max = Scalar::MIN;
-        Self::new(Vec3::new(min, min, min), Vec3::new(max, max, max))
+        Self::new(DVec3::new(min, min, min), DVec3::new(max, max, max))
     }
 }
 
-impl FromIterator<Vec3> for Bounds3D {
-    fn from_iter<I: IntoIterator<Item = Vec3>>(iter: I) -> Self {
+impl FromIterator<DVec3> for Bounds3D {
+    fn from_iter<I: IntoIterator<Item = DVec3>>(iter: I) -> Self {
         let mut iter = iter.into_iter();
         let first_point = match iter.next() {
             Some(point) => point,
@@ -179,7 +177,7 @@ impl FromIterator<Vec3> for Bounds3D {
 }
 
 impl Transformed3D for Bounds3D {
-    fn transformed_3d(&self, mat: &Mat4) -> Self {
+    fn transformed_3d(&self, mat: &DMat4) -> Self {
         let mut bounds = Bounds3D::default();
         self.corners()
             .for_each(|corner| bounds.extend_by_point((mat * corner.extend(1.0)).truncate()));
@@ -206,7 +204,7 @@ pub trait CalcBounds3D {
 /// Transformed version of a 3D geometry.
 pub trait Transformed3D<T = Self> {
     /// Transform from matrix.
-    fn transformed_3d(&self, mat: &Mat4) -> T;
+    fn transformed_3d(&self, mat: &DMat4) -> T;
 }
 
 /// Holds bounds for a 3D object.
@@ -232,7 +230,7 @@ impl<T: CalcBounds3D + Transformed3D> WithBounds3D<T> {
 }
 
 impl<T: CalcBounds3D + Transformed3D> Transformed3D for WithBounds3D<T> {
-    fn transformed_3d(&self, mat: &Mat4) -> Self {
+    fn transformed_3d(&self, mat: &DMat4) -> Self {
         let inner = self.inner.transformed_3d(mat);
         let bounds = inner.calc_bounds_3d();
         Self { inner, bounds }

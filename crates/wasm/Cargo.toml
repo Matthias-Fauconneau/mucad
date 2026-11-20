@@ -15,7 +15,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 console_error_panic_hook = "0.1"
-cgmath = "0.18"
 geo = "0.33"
 glam = "0.30"
 js-sys = "0.3"

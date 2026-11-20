@@ -82,19 +82,19 @@ impl CalcBounds3D for Geometry3D {
     }
 }
 
-/// Convert a Mat4 into a matrix for manifold.
-pub fn mat4_to_mat3x4(m: &Mat4) -> manifold_rust::linalg::Mat3x4 {
-    use manifold_rust::linalg::Vec3;
-    manifold_rust::linalg::Mat3x4 {
-        x: Vec3::new(m.x.x, m.x.y, m.x.z),
-        y: Vec3::new(m.y.x, m.y.y, m.y.z),
-        z: Vec3::new(m.z.x, m.z.y, m.z.z),
-        w: Vec3::new(m.w.x, m.w.y, m.w.z),
+/// Convert a DMat4 into a matrix for manifold.
+pub fn mat4_to_mat3x4(m: &DMat4) -> manifold_rust::linalg::Mat3x4 {
+    use manifold_rust::linalg::{Mat3x4, Vec3};
+    Mat3x4 {
+        x: Vec3::new(m.x_axis.x, m.x_axis.y, m.x_axis.z),
+        y: Vec3::new(m.y_axis.x, m.y_axis.y, m.y_axis.z),
+        z: Vec3::new(m.z_axis.x, m.z_axis.y, m.z_axis.z),
+        w: Vec3::new(m.w_axis.x, m.w_axis.y, m.w_axis.z),
     }
 }
 
 impl TransformAffine for Geometry3D {
-    fn transform_affine(&mut self, m: &Mat4) {
+    fn transform_affine(&mut self, m: &DMat4) {
         match self {
             Geometry3D::Mesh(triangle_mesh) => triangle_mesh.transform_affine(m),
             Geometry3D::Manifold(manifold) => {
@@ -106,15 +106,15 @@ impl TransformAffine for Geometry3D {
 }
 
 impl Transformed3D for Geometry3D {
-    fn transformed_3d(&self, mat: &Mat4) -> Self {
+    fn transformed_3d(&self, mat: &DMat4) -> Self {
         TriangleMesh::from(self.clone()).transformed_3d(mat).into()
     }
 }
 
 impl Center for Geometry3D {
     fn center(&self) -> Self {
-        let d: Vec3 = self.calc_bounds_3d().center();
-        self.transformed_3d(&Mat4::from_translation(-d))
+        let d: DVec3 = self.calc_bounds_3d().center();
+        self.transformed_3d(&DMat4::from_translation(-d))
     }
 }
 

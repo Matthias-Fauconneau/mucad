@@ -73,7 +73,7 @@ impl CalcBounds3D for Geometries3D {
 }
 
 impl TransformAffine for Geometries3D {
-    fn transform_affine(&mut self, m: &Mat4) {
+    fn transform_affine(&mut self, m: &DMat4) {
         for geometry in &mut self.0 {
             geometry.transform_affine(m);
         }
@@ -81,7 +81,7 @@ impl TransformAffine for Geometries3D {
 }
 
 impl Transformed3D for Geometries3D {
-    fn transformed_3d(&self, mat: &Mat4) -> Self {
+    fn transformed_3d(&self, mat: &DMat4) -> Self {
         Self(
             self.iter()
                 .map(|geometry| geometry.transformed_3d(mat))
@@ -98,9 +98,9 @@ impl DistributeGrid for Geometries3D {
                 .map(|(cell, geo)| {
                     let bounds = geo.calc_bounds_3d();
                     let center = bounds.center();
-                    let cell_center: Vec2 = cell.center().x_y().into();
+                    let cell_center: DVec2 = cell.center().x_y().into();
                     let d = center - cell_center.extend(bounds.min.z + center.z);
-                    geo.transformed_3d(&Mat4::from_translation(d))
+                    geo.transformed_3d(&DMat4::from_translation(d))
                 })
                 .collect(),
         )

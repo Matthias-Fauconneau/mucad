@@ -5,7 +5,6 @@
 
 use std::io::Write;
 
-use cgmath::{Deg, InnerSpace, SquareMatrix};
 use geo::{CoordsIter as _, Point, Rect, Translate};
 use mucad_core::*;
 use mucad_render::{
@@ -152,7 +151,7 @@ impl WriteSvg for GeometryNodeData {
     fn write_svg<W: Write>(&self, writer: &mut SvgWriter<W>) -> std::io::Result<()> {
         let mut attr = SvgTagAttributes::new().insert(SvgTagAttribute::class("entity"));
 
-        if !self.local_matrix.is_identity() {
+        if self.local_matrix != DMat4::IDENTITY {
             attr = attr.insert(SvgTagAttribute::Transform(mat4_to_mat3(&self.local_matrix)));
         }
 
@@ -299,7 +298,7 @@ impl EdgeLengthMeasure {
         );
         Self {
             name: name.map(|s| s.into()),
-            length: edge.vec().magnitude(),
+            length: edge.vec().length(),
             edge,
             offset: -offset,
         }
@@ -314,7 +313,7 @@ impl EdgeLengthMeasure {
 
         Self {
             name: name.map(|s| s.into()),
-            length: edge.vec().magnitude(),
+            length: edge.vec().length(),
             edge,
             offset,
         }
@@ -330,7 +329,7 @@ impl MapToCanvas for EdgeLengthMeasure {
 
 impl WriteSvg for EdgeLengthMeasure {
     fn write_svg<W: Write>(&self, writer: &mut SvgWriter<W>) -> std::io::Result<()> {
-        let edge_length = self.edge.vec().magnitude();
+        let edge_length = self.edge.vec().length();
 
         use attributes::SvgTagAttribute::*;
 
@@ -383,17 +382,17 @@ pub struct RadiusMeasure {
     /// Name of this measurement.
     pub name: Option<String>,
     /// Angle of the measurement.
-    pub angle: Deg<Scalar>,
+    pub angle: Angle,
 }
 
 impl RadiusMeasure {
     /// Create new radius measure.
-    pub fn new(circle: Circle, name: Option<String>, angle: Option<Deg<Scalar>>) -> Self {
+    pub fn new(circle: Circle, name: Option<String>, angle: Option<Angle>) -> Self {
         Self {
             radius: circle.radius,
             circle,
             name,
-            angle: angle.unwrap_or(Deg(-45.0)),
+            angle: angle.unwrap_or(Angle::from_degrees(-45.0)),
         }
     }
 }
@@ -408,7 +407,7 @@ impl WriteSvg for RadiusMeasure {
     fn write_svg<W: Write>(&self, writer: &mut SvgWriter<W>) -> std::io::Result<()> {
         writer.begin_group(SvgTagAttributes::new())?;
 
-        let edge = Line::radius_edge(&self.circle, &self.angle.into());
+        let edge = Line::radius_edge(&self.circle, &self.angle);
         writer.with_attr(
             SvgTagAttributes::new()
                 .insert(SvgTagAttribute::MarkerEnd("arrow".into()))

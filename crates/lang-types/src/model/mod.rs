@@ -116,12 +116,11 @@ impl Model {
     }
 
     pub fn local_matrix(&self) -> Mat4 {
-        use crate::math::{FromFloat, Mat4F};
-        use cgmath::SquareMatrix;
+        use crate::math::FromFloat;
 
         match &self.element {
             Element::BuiltinWorkpiece(BuiltinWorkpiece::AffineTransform(t)) => t.matrix(),
-            _ => Mat4::from_float(Mat4F::identity()),
+            _ => Mat4::from_float(glam::DMat4::IDENTITY),
         }
     }
 

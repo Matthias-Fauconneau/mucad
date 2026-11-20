@@ -44,12 +44,13 @@ pub enum AffineTransform {
 
 impl AffineTransform {
     pub fn matrix(&self) -> Mat4 {
-        use math::{FromFloat, IntoFloat, Mat4F};
+        use glam::{DMat4, DVec3};
+        use math::{FromFloat, IntoFloat};
 
         match self {
             AffineTransform::Translation { x, y, z } => {
                 let v = Vec3::new(x.0, y.0, z.0).into_float();
-                let mat_f = Mat4F::from_translation(v);
+                let mat_f = DMat4::from_translation(v);
                 Mat4::from_float(mat_f)
             }
             AffineTransform::RotateMatrix { m } => math::mat3_to_mat4(*m),
@@ -63,16 +64,16 @@ impl AffineTransform {
                 math::mat3_to_mat4(math::rotate_zyx(*x, *y, *z))
             }
             AffineTransform::Scale(v) => {
-                let mat_f = Mat4F::from_nonuniform_scale(
+                let mat_f = DMat4::from_scale(DVec3::new(
                     v.x.into_float(),
                     v.y.into_float(),
                     v.z.into_float(),
-                );
+                ));
                 Mat4::from_float(mat_f)
             }
             AffineTransform::UniformScale(s) => {
                 let s_f = (*s).into_float();
-                let mat_f = Mat4F::from_scale(s_f);
+                let mat_f = DMat4::from_scale(DVec3::splat(s_f));
                 Mat4::from_float(mat_f)
             }
             AffineTransform::Arbitrary(m) => *m,
@@ -94,10 +95,11 @@ impl std::fmt::Display for AffineTransform {
                 write!(f, "Translate({x}, {y}, {z})")
             }
             AffineTransform::RotateMatrix { m } => {
+                // The columns, like cgmath did.
                 write!(
                     f,
-                    "RotateMatrix({m:?})",
-                    m = math::float::Mat3F::from_fixed(*m)
+                    "RotateMatrix(Matrix3 {m:?})",
+                    m = glam::DMat3::from_fixed(*m).to_cols_array_2d()
                 )
             }
             AffineTransform::RotateAroundAxis { angle, vec } => {

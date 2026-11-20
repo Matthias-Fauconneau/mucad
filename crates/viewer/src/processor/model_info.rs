@@ -46,13 +46,12 @@ impl ModelInfo {
         model: mu::types::ModelNodeRef,
         mesh_uuids: Vec<Uuid>,
     ) -> Self {
-        use cgmath::SquareMatrix;
         use mu::types::model::attribute::Attribute;
 
         let transform = node
             .parent()
             .map(|parent| parent.world_matrix)
-            .unwrap_or(mu::core::Mat4::identity());
+            .unwrap_or(mu::core::DMat4::IDENTITY);
         let model = model.get();
         let bounds_3d = node.outputs.bounds().clone();
 

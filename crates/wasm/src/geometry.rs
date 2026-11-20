@@ -73,7 +73,7 @@ impl Mesh {
                 triangulation
                     .vertices
                     .iter()
-                    .map(|[x, y]| cgmath::Vector3::new(*x as f32, *y as f32, 0.0)),
+                    .map(|[x, y]| mu::core::Vec3::new(*x as f32, *y as f32, 0.0)),
             );
             mesh.triangle_indices.extend(
                 triangulation

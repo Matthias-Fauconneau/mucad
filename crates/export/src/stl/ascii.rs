@@ -5,8 +5,8 @@
 
 use std::io::Write;
 
-use cgmath::{InnerSpace, Vector3};
 use mucad_core::Triangle;
+use mucad_core::Vec3;
 
 use crate::{Writer, stl::triangles::AsTriangleIterator};
 
@@ -27,7 +27,7 @@ impl<W: Write> AsciiStlWriter<W> {
         }
     }
 
-    fn write_triangle(&mut self, tri: &Triangle<Vector3<f32>>) -> std::io::Result<()> {
+    fn write_triangle(&mut self, tri: &Triangle<Vec3>) -> std::io::Result<()> {
         if !self.header_written {
             self.begin()?;
         }

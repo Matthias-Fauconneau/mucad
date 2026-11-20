@@ -4,7 +4,7 @@
 //! Scalable Vector Graphics (SVG) tag attributes
 
 use derive_more::Deref;
-use mucad_core::{Color, Mat3, Scalar};
+use mucad_core::{Color, DMat3, Scalar};
 use mucad_render::RenderAttributes;
 
 /// An attribute for an SVG tag, e.g. `"style=fill:none"`.
@@ -27,7 +27,7 @@ pub enum SvgTagAttribute {
     },
 
     /// Transform by mat3 matrix attribute.
-    Transform(Mat3),
+    Transform(DMat3),
 
     /// Class attribute.
     Class(String),
@@ -89,7 +89,9 @@ impl std::fmt::Display for SvgTagAttribute {
                 }
             ),
             SvgTagAttribute::Transform(m) => {
-                let (a, b, c, d, e, f) = (m.x.x, m.x.y, m.y.x, m.y.y, m.z.x, m.z.y);
+                let (a, b, c, d, e, f) = (
+                    m.x_axis.x, m.x_axis.y, m.y_axis.x, m.y_axis.y, m.z_axis.x, m.z_axis.y,
+                );
                 format!("matrix({a} {b} {c} {d} {e} {f})")
             }
             SvgTagAttribute::Class(class) => class.clone(),

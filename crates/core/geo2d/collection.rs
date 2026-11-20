@@ -118,7 +118,7 @@ impl CalcBounds2D for Geometries2D {
 }
 
 impl Transformed2D for Geometries2D {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         Self(
             self.iter()
                 .map(|geometry| geometry.transformed_2d(mat))
@@ -148,9 +148,9 @@ impl DistributeGrid for Geometries2D {
                 .zip(self.0.iter())
                 .map(|(cell, geo)| {
                     let center = geo.calc_bounds_2d().center();
-                    let cell_center: Vec2 = cell.center().x_y().into();
+                    let cell_center: DVec2 = cell.center().x_y().into();
                     let d = center - cell_center;
-                    geo.transformed_2d(&Mat3::from_translation(d))
+                    geo.transformed_2d(&DMat3::from_translation(d))
                 })
                 .collect(),
         )

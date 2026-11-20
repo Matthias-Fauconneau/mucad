@@ -165,7 +165,6 @@ impl ToBevyMesh for mu::core::TriangleMesh {
 
     fn to_bevy_mesh(&self, threshold_degrees: Self::Parameters) -> Vec<Mesh> {
         let cos_threshold = threshold_degrees.to_radians().cos();
-        use cgmath::InnerSpace;
 
         let mut face_normals = Vec::with_capacity(self.triangle_indices.len());
         let mut vertex_to_faces: Vec<Vec<usize>> = vec![vec![]; self.positions.len()];

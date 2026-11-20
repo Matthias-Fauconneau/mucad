@@ -3,7 +3,7 @@
 
 //! Rendering of compiled sources with a render cache, e.g. in the viewer.
 
-use mucad_core::Vec3;
+use mucad_core::DVec3;
 use mucad_driver::{Compiler, prelude as mu};
 
 /// A compiler and a renderer with a render cache, which are kept between compilations.
@@ -96,10 +96,10 @@ fn ops_bounds(code: &str) -> mucad_core::Bounds3D {
     tree.bounds()
 }
 
-fn assert_bounds(code: &str, min: impl Into<Vec3>, max: impl Into<Vec3>) {
+fn assert_bounds(code: &str, min: impl Into<DVec3>, max: impl Into<DVec3>) {
     let bounds = ops_bounds(code);
     let (actual_min, actual_max) = bounds.min_max();
-    let close = |a: &Vec3, b: Vec3| {
+    let close = |a: &DVec3, b: DVec3| {
         (a.x - b[0]).abs() < 1e-6 && (a.y - b[1]).abs() < 1e-6 && (a.z - b[2]).abs() < 1e-6
     };
     assert!(

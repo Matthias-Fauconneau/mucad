@@ -25,10 +25,9 @@ pub struct Angle {
 
 impl Default for Angle {
     fn default() -> Self {
-        use cgmath::{Deg, Rad};
         Self {
-            start_angle: Rad::from(Deg(45.0)).0,
-            end_angle: Rad::from(Deg(135.0)).0,
+            start_angle: 45.0_f32.to_radians(),
+            end_angle: 135.0_f32.to_radians(),
             inner_radius: 0.0,
             outer_radius: 1.0,
             alpha_mode: bevy::prelude::AlphaMode::Blend,

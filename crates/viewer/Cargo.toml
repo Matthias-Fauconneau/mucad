@@ -34,7 +34,6 @@ bevy = { version = "0.18.1", default-features = false, features = [
 
 bevy_mod_outline = "0.12.1"
 clap = { version = "4.5.48", features = ["derive"] }
-cgmath = { version = "0.18", features = ["serde"] }
 crossbeam = "0.8"
 env_logger = "0.11"
 geo = "0.33"

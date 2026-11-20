@@ -6,7 +6,7 @@
 use bezier_rs::Bezier;
 use svgtypes::{SimplePathSegment, SimplifyingPathParser};
 
-use crate::Vec2;
+use crate::DVec2;
 
 /// An error of parsing an SVG path.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -23,7 +23,7 @@ pub enum SvgError {
 pub type SubpathCurves = Vec<Vec<Bezier>>;
 
 /// A cubic Bézier curve from `start` to `end` with two handles.
-fn cubic(start: Vec2, handle_start: Vec2, handle_end: Vec2, end: Vec2) -> Bezier {
+fn cubic(start: DVec2, handle_start: DVec2, handle_end: DVec2, end: DVec2) -> Bezier {
     Bezier::from_cubic_coordinates(
         start.x,
         start.y,
@@ -37,14 +37,14 @@ fn cubic(start: Vec2, handle_start: Vec2, handle_end: Vec2, end: Vec2) -> Bezier
 }
 
 /// A line from `start` to `end` as cubic Bézier curve, with handles at a third of the line.
-fn cubic_line(start: Vec2, end: Vec2) -> Bezier {
+fn cubic_line(start: DVec2, end: DVec2) -> Bezier {
     let third = (end - start) / 3.0;
     cubic(start, start + third, end - third, end)
 }
 
 /// A quadratic Bézier curve as cubic Bézier curve, which is the same curve.
-fn cubic_quadratic(start: Vec2, handle: Vec2, end: Vec2) -> Bezier {
-    let two_thirds = |from: Vec2| from + (handle - from) * 2.0 / 3.0;
+fn cubic_quadratic(start: DVec2, handle: DVec2, end: DVec2) -> Bezier {
+    let two_thirds = |from: DVec2| from + (handle - from) * 2.0 / 3.0;
     cubic(start, two_thirds(start), two_thirds(end), end)
 }
 
@@ -58,7 +58,7 @@ pub fn parse_path(d: &str) -> Result<SubpathCurves, SvgError> {
     let mut subpaths = SubpathCurves::new();
     let mut curves = Vec::new();
     // The current point and the start of the current subpath.
-    let mut current = Vec2::new(0.0, 0.0);
+    let mut current = DVec2::new(0.0, 0.0);
     let mut start = current;
 
     for segment in SimplifyingPathParser::from(d) {
@@ -68,11 +68,11 @@ pub fn parse_path(d: &str) -> Result<SubpathCurves, SvgError> {
                 if !curves.is_empty() {
                     subpaths.push(std::mem::take(&mut curves));
                 }
-                current = Vec2::new(x, y);
+                current = DVec2::new(x, y);
                 start = current;
             }
             SimplePathSegment::LineTo { x, y } => {
-                let end = Vec2::new(x, y);
+                let end = DVec2::new(x, y);
                 curves.push(cubic_line(current, end));
                 current = end;
             }
@@ -84,13 +84,13 @@ pub fn parse_path(d: &str) -> Result<SubpathCurves, SvgError> {
                 x,
                 y,
             } => {
-                let end = Vec2::new(x, y);
-                curves.push(cubic(current, Vec2::new(x1, y1), Vec2::new(x2, y2), end));
+                let end = DVec2::new(x, y);
+                curves.push(cubic(current, DVec2::new(x1, y1), DVec2::new(x2, y2), end));
                 current = end;
             }
             SimplePathSegment::Quadratic { x1, y1, x, y } => {
-                let end = Vec2::new(x, y);
-                curves.push(cubic_quadratic(current, Vec2::new(x1, y1), end));
+                let end = DVec2::new(x, y);
+                curves.push(cubic_quadratic(current, DVec2::new(x1, y1), end));
                 current = end;
             }
             SimplePathSegment::ClosePath => {

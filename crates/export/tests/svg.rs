@@ -127,7 +127,7 @@ fn svg_canvas() -> std::io::Result<()> {
             .iter()
             .map(|p| Circle {
                 radius: 2.0,
-                offset: Vec2::new(p.0, p.1),
+                offset: DVec2::new(p.0, p.1),
             })
             .try_for_each(|c| {
                 let mut orig_c = c.clone();
@@ -178,7 +178,7 @@ fn svg_sample_sketch() -> std::io::Result<()> {
 
             let circle = Circle {
                 radius,
-                offset: Vec2::new(width, height),
+                offset: DVec2::new(width, height),
             };
             let rect = Rect::new(coord! {x: 0.0, y: 0.0}, coord! {x: width, y: height});
 

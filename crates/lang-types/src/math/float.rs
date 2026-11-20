@@ -6,31 +6,12 @@
 //! All values in µcad are fixed point. Use these traits and their impls to convert them to floating point types and back.
 //! The default floating point type `ScalarF` is `f64`:
 
+use glam::{DMat2, DMat3, DMat4, DVec2, DVec3, DVec4};
+
 use crate::{Angle, Mat2, Mat3, Mat4, Scalar, Vec2, Vec3, Vec4};
 
 /// Floating point scalar
 pub type ScalarF = f64;
-
-/// Floating point angle
-pub type AngleF = cgmath::Rad<ScalarF>;
-
-/// 2D floating point vector type.
-pub type Vec2F = cgmath::Vector2<ScalarF>;
-
-/// 3D floating point vector type.
-pub type Vec3F = cgmath::Vector3<ScalarF>;
-
-/// 4D floating point vector type.
-pub type Vec4F = cgmath::Vector4<ScalarF>;
-
-/// Matrix 2x2 floating point type.
-pub type Mat2F = cgmath::Matrix2<ScalarF>;
-
-/// Matrix 3x3 floating point type.
-pub type Mat3F = cgmath::Matrix3<ScalarF>;
-
-/// Matrix 4x4 floating point type.
-pub type Mat4F = cgmath::Matrix4<ScalarF>;
 
 /// Quantized conversion back into exact fixed-point representation.
 pub trait FromFloat<Source> {
@@ -90,88 +71,72 @@ impl FromFloat<ScalarF> for Scalar {
 
 // --- Angle Implementations ---
 
-impl FromFixed<Angle> for AngleF {
+/// An angle in radians, like the angles of glam.
+impl FromFixed<Angle> for ScalarF {
     #[inline]
     fn from_fixed(val: Angle) -> Self {
-        cgmath::Rad(ScalarF::from_fixed(val.0))
+        ScalarF::from_fixed(val.0)
     }
 }
 
-impl FromFloat<AngleF> for Angle {
+/// An angle of radians.
+impl FromFloat<ScalarF> for Angle {
     #[inline]
-    fn from_float(val: AngleF) -> Self {
-        cgmath::Rad(Scalar::from_num(val.0))
+    fn from_float(val: ScalarF) -> Self {
+        cgmath::Rad(Scalar::from_num(val))
     }
 }
 
-// --- Vector Implementations ---
+// --- Vector and Matrix Implementations ---
 
+/// The conversions of a fixed point vector from and to its floating point one, through their
+/// arrays.
 macro_rules! impl_vec_convert {
-    ($fixed_type:ident, $float_type:ident, $($elem:ident),+ $(,)?) => {
-        // Fixed -> Float Vector
+    ($fixed_type:ident, $float_type:ident) => {
         impl FromFixed<$fixed_type> for $float_type {
             #[inline]
             fn from_fixed(val: $fixed_type) -> Self {
-                $float_type::new(
-                    $( crate::math::ScalarF::from_fixed(val.$elem) ),+
-                )
+                let array: [Scalar; _] = val.into();
+                array.map(ScalarF::from_fixed).into()
             }
         }
 
-        // Float -> Fixed Vector
         impl FromFloat<$float_type> for $fixed_type {
             #[inline]
             fn from_float(val: $float_type) -> Self {
-                $fixed_type::new(
-                    $( crate::Scalar::from_float(val.$elem) ),+
-                )
+                val.to_array().map(Scalar::from_float).into()
             }
         }
     };
 }
 
-// Vec2
-impl_vec_convert!(Vec2, Vec2F, x, y);
+impl_vec_convert!(Vec2, DVec2);
+impl_vec_convert!(Vec3, DVec3);
+impl_vec_convert!(Vec4, DVec4);
 
-// Vec3
-impl_vec_convert!(Vec3, Vec3F, x, y, z);
-
-// Vec4
-impl_vec_convert!(Vec4, Vec4F, x, y, z, w);
-
-// --- Matrix4 Implementations ---
-
+/// The conversions of a fixed point matrix from and to its floating point one, through the
+/// arrays of their columns.
 macro_rules! impl_matrix_convert {
-    ($fixed_type:ident, $float_type:ident, $($col:ident . $elem:ident),+ $(,)?) => {
-        // Fixed -> Float Matrix
+    ($fixed_type:ident, $float_type:ident) => {
         impl FromFixed<$fixed_type> for $float_type {
             #[inline]
             fn from_fixed(val: $fixed_type) -> Self {
-                $float_type::new(
-                    $( crate::math::ScalarF::from_fixed(val.$col.$elem) ),+
-                )
+                let columns: [[Scalar; _]; _] = val.into();
+                $float_type::from_cols_array_2d(&columns.map(|c| c.map(ScalarF::from_fixed)))
             }
         }
 
-        // Float -> Fixed Matrix
         impl FromFloat<$float_type> for $fixed_type {
             #[inline]
             fn from_float(val: $float_type) -> Self {
-                $fixed_type::new(
-                    $( crate::Scalar::from_float(val.$col.$elem) ),+
-                )
+                val.to_cols_array_2d()
+                    .map(|c| c.map(Scalar::from_float))
+                    .into()
             }
         }
     };
 }
 
-// 2x2
-impl_matrix_convert!(Mat2, Mat2F, x.x, x.y, y.x, y.y,);
-
-// 3x3
-impl_matrix_convert!(Mat3, Mat3F, x.x, x.y, x.z, y.x, y.y, y.z, z.x, z.y, z.z,);
-
-// 4x4
-impl_matrix_convert!(
-    Mat4, Mat4F, x.x, x.y, x.z, x.w, y.x, y.y, y.z, y.w, z.x, z.y, z.z, z.w, w.x, w.y, w.z, w.w,
-);
+impl_matrix_convert!(Mat2, DMat2);
+impl_matrix_convert!(Mat3, DMat3);
+impl_matrix_convert!(Mat4, DMat4);

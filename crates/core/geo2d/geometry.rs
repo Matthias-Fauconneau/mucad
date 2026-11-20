@@ -93,7 +93,7 @@ impl CalcBounds2D for Geometry2D {
 }
 
 impl Transformed2D for Geometry2D {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         match self {
             Geometry2D::LineString(line_string) => line_string.transformed_2d(mat).into(),
             Geometry2D::MultiLineString(mls) => mls.transformed_2d(mat).into(),
@@ -106,7 +106,7 @@ impl Transformed2D for Geometry2D {
 }
 
 impl TransformAffine for Geometry2D {
-    fn transform_affine(&mut self, m: &Mat4) {
+    fn transform_affine(&mut self, m: &DMat4) {
         *self = self.transformed_2d(&mat4_to_mat3(m)); // TODO Optimize this
     }
 }
@@ -114,8 +114,8 @@ impl TransformAffine for Geometry2D {
 impl Center for Geometry2D {
     fn center(&self) -> Self {
         if let Some(bounds) = self.calc_bounds_2d().rect() {
-            let d: Vec2 = bounds.center().x_y().into();
-            self.transformed_2d(&Mat3::from_translation(-d))
+            let d: DVec2 = bounds.center().x_y().into();
+            self.transformed_2d(&DMat3::from_translation(-d))
         } else {
             self.clone()
         }

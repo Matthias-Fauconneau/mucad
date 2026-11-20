@@ -6,7 +6,7 @@
 use derive_more::From;
 use strum::IntoStaticStr;
 
-use crate::{Bounds3D, CalcBounds2D, CalcBounds3D, Geometry2D, Geometry3D, Mat4, traits};
+use crate::{Bounds3D, CalcBounds2D, CalcBounds3D, DMat4, Geometry2D, Geometry3D, traits};
 
 /// A µcad core geometry.
 #[derive(Debug, Clone, IntoStaticStr, From)]
@@ -61,7 +61,7 @@ impl traits::Center for Geometry {
 }
 
 impl traits::TransformAffine for Geometry {
-    fn transform_affine(&mut self, m: &Mat4) {
+    fn transform_affine(&mut self, m: &DMat4) {
         match self {
             Self::Geometry2D(geo2d) => geo2d.transform_affine(m),
             Self::Geometry3D(geo3d) => geo3d.transform_affine(m),

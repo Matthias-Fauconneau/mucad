@@ -11,6 +11,7 @@ version.workspace = true
 
 [dependencies]
 bytemuck = "1.24.0"
+# The vectors and matrices of fixed point scalars.
 cgmath = { version = "0.18", features = ["serde"] }
 derive_more = { version = "2.0.1", features = [
     "deref",
@@ -18,6 +19,8 @@ derive_more = { version = "2.0.1", features = [
     "display",
     "debug",
 ] }
+# The vectors and matrices of floating point scalars, which are the ones of mucad-core.
+glam = "0.30"
 fixed = { version = "1.31", features = ["serde"] }
 libm = "0.2"
 log = "0.4"

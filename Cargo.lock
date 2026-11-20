@@ -5255,9 +5255,9 @@ version = "0.6.3"
 dependencies = [
  "bezier-rs",
  "bytemuck",
- "cgmath",
  "derive_more",
  "geo",
+ "glam 0.30.10",
  "manifold-rust",
  "miette",
  "mucad-hash",
@@ -5328,7 +5328,6 @@ name = "mucad-export"
 version = "0.6.3"
 dependencies = [
  "cargo_metadata 0.23.1",
- "cgmath",
  "derive_more",
  "geo",
  "insta",
@@ -5495,6 +5494,7 @@ dependencies = [
  "cgmath",
  "derive_more",
  "fixed",
+ "glam 0.30.10",
  "insta",
  "libm",
  "log",
@@ -5539,7 +5539,6 @@ dependencies = [
 name = "mucad-render"
 version = "0.6.3"
 dependencies = [
- "cgmath",
  "insta",
  "log",
  "miette",
@@ -5572,7 +5571,6 @@ version = "0.6.3"
 dependencies = [
  "bevy",
  "bevy_mod_outline",
- "cgmath",
  "clap",
  "crossbeam",
  "env_logger",
@@ -5623,7 +5621,6 @@ dependencies = [
 name = "mucad-wasm"
 version = "0.6.3"
 dependencies = [
- "cgmath",
  "console_error_panic_hook",
  "geo",
  "glam 0.30.10",

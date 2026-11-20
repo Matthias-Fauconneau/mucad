@@ -1,8 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use cgmath::SquareMatrix;
-use mucad_core::{Bounds3D, Mat4};
+use mucad_core::{Bounds3D, DMat4};
 use mucad_lang_types::{ModelNodeRef, ModelTree, math::ScalarF};
 
 use crate::{GeometryNodeData, RenderResolution};
@@ -35,7 +34,7 @@ impl GeometryTree {
             let parent_matrix = node
                 .parent()
                 .map(|p| p.world_matrix)
-                .unwrap_or(Mat4::identity());
+                .unwrap_or(DMat4::IDENTITY);
             output.world_matrix = parent_matrix * output.local_matrix;
         });
 

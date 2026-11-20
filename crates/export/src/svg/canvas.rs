@@ -5,8 +5,8 @@
 
 use geo::{Coord, MultiPolygon};
 use mucad_core::{
-    Bounds2D, Circle, Geometries2D, Geometry, Geometry2D, Line, LineString, MultiLineString, Point,
-    Polygon, Rect, Scalar, Size2, Vec2, geo2d,
+    Bounds2D, Circle, DVec2, Geometries2D, Geometry, Geometry2D, Line, LineString, MultiLineString,
+    Point, Polygon, Rect, Scalar, Size2, geo2d,
 };
 use mucad_render::{GeometryNodeData, GeometryOutput, GeometryOutputs, GeometryTree};
 
@@ -139,7 +139,7 @@ impl MapToCanvas for Point {
     }
 }
 
-impl MapToCanvas for Vec2 {
+impl MapToCanvas for DVec2 {
     fn map_to_canvas(&mut self, canvas: &Canvas) {
         let mut xy = (self.x, self.y);
         xy.map_to_canvas(canvas);

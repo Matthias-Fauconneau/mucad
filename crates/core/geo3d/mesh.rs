@@ -5,7 +5,6 @@ use crate::{
     traits::{TotalMemory, TransformAffine, VertexCount},
     *,
 };
-use cgmath::{ElementWise, Vector3};
 use manifold_rust::{manifold::Manifold, types::MeshGL};
 
 use mucad_hash::HashMap;
@@ -14,9 +13,9 @@ use mucad_hash::HashMap;
 #[derive(Default, Clone)]
 pub struct TriangleMesh {
     /// Mesh Vertices
-    pub positions: Vec<Vector3<f32>>,
+    pub positions: Vec<Vec3>,
     /// Optional normals.
-    pub normals: Option<Vec<Vector3<f32>>>,
+    pub normals: Option<Vec<Vec3>>,
     /// Triangle indices.
     pub triangle_indices: Vec<Triangle<u32>>,
 }
@@ -27,7 +26,7 @@ pub struct Triangles<'a> {
 }
 
 impl<'a> Iterator for Triangles<'a> {
-    type Item = Triangle<&'a Vector3<f32>>;
+    type Item = Triangle<&'a Vec3>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.triangle_mesh.triangle_indices.len() {
@@ -57,7 +56,7 @@ impl TriangleMesh {
     }
 
     /// Fetch triangles.
-    pub fn fetch_triangles(&self) -> Vec<Triangle<Vector3<f32>>> {
+    pub fn fetch_triangles(&self) -> Vec<Triangle<Vec3>> {
         self.triangle_indices
             .iter()
             .map(|t| {
@@ -84,13 +83,7 @@ impl TriangleMesh {
 
     /// The vertex positions as flat `x, y, z` triples, without copying.
     pub fn coordinates(&self) -> &[f32] {
-        // SAFETY: `Vector3<f32>` is `#[repr(C)]` and consists of three `f32`.
-        unsafe {
-            std::slice::from_raw_parts(
-                self.positions.as_ptr().cast::<f32>(),
-                self.positions.len() * 3,
-            )
-        }
+        bytemuck::cast_slice(&self.positions)
     }
 
     /// The vertex indices of the triangles as flat triples, without copying.
@@ -137,7 +130,7 @@ impl TriangleMesh {
     }
 
     /// Fetch a vertex triangle from index triangle.
-    pub fn fetch_triangle(&self, tri: Triangle<u32>) -> Triangle<&Vector3<f32>> {
+    pub fn fetch_triangle(&self, tri: Triangle<u32>) -> Triangle<&Vec3> {
         Triangle(
             &self.positions[tri.0 as usize],
             &self.positions[tri.1 as usize],
@@ -149,14 +142,12 @@ impl TriangleMesh {
     pub fn repair(&mut self, bounds: &Bounds3D) {
         // 1. Merge duplicate vertices using a spatial hash map (or hashmap keyed on quantized position)
 
-        let min: Vector3<f32> = bounds.min.cast().expect("Successful cast");
-        let inv_size: Vector3<f32> = (1.0 / (bounds.max - bounds.min))
-            .cast()
-            .expect("Successful cast");
+        let min = bounds.min.as_vec3();
+        let inv_size = (1.0 / (bounds.max - bounds.min)).as_vec3();
 
         // Quantize vertex positions to grid to group duplicates
-        let quantize = |pos: &Vector3<f32>| {
-            let mapped = (pos - min).mul_element_wise(inv_size) * (u32::MAX as f32);
+        let quantize = |pos: &Vec3| {
+            let mapped = (*pos - min) * inv_size * (u32::MAX as f32);
             (
                 mapped.x.floor() as u32,
                 mapped.y.floor() as u32,
@@ -165,7 +156,7 @@ impl TriangleMesh {
         };
 
         let mut vertex_map: HashMap<(u32, u32, u32), u32> = HashMap::default();
-        let mut new_positions: Vec<Vector3<f32>> = Vec::with_capacity(self.positions.len());
+        let mut new_positions: Vec<Vec3> = Vec::with_capacity(self.positions.len());
         let remap: Vec<u32> = self
             .positions
             .iter()
@@ -210,7 +201,7 @@ impl CalcBounds3D for TriangleMesh {
     fn calc_bounds_3d(&self) -> Bounds3D {
         self.positions
             .iter()
-            .map(|positions| positions.cast::<f64>().expect("Successful cast"))
+            .map(|position| position.as_dvec3())
             .collect()
     }
 }
@@ -226,7 +217,7 @@ impl From<MeshGL> for TriangleMesh {
         TriangleMesh {
             positions: (0..vertices.len())
                 .step_by(3)
-                .map(|i| Vector3::new(vertices[i], vertices[i + 1], vertices[i + 2]))
+                .map(|i| Vec3::new(vertices[i], vertices[i + 1], vertices[i + 2]))
                 .collect(),
             normals: None,
             triangle_indices: (0..indices.len())
@@ -270,16 +261,12 @@ impl From<Manifold> for TriangleMesh {
 }
 
 impl Transformed3D for TriangleMesh {
-    fn transformed_3d(&self, mat: &Mat4) -> Self {
-        let mat = mat.cast::<f32>().expect("Successful cast");
+    fn transformed_3d(&self, mat: &DMat4) -> Self {
+        let mat = mat.as_mat4();
         let normals = match &self.normals {
             Some(normals) => {
-                let rot_mat = cgmath::Matrix3::from_cols(
-                    mat.x.truncate(),
-                    mat.y.truncate(),
-                    mat.z.truncate(),
-                );
-                let normals = normals.iter().map(|n| rot_mat * n).collect();
+                let rot_mat = glam::Mat3::from_mat4(mat);
+                let normals = normals.iter().map(|n| rot_mat * *n).collect();
                 Some(normals)
             }
             None => None,
@@ -322,15 +309,13 @@ impl VertexCount for TriangleMesh {
     }
 }
 
-use cgmath::{InnerSpace, Vector4};
-
 impl TransformAffine for TriangleMesh {
-    fn transform_affine(&mut self, m: &Mat4) {
+    fn transform_affine(&mut self, m: &DMat4) {
         // 1. Transform positions (points have w = 1.0)
         for pos in &mut self.positions {
-            // Convert Vector3<f32> to f64 for matrix multiplication, then back to f32
-            let p4 = Vector4::new(pos.x as f64, pos.y as f64, pos.z as f64, 1.0);
-            let transformed = m * p4;
+            // Convert Vec3 to f64 for matrix multiplication, then back to f32
+            let p4 = pos.as_dvec3().extend(1.0);
+            let transformed = *m * p4;
 
             // Handle potential perspective divide if matrix is non-affine,
             // though standard affine matrices will have w == 1.0.
@@ -339,27 +324,17 @@ impl TransformAffine for TriangleMesh {
             } else {
                 1.0
             };
-            *pos = Vector3::new(
-                (transformed.x / w) as f32,
-                (transformed.y / w) as f32,
-                (transformed.z / w) as f32,
-            );
+            *pos = (transformed.truncate() / w).as_vec3();
         }
 
         // 2. Transform normals (directional vectors have w = 0.0)
         if let Some(normals) = &mut self.normals {
             for norm in normals {
-                let n4 = Vector4::new(norm.x as f64, norm.y as f64, norm.z as f64, 0.0);
-                let transformed = (m * n4).truncate(); // drop w
-
-                let transformed_f32 = Vector3::new(
-                    transformed.x as f32,
-                    transformed.y as f32,
-                    transformed.z as f32,
-                );
+                let n4 = norm.as_dvec3().extend(0.0);
+                let transformed = (*m * n4).truncate(); // drop w
 
                 // Renormalize to maintain unit length after scale/rotation
-                *norm = transformed_f32.normalize();
+                *norm = transformed.as_vec3().normalize();
             }
         }
 
@@ -397,28 +372,28 @@ impl From<&Geometries3D> for TriangleMesh {
 fn test_triangle_mesh_transform() {
     let mesh = TriangleMesh {
         positions: vec![
-            cgmath::Vector3::new(0.0, 0.0, 0.0),
-            cgmath::Vector3::new(1.0, 0.0, 0.0),
-            cgmath::Vector3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
         ],
         normals: None,
         triangle_indices: vec![Triangle(0, 1, 2)],
     };
 
-    let mesh = mesh.transformed_3d(&crate::Mat4::from_translation(Vec3::new(1.0, 2.0, 3.0)));
+    let mesh = mesh.transformed_3d(&DMat4::from_translation(DVec3::new(1.0, 2.0, 3.0)));
 
-    assert_eq!(mesh.positions[0], cgmath::Vector3::new(1.0, 2.0, 3.0));
-    assert_eq!(mesh.positions[1], cgmath::Vector3::new(2.0, 2.0, 3.0));
-    assert_eq!(mesh.positions[2], cgmath::Vector3::new(1.0, 3.0, 3.0));
+    assert_eq!(mesh.positions[0], Vec3::new(1.0, 2.0, 3.0));
+    assert_eq!(mesh.positions[1], Vec3::new(2.0, 2.0, 3.0));
+    assert_eq!(mesh.positions[2], Vec3::new(1.0, 3.0, 3.0));
 }
 
 #[test]
 fn test_triangle_mesh_flat_slices() {
     let mesh = TriangleMesh {
         positions: vec![
-            cgmath::Vector3::new(0.0, 0.0, 0.0),
-            cgmath::Vector3::new(1.0, 2.0, 3.0),
-            cgmath::Vector3::new(4.0, 5.0, 6.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::new(4.0, 5.0, 6.0),
         ],
         normals: None,
         triangle_indices: vec![Triangle(0, 1, 2), Triangle(2, 1, 0)],

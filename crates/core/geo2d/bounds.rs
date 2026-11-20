@@ -8,7 +8,7 @@ use derive_more::Deref;
 use crate::*;
 
 /// Bounds2D type alias.
-pub type Bounds2D = Bounds<Vec2>;
+pub type Bounds2D = Bounds<DVec2>;
 
 impl Bounds2D {
     /// Check if bounds are valid.
@@ -38,7 +38,7 @@ impl Bounds2D {
     }
 
     /// Calculate center of bounds.
-    pub fn center(&self) -> Vec2 {
+    pub fn center(&self) -> DVec2 {
         (self.min + self.max) * 0.5
     }
 
@@ -71,7 +71,7 @@ impl Bounds2D {
     }
 
     /// Extend these bounds by point.
-    pub fn extend_by_point(&mut self, p: Vec2) {
+    pub fn extend_by_point(&mut self, p: DVec2) {
         self.min.x = p.x.min(self.min.x);
         self.min.y = p.y.min(self.min.y);
         self.max.x = p.x.max(self.max.x);
@@ -80,12 +80,11 @@ impl Bounds2D {
 
     /// Return bounding radius.
     pub fn radius(&self) -> Scalar {
-        use cgmath::InnerSpace;
-        (self.max - self.min).magnitude() * 0.5
+        (self.max - self.min).length() * 0.5
     }
 
     /// Distance to boundary from the bounds' center.
-    pub fn distance_center_to_boundary(&self, dir: Vec2) -> Length {
+    pub fn distance_center_to_boundary(&self, dir: DVec2) -> Length {
         let center = self.center();
 
         // Handle x-axis intersections
@@ -143,7 +142,7 @@ impl From<Bounds3D> for Bounds2D {
 
 impl From<Size2> for Bounds2D {
     fn from(value: Size2) -> Self {
-        Self::new(Vec2::new(0.0, 0.0), Vec2::new(value.width, value.height))
+        Self::new(DVec2::new(0.0, 0.0), DVec2::new(value.width, value.height))
     }
 }
 
@@ -193,7 +192,7 @@ impl<T: CalcBounds2D + Transformed2D> WithBounds2D<T> {
 }
 
 impl<T: CalcBounds2D + Transformed2D> Transformed2D for WithBounds2D<T> {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         let inner = self.inner.transformed_2d(mat);
         let bounds = inner.calc_bounds_2d();
         Self { inner, bounds }
@@ -208,11 +207,11 @@ impl From<Geometry2D> for WithBounds2D<Geometry2D> {
 
 #[test]
 fn bounds_2d_test() {
-    let bounds1 = Bounds2D::new(Vec2::new(0.0, 1.0), Vec2::new(2.0, 3.0));
-    let bounds2 = Bounds2D::new(Vec2::new(4.0, 5.0), Vec2::new(6.0, 7.0));
+    let bounds1 = Bounds2D::new(DVec2::new(0.0, 1.0), DVec2::new(2.0, 3.0));
+    let bounds2 = Bounds2D::new(DVec2::new(4.0, 5.0), DVec2::new(6.0, 7.0));
 
     let bounds1 = bounds1.extend(bounds2);
 
-    assert_eq!(bounds1.min, Vec2::new(0.0, 1.0));
-    assert_eq!(bounds1.max, Vec2::new(6.0, 7.0));
+    assert_eq!(bounds1.min, DVec2::new(0.0, 1.0));
+    assert_eq!(bounds1.max, DVec2::new(6.0, 7.0));
 }

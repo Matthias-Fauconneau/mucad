@@ -3,26 +3,24 @@
 
 //! Specializations for 3D triangles.
 
-use cgmath::{InnerSpace, Vector3};
-
 use crate::*;
 
-impl Triangle<Vector3<f32>> {
+impl Triangle<Vec3> {
     /// Get normal of triangle
-    pub fn normal(&self) -> Vector3<f32> {
+    pub fn normal(&self) -> Vec3 {
         (self.2 - self.0).cross(self.1 - self.0)
     }
 }
 
-impl Triangle<&Vector3<f32>> {
+impl Triangle<&Vec3> {
     /// Get normal of triangle
-    pub fn normal(&self) -> Vector3<f32> {
+    pub fn normal(&self) -> Vec3 {
         (self.2 - self.0).cross(self.1 - self.0)
     }
 
     /// Get area of triangle.
     pub fn area(&self) -> f32 {
-        self.normal().magnitude()
+        self.normal().length()
     }
 
     /// Get signed volume of triangle

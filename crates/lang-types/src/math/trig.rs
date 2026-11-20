@@ -3,31 +3,33 @@
 
 //! Rotation matrices, which are the same on all platforms.
 
-use super::{AngleF, Mat3F, Vec3F};
+use glam::{DMat3, DVec3};
 
-/// A rotation about the X axis by `angle`.
-pub fn rotation_x(angle: AngleF) -> Mat3F {
-    let (s, c) = libm::sincos(angle.0);
-    Mat3F::new(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c)
+use super::ScalarF;
+
+/// A rotation about the X axis by `angle` in radians.
+pub fn rotation_x(angle: ScalarF) -> DMat3 {
+    let (s, c) = libm::sincos(angle);
+    DMat3::from_cols_array(&[1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c])
 }
 
-/// A rotation about the Y axis by `angle`.
-pub fn rotation_y(angle: AngleF) -> Mat3F {
-    let (s, c) = libm::sincos(angle.0);
-    Mat3F::new(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c)
+/// A rotation about the Y axis by `angle` in radians.
+pub fn rotation_y(angle: ScalarF) -> DMat3 {
+    let (s, c) = libm::sincos(angle);
+    DMat3::from_cols_array(&[c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c])
 }
 
-/// A rotation about the Z axis by `angle`.
-pub fn rotation_z(angle: AngleF) -> Mat3F {
-    let (s, c) = libm::sincos(angle.0);
-    Mat3F::new(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0)
+/// A rotation about the Z axis by `angle` in radians.
+pub fn rotation_z(angle: ScalarF) -> DMat3 {
+    let (s, c) = libm::sincos(angle);
+    DMat3::from_cols_array(&[c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0])
 }
 
-/// A rotation about `axis`, which is a unit vector, by `angle`.
-pub fn rotation_axis(axis: Vec3F, angle: AngleF) -> Mat3F {
-    let (s, c) = libm::sincos(angle.0);
+/// A rotation about `axis`, which is a unit vector, by `angle` in radians.
+pub fn rotation_axis(axis: DVec3, angle: ScalarF) -> DMat3 {
+    let (s, c) = libm::sincos(angle);
     let one_minus_c = 1.0 - c;
-    Mat3F::new(
+    DMat3::from_cols_array(&[
         one_minus_c * axis.x * axis.x + c,
         one_minus_c * axis.x * axis.y + s * axis.z,
         one_minus_c * axis.x * axis.z - s * axis.y,
@@ -37,5 +39,5 @@ pub fn rotation_axis(axis: Vec3F, angle: AngleF) -> Mat3F {
         one_minus_c * axis.x * axis.z + s * axis.y,
         one_minus_c * axis.y * axis.z - s * axis.x,
         one_minus_c * axis.z * axis.z + c,
-    )
+    ])
 }

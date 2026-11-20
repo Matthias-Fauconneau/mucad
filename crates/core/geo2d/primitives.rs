@@ -21,50 +21,50 @@ pub type Rect = geo::Rect<Scalar>;
 pub type Point = geo::Point<Scalar>;
 
 impl Transformed2D for LineString {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         self.affine_transform(&mat3_to_affine_transform(mat))
     }
 }
 
 impl Transformed2D for MultiLineString {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         self.affine_transform(&mat3_to_affine_transform(mat))
     }
 }
 
 impl Transformed2D for Polygon {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         self.affine_transform(&mat3_to_affine_transform(mat))
     }
 }
 
 impl Transformed2D for MultiPolygon {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         self.affine_transform(&mat3_to_affine_transform(mat))
     }
 }
 
 impl FetchPoints2D for Rect {
-    fn fetch_points_2d(&self) -> Vec<Vec2> {
+    fn fetch_points_2d(&self) -> Vec<DVec2> {
         let min = self.min();
         let max = self.max();
         vec![
-            Vec2::new(min.x, min.y),
-            Vec2::new(min.x, max.y),
-            Vec2::new(max.x, min.y),
-            Vec2::new(max.x, max.y),
+            DVec2::new(min.x, min.y),
+            DVec2::new(min.x, max.y),
+            DVec2::new(max.x, min.y),
+            DVec2::new(max.x, max.y),
         ]
     }
 }
 
 impl Transformed2D for Rect {
-    fn transformed_2d(&self, mat: &Mat3) -> Self {
+    fn transformed_2d(&self, mat: &DMat3) -> Self {
         self.affine_transform(&mat3_to_affine_transform(mat))
     }
 }
 
 impl Transformed2D<Polygon> for Rect {
-    fn transformed_2d(&self, mat: &Mat3) -> Polygon {
+    fn transformed_2d(&self, mat: &DMat3) -> Polygon {
         self.to_polygon().transformed_2d(mat)
     }
 }

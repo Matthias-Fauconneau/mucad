@@ -3,12 +3,12 @@
 
 //! 3D plane geometry.
 
-use crate::Vec3;
+use crate::DVec3;
 
 /// A 3D plane with normal and point.
 pub struct Plane {
     /// Plane origin point.
-    pub p: Vec3,
+    pub p: DVec3,
     /// Plane normal.
-    pub n: Vec3,
+    pub n: DVec3,
 }
