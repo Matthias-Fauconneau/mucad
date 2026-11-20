@@ -1,3 +1,5 @@
+> **Fork Notice:** This fork will extend µcad with procedural organic primitives, grammar-constrained LLM code generation, and a local-first no-code modeling workflow. See **[ROADMAP.md](./ROADMAP.md)** for the full development plan.
+
 # µcad
 
 [![CI](https://ci.codeberg.org/api/badges/15446/status.svg)](https://ci.codeberg.org/repos/15446)
