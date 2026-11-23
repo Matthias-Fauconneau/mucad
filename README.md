@@ -1,6 +1,6 @@
 # µcad
 
-[![CI](https://ci.codeberg.org/api/badges/15446/status.svg)](https://ci.codeberg.org/repos/15446)
+[![CI](https://ci.codeberg.org/api/badges/18480/status.svg)](https://ci.codeberg.org/repos/18480)
 [![Crates.io](https://img.shields.io/crates/v/mucad.svg)](https://crates.io/crates/mucad)
 [![Dependency status](https://deps.rs/repo/codeberg/mucad/mucad/status.svg)](https://deps.rs/repo/codeberg/mucad/mucad)
 
@@ -74,7 +74,8 @@ cargo install mucad
 
 ## Command line usage
 
-After installing, you can run a basic example by typing:
+After installing, you can run a basic example from the [examples folder](./examples).
+Please note that the examples are not installed.
 
 ```sh
 mucad check ./examples/brick.mu
@@ -84,7 +85,6 @@ This will *check* the input file and will output the model tree.
 The *check* command will not export the output geometry.
 
 To generate an STL model file use the `export` command with an additional output file name:
-
 ```sh
 mucad export ./examples/brick.mu
 ```
