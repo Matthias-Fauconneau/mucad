@@ -14,12 +14,12 @@ impl Callable for BuiltinPrimitive {
     fn call(&self, args: &ArgumentValueList, context: &mut EvalContext) -> EvalResult {
         use crate::ArgumentMatch;
 
-        let multi_args = self.argument_multi_match(args).map_err(|err| {
+        let matches = self.match_arguments(args).map_err(|err| {
             EvalError::argument_match(context.current_symbol_src_ref(), self.info.item_name(), err)
         })?;
         let src_ref = context.current_symbol_src_ref();
         let mut models = Vec::new();
-        for args in multi_args {
+        for args in matches.arguments {
             let model = context.with_builtin_context(src_ref, |ctx| (self.f)(args, ctx))?;
             models.push(ModelTree::from(model));
         }
@@ -32,11 +32,12 @@ impl Callable for BuiltinFunction {
     fn call(&self, args: &ArgumentValueList, context: &mut EvalContext) -> EvalResult {
         let src_ref = context.current_symbol_src_ref();
         let name = context.current_symbol_name().unwrap_or_default();
-        let args = self
-            .argument_match(args)
+        let matches = self
+            .match_arguments(args)
             .map_err(|err| EvalError::argument_match(src_ref, name, err))?;
 
-        Ok(context.with_builtin_context(src_ref, |ctx| self.call(args, ctx))?)
+        Ok(matches
+            .try_value(|args| context.with_builtin_context(src_ref, |ctx| self.call(args, ctx)))?)
     }
 }
 
@@ -44,11 +45,11 @@ impl Callable for BuiltinOperation {
     fn call(&self, args: &ArgumentValueList, context: &mut EvalContext) -> EvalResult {
         let src_ref = context.current_symbol_src_ref();
         let name = context.current_symbol_name().unwrap_or_default();
-        let multi_args = self
-            .argument_multi_match(args)
+        let matches = self
+            .match_arguments(args)
             .map_err(|err| EvalError::argument_match(src_ref, name, err))?;
         let mut models = Vec::new();
-        for args in multi_args {
+        for args in matches.arguments {
             models.push(context.with_builtin_context(src_ref, |ctx| (self.f)(args, ctx))?);
         }
 

@@ -621,6 +621,20 @@ fn compile_positional_list_expansion() {
     insta::assert_snapshot!("compile_positional_list_expansion", display(&model));
 }
 
+/// List arguments for parameters of their element type call a function with each combination
+/// of their elements, and the results are a list, like the models of a workbench.
+#[test_case::test_case("fn f(a: Integer, b: Integer) { a * 10 + b }\nassert_eq(f([1, 2], [3, 4]), [13, 14, 23, 24]);"; "function product")]
+#[test_case::test_case("fn f(a: Integer) { a * 2 }\nassert_eq(f([]), []);"; "function empty list")]
+#[test_case::test_case("fn f(a: [Integer]) { a }\nassert_eq(f([1, 2]), [1, 2]);"; "function list parameter")]
+#[test_case::test_case("assert_eq(__mu::math::cos([0°, 180°]), [1.0, -1.0]);"; "builtin function")]
+#[test_case::test_case("print([1, 2]);"; "variadic builtin function")]
+#[test_case::test_case("sketch S(x: Integer) { Circle(radius = 1mm) }\nS([]);"; "workbench empty list")]
+fn compile_list_expansion(source: &str) {
+    let mut compiler = std_compiler();
+    let (_, diags) = compiler.compile(source).expect("A model");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
 /// An initialization error is reported at the call with the possible initializations.
 #[test]
 fn compile_no_initialization_found() {

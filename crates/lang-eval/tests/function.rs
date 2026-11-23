@@ -89,27 +89,20 @@ fn list_parameter_is_not_expanded() {
     assert_eval(&f, [argument_value!(a = list![1, 2])], Value::list([1, 2]));
 }
 
+/// Several list arguments call the function with each combination of their elements.
 #[test]
-fn multiple_list_arguments_are_rejected() {
+fn map_over_multiple_list_arguments() {
     let f = function::Function::new(parameter_list!(a: Integer, b: Integer))
         .with_return_type(Type::Integer)
         .with_statements([FunctionStatement::Tail(expr!(a).into())]);
 
-    let mut context = EvalContext::new();
-    let error = <Function as Callable>::call(
+    assert_eval(
         &f,
-        &ArgumentValueList::from_iter([
+        [
             argument_value!(a = list![1, 2]),
             argument_value!(b = list![3, 4]),
-        ]),
-        &mut context,
-    )
-    .expect_err("two list arguments require an error");
-
-    assert!(
-        error
-            .to_string()
-            .contains("Only one list argument can be expanded")
+        ],
+        Value::list([1, 1, 2, 2]),
     );
 }
 

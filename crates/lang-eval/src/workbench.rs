@@ -298,7 +298,7 @@ impl Callable for symbol::Workbench {
         // The init is chosen by the arguments, so only now its stability is known.
         context.check_init_stability(init);
 
-        let arguments = init.argument_multi_match(args).map_err(|err| {
+        let matches = init.match_arguments(args).map_err(|err| {
             EvalError::argument_match(
                 context.current_symbol_src_ref(),
                 context.current_symbol_name().unwrap_or_default(),
@@ -307,7 +307,7 @@ impl Callable for symbol::Workbench {
         })?;
 
         let mut models = Vec::new();
-        for args in arguments {
+        for args in matches.arguments {
             let properties = context.scope(
                 WorkbenchInitFrame::new(args),
                 |context| -> EvalResult<Properties> {
