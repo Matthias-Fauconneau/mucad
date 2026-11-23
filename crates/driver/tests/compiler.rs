@@ -46,6 +46,8 @@ fn compile_source() {
 #[test_case::test_case("fn f() { 1mm; }" => vec!["lower::error"]; "lower")]
 #[test_case::test_case("mod a {\n    //! doc\n    const A = 1;\n    //! late\n}" => vec!["lower::inner_doc_after_inner_attr"]; "lower with own code")]
 #[test_case::test_case("Unknown();" => vec!["resolve::error"]; "resolve")]
+#[test_case::test_case("x: Length = __mu::math::cos(0°);" => vec!["resolve::error"]; "result type")]
+#[test_case::test_case("x: Scalar = __mu::math::cos([0°]);" => vec!["resolve::error"]; "list result type")]
 fn compile_error_codes(source: &str) -> Vec<String> {
     let diags = match compiler().compile(source) {
         Ok((_, diags)) | Err(diags) => diags,
@@ -628,6 +630,9 @@ fn compile_positional_list_expansion() {
 #[test_case::test_case("fn f(a: [Integer]) { a }\nassert_eq(f([1, 2]), [1, 2]);"; "function list parameter")]
 #[test_case::test_case("assert_eq(__mu::math::cos([0°, 180°]), [1.0, -1.0]);"; "builtin function")]
 #[test_case::test_case("print([1, 2]);"; "variadic builtin function")]
+#[test_case::test_case("c: [Scalar] = __mu::math::cos([0°, 180°]);"; "typed list result of builtin function")]
+#[test_case::test_case("fn f(x: Integer) -> Integer { x }\ny: [Integer] = f([1, 2]);"; "typed list result of function")]
+#[test_case::test_case("fn f(x: Integer) -> Integer { x }\nfn g(l: [Integer]) -> [Integer] { f(l) }"; "result of unknown argument")]
 #[test_case::test_case("assert_eq(std::math::abs([-1, 2]), [1, 2]);"; "number parameter")]
 #[test_case::test_case("assert_eq(std::math::abs([-1mm, 2mm]), [1mm, 2mm]);"; "number parameter with quantities")]
 #[test_case::test_case("fn f(x: Number) { x * 2 }\nassert_eq(f([1, 2.5, 3mm]), [2, 5.0, 6mm]);"; "own number parameter")]
