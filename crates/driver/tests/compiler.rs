@@ -48,6 +48,8 @@ fn compile_source() {
 #[test_case::test_case("Unknown();" => vec!["resolve::error"]; "resolve")]
 #[test_case::test_case("x: Length = __mu::math::cos(0°);" => vec!["resolve::error"]; "result type")]
 #[test_case::test_case("x: Scalar = __mu::math::cos([0°]);" => vec!["resolve::error"]; "list result type")]
+#[test_case::test_case("fn f(x: Integer) -> Integer { x }\nfn g() { l = [1, 2]; x: Integer = f(l); x }" => vec!["resolve::error"]; "list result type of local")]
+#[test_case::test_case("fn f(x: Length) -> Length { x }\nfn g(a: Length) { x: Scalar = f(a); x }" => vec!["resolve::error"]; "result type of parameter")]
 fn compile_error_codes(source: &str) -> Vec<String> {
     let diags = match compiler().compile(source) {
         Ok((_, diags)) | Err(diags) => diags,

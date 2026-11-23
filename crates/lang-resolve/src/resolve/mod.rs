@@ -8,6 +8,7 @@
 mod check;
 mod derive_type;
 
+pub(crate) use derive_type::Locals;
 pub use derive_type::{DeriveType, TypeContext};
 mod context;
 pub mod stack;

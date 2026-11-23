@@ -11,7 +11,11 @@ use mucad_lang_types::{Ty, Type};
 use super::{Check, CheckContext};
 use crate::{
     DeriveType, Library, LibraryCache, ResolveErrorKind, ResolveIssue, SymbolDef, TypeContext,
-    library::{Symbol, visitor},
+    library::{
+        Symbol, visitor,
+        visitor::{ConstantVisitor, LeafVisitor, Visitor, WorkbenchExpressionVisitor},
+    },
+    resolve::Locals,
 };
 
 /// Give the parameters without type the type of their default value, if it is known,
@@ -72,16 +76,17 @@ pub(crate) fn infer_parameter_types(
 /// - the expression of a statement with type must match the type, e.g. `x: Length = 1mm`.
 pub(crate) struct TypeCheck<'a> {
     ctx: TypeContext<'a>,
+    /// The types of the local variables of the visited scopes.
+    locals: Locals,
     issues: IssueList<ResolveIssue>,
 }
 
 impl Check for TypeCheck<'_> {
     /// Check the parameters and statements of the library.
     fn check(ctx: &CheckContext) -> IssueList<ResolveIssue> {
-        use visitor::Visitor;
-
         let mut type_check = TypeCheck {
             ctx: ctx.types(),
+            locals: Locals::default(),
             issues: IssueList::default(),
         };
         type_check.visit(ctx.lib);
@@ -129,7 +134,7 @@ impl TypeCheck<'_> {
                 }
                 ir::WorkbenchExpression::If(if_) => self.check_output_if(if_, output),
                 expression => {
-                    let actual = expression.derive_type(&self.ctx);
+                    let actual = self.derive_type(expression);
                     if !actual.matches(&output.expected) {
                         self.issues
                             .push_err(ResolveErrorKind::WorkbenchOutputMismatch {
@@ -160,7 +165,7 @@ impl TypeCheck<'_> {
     ///
     /// Without type, `ty` is `Any`, which matches every type.
     fn check_type(&mut self, ty: &ir::Type, expr: &(impl DeriveType + SrcReferrer)) {
-        let actual = expr.derive_type(&self.ctx);
+        let actual = self.derive_type(expr);
         if !actual.matches(&ty.ty) {
             self.issues.push_err(ResolveErrorKind::TypeMismatch {
                 specified: ty.ty.clone(),
@@ -172,11 +177,63 @@ impl TypeCheck<'_> {
     }
 }
 
+impl TypeCheck<'_> {
+    /// The type of an expression with the types of the visible locals.
+    fn derive_type(&self, expr: &impl DeriveType) -> Type {
+        expr.derive_type(&self.ctx.with_locals(&self.locals))
+    }
+
+    /// Declare a local, e.g. of an assignment `x: Length = …` or `x = …`: of its type, or
+    /// without type of the type of its expression.
+    fn declare(&mut self, name: &ir::Identifier, ty: &ir::Type, expr: &impl DeriveType) {
+        let ty = match ty.ty {
+            Type::Any => self.derive_type(expr),
+            ref ty => ty.clone(),
+        };
+        self.locals.insert(name, ty);
+    }
+
+    /// Declare the parameters as locals, e.g. of a function.
+    fn declare_parameters(&mut self, parameters: &ir::ParameterList) {
+        for param in parameters.iter() {
+            self.locals.insert(&param.id, param.ty());
+        }
+    }
+
+    /// Visit in a new scope of locals.
+    fn scoped(&mut self, f: impl FnOnce(&mut Self)) {
+        self.locals.push();
+        f(self);
+        self.locals.pop();
+    }
+}
+
 impl visitor::LeafVisitor for TypeCheck<'_> {}
 impl visitor::WorkbenchVisitor for TypeCheck<'_> {
-    fn visit_workbench_signature(&mut self, signature: &ir::workbench::WorkbenchSignature) {
-        use visitor::ConstantVisitor;
+    /// The parameters of the building plan and the properties are locals of the workbench.
+    fn visit_workbench(&mut self, workbench: &ir::workbench::Workbench) {
+        self.scoped(|check| {
+            check.declare_parameters(&workbench.signature.parameters);
+            check.visit_workbench_signature(&workbench.signature);
+            for statement in &workbench.statements {
+                check.visit_workbench_statement(statement);
+            }
+        });
+    }
 
+    fn visit_workbench_init(&mut self, init: &ir::workbench::Init) {
+        self.scoped(|check| {
+            check.declare_parameters(&init.parameters);
+            check.visit_workbench_init_attr(&init.attr);
+            check.visit_parameter_list(&init.parameters);
+            for statement in &init.statements {
+                check.visit_name(&statement.name);
+                check.visit_workbench_expr(&statement.expression);
+            }
+        });
+    }
+
+    fn visit_workbench_signature(&mut self, signature: &ir::workbench::WorkbenchSignature) {
         self.visit_parameter_list(&signature.parameters);
         // The implicit initializer has the parameters of the building plan, which are checked.
         signature
@@ -230,15 +287,34 @@ impl visitor::WorkbenchExpressionVisitor for TypeCheck<'_> {
         }
         // Statements of groups, e.g. `{ x: Length = 1mm; }`.
         self.visit_workbench_expr(statement.expression());
+        match statement {
+            ir::WorkbenchStatement::Expression(_) => {}
+            ir::WorkbenchStatement::Prop(prop) => {
+                self.declare(&prop.name, &prop.ty, &prop.expression)
+            }
+            ir::WorkbenchStatement::Assignment(assignment) => {
+                self.declare(&assignment.name, &assignment.ty, &assignment.expression)
+            }
+        }
+    }
+
+    fn visit_workbench_group(&mut self, group: &ir::workbench::Group) {
+        self.scoped(|check| {
+            check.visit_model_attributes(&group.attr);
+            for statement in &group.statements {
+                check.visit_workbench_statement(statement);
+            }
+        });
     }
 }
 
 impl visitor::SourceVisitor for TypeCheck<'_> {
     fn visit_source_statement(&mut self, statement: &ir::SourceStatement) {
-        use visitor::WorkbenchExpressionVisitor;
-
         self.check_type(&statement.ty, &statement.expression);
         self.visit_workbench_expr(&statement.expression);
+        if let Some(name) = &statement.name {
+            self.declare(name, &statement.ty, &statement.expression);
+        }
     }
 }
 
@@ -250,5 +326,29 @@ impl visitor::FnVisitor for TypeCheck<'_> {
         self.check_type(&local_assignment.ty, &local_assignment.expression);
         // Statements of scopes, e.g. `x = { y: Length = 1mm; y };`.
         self.visit_fn_expr(&local_assignment.expression);
+        self.declare(
+            &local_assignment.id,
+            &local_assignment.ty,
+            &local_assignment.expression,
+        );
+    }
+
+    /// The parameters are locals of the function.
+    fn visit_fn(&mut self, function: &ir::function::Function) {
+        self.scoped(|check| {
+            check.declare_parameters(&function.signature.parameters);
+            check.visit_fn_signature(&function.signature);
+            for statement in &function.statements {
+                check.visit_fn_statement(statement);
+            }
+        });
+    }
+
+    fn visit_fn_scope(&mut self, scope: &ir::function::Scope) {
+        self.scoped(|check| {
+            for statement in &scope.statements {
+                check.visit_fn_statement(statement);
+            }
+        });
     }
 }

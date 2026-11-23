@@ -20,8 +20,49 @@ pub struct TypeContext<'a> {
     /// The other libraries, e.g. `std`. Without it, their symbols have no known types.
     lib_cache: Option<&'a LibraryCache>,
     builtins: &'a BuiltinLibrary,
+    /// The types of the local variables, which are visible, see [`TypeContext::with_locals`].
+    locals: Option<&'a Locals>,
     /// The depth of followed constants and aliases.
     depth: usize,
+}
+
+/// The types of the local variables of scopes, e.g. of the parameters and local assignments of
+/// a function, which are known after their declaration.
+#[derive(Debug, Default)]
+pub struct Locals {
+    /// The scopes, the innermost last, with the types of their locals.
+    scopes: Vec<Vec<(String, Type)>>,
+}
+
+impl Locals {
+    /// Open a scope, e.g. of a function body.
+    pub fn push(&mut self) {
+        self.scopes.push(Vec::new());
+    }
+
+    /// Close the innermost scope with its locals.
+    pub fn pop(&mut self) {
+        self.scopes.pop();
+    }
+
+    /// Declare a local in the innermost scope, or give it a new type, e.g. of a new assignment.
+    pub fn insert(&mut self, name: impl ToString, ty: Type) {
+        let name = name.to_string();
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.retain(|(local, _)| *local != name);
+            scope.push((name, ty));
+        }
+    }
+
+    /// The type of a visible local, the innermost one of its name.
+    fn get(&self, name: &str) -> Option<&Type> {
+        self.scopes
+            .iter()
+            .rev()
+            .flat_map(|scope| scope.iter().rev())
+            .find(|(local, _)| local == name)
+            .map(|(_, ty)| ty)
+    }
 }
 
 /// Derive the type of an expression, as far as it is known before evaluation.
@@ -39,7 +80,19 @@ impl<'a> TypeContext<'a> {
             lib,
             lib_cache: None,
             builtins,
+            locals: None,
             depth: 0,
+        }
+    }
+
+    /// Derive the types of local variables, e.g. of a function, which is checked.
+    pub fn with_locals<'b>(self, locals: &'b Locals) -> TypeContext<'b>
+    where
+        'a: 'b,
+    {
+        TypeContext {
+            locals: Some(locals),
+            ..self
         }
     }
 
@@ -51,6 +104,12 @@ impl<'a> TypeContext<'a> {
 
     /// The type of the value of the symbol of `path`, e.g. of a constant.
     fn path_type(&self, path: &ir::Path) -> Type {
+        if let Some(SymbolId::Local(name)) = path.symbol_id() {
+            return (self.locals)
+                .and_then(|locals| locals.get(name.as_ref()))
+                .cloned()
+                .unwrap_or_default();
+        }
         self.with_symbol(path.symbol_id(), |symbol, ctx| match symbol {
             Symbol::Def(SymbolDef::Constant(constant)) if constant.ty.ty != Type::Any => {
                 constant.ty.ty.clone()
@@ -168,6 +227,8 @@ impl<'a> TypeContext<'a> {
                             lib: &lib,
                             lib_cache: ctx.lib_cache,
                             builtins: ctx.builtins,
+                            // The locals are not visible in another library.
+                            locals: None,
                             depth: ctx.depth,
                         };
                         f(Symbol::Def(&node.get().def), &lib_ctx)
