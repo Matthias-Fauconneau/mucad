@@ -114,6 +114,10 @@ impl Type {
     /// Returns if the given type or it's inner type matches the given type.
     pub fn matches(&self, other: &Type) -> bool {
         match (self, other) {
+            // A number is an integer or a quantity, e.g. the result of `abs`, whose type depends
+            // on its argument.
+            (Type::Number, Type::Integer | Type::Quantity(_) | Type::Number)
+            | (Type::Integer | Type::Quantity(_), Type::Number) => true,
             (lhs, Type::Quantity(QuantityType::Scalar)) if *lhs != Type::Any => {
                 self == &Type::scalar() || self == &Type::Integer
             }
@@ -122,8 +126,6 @@ impl Type {
             // Lists match by their element types, e.g. `[Integer]` matches `[Any]`.
             (Type::List(ty_s), Type::List(ty_p)) => ty_s.matches(ty_p),
             (Type::Invalid, _) | (_, Type::Invalid) => false,
-            // An integer and a quantity are numbers.
-            (Type::Integer | Type::Quantity(_), Type::Number) => true,
             (Type::Any, _) | (_, Type::Any) => true,
             // A model of any or undetermined geometry matches every model, e.g. the result of an
             // operation, which depends on its input.
