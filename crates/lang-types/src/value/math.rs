@@ -3,7 +3,7 @@
 
 //! Math functions for Value
 
-use crate::{MathOps, Quantity, Ty, Value, ValueError, ValueResult};
+use crate::{MathOps, Ty, Value, ValueError, ValueResult};
 
 impl MathOps for Value {
     type Error = ValueError;
@@ -12,8 +12,7 @@ impl MathOps for Value {
     /// Calculate the absolute value.
     fn abs(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Ok(Value::Integer(i.abs())),
-            Value::Quantity(q) => q.abs(),
+            Value::Number(n) => n.abs(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -21,8 +20,7 @@ impl MathOps for Value {
     /// Calculate the square root.
     fn sqrt(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Quantity::from(*i).sqrt(),
-            Value::Quantity(q) => q.sqrt(),
+            Value::Number(n) => n.sqrt(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -30,8 +28,7 @@ impl MathOps for Value {
     /// Calculate the sine (expects radians or Quantity with angle units).
     fn sin(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Quantity::from(*i).sin(),
-            Value::Quantity(q) => q.sin(),
+            Value::Number(n) => n.sin(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -39,8 +36,7 @@ impl MathOps for Value {
     /// Calculate the cosine (expects radians or Quantity with angle units).
     fn cos(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Quantity::from(*i).cos(),
-            Value::Quantity(q) => q.cos(),
+            Value::Number(n) => n.cos(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -48,16 +44,14 @@ impl MathOps for Value {
     /// Calculate the tangent (expects radians or Quantity with angle units).
     fn tan(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Quantity::from(*i).tan(),
-            Value::Quantity(q) => q.tan(),
+            Value::Number(n) => n.tan(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
 
     fn int(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Ok(Value::Integer(*i)),
-            Value::Quantity(q) => q.int(),
+            Value::Number(n) => n.int(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -65,8 +59,7 @@ impl MathOps for Value {
     /// Calculate the sign of the value (-1, 0, or 1).
     fn signum(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Ok(Value::Integer(i.signum())),
-            Value::Quantity(q) => q.signum(),
+            Value::Number(n) => n.signum(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -74,8 +67,7 @@ impl MathOps for Value {
     /// Round down to the nearest integer.
     fn floor(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Ok(Value::Integer(*i)),
-            Value::Quantity(q) => q.floor(),
+            Value::Number(n) => n.floor(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -83,8 +75,7 @@ impl MathOps for Value {
     /// Round up to the nearest integer.
     fn ceil(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Ok(Value::Integer(*i)),
-            Value::Quantity(q) => q.ceil(),
+            Value::Number(n) => n.ceil(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -92,8 +83,7 @@ impl MathOps for Value {
     /// Round to the nearest integer.
     fn round(&self) -> ValueResult {
         match self {
-            Value::Integer(i) => Ok(Value::Integer(*i)),
-            Value::Quantity(q) => q.round(),
+            Value::Number(n) => n.round(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }
@@ -101,8 +91,7 @@ impl MathOps for Value {
     /// Extract the fractional part.
     fn fract(&self) -> ValueResult {
         match self {
-            Value::Integer(_) => Ok(Value::Integer(0.into())),
-            Value::Quantity(q) => q.fract(),
+            Value::Number(n) => n.fract(),
             val => Err(ValueError::InvalidMathOperand(val.ty())),
         }
     }

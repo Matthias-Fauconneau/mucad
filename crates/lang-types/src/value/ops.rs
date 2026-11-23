@@ -6,7 +6,7 @@
 use mucad_lang_base::element::BinaryOperator;
 
 use crate::{
-    List, ModelTree, Quantity, QuantityType, Scalar, Ty, Type, Unit, Value, ValueError,
+    List, ModelTree, Number, Quantity, QuantityType, Scalar, Ty, Type, Unit, Value, ValueError,
     ValueResult, model::BooleanOp,
 };
 
@@ -20,28 +20,7 @@ fn boolean_op(lhs: std::rc::Rc<ModelTree>, op: BooleanOp, rhs: std::rc::Rc<Model
 impl Value {
     pub fn cmp(&self, op: BinaryOperator, rhs: &Self) -> ValueResult {
         match (self, rhs) {
-            (Value::Quantity(lhs), Value::Quantity(rhs)) => lhs.cmp(op, rhs),
-            (Value::Integer(lhs), Value::Integer(rhs)) => {
-                let res = match op {
-                    BinaryOperator::Equal => lhs == rhs,
-                    BinaryOperator::NotEqual => lhs != rhs,
-                    BinaryOperator::GreaterThan => lhs > rhs,
-                    BinaryOperator::GreaterEqual => lhs >= rhs,
-                    BinaryOperator::LessThan => lhs < rhs,
-                    BinaryOperator::LessEqual => lhs <= rhs,
-                    BinaryOperator::Near => lhs == rhs, // Integers are exact
-                    _ => unreachable!(),
-                };
-                Ok(Value::Bool(res))
-            }
-            (Value::Integer(lhs), Value::Quantity(rhs)) => {
-                let lhs_q = Quantity::from(*lhs);
-                lhs_q.cmp(op, rhs)
-            }
-            (Value::Quantity(lhs), Value::Integer(rhs)) => {
-                let rhs_q = Quantity::from(*rhs);
-                lhs.cmp(op, &rhs_q)
-            }
+            (Value::Number(lhs), Value::Number(rhs)) => lhs.cmp(op, rhs),
             (lhs, rhs) => match op {
                 BinaryOperator::Equal => Ok((lhs == rhs).into()),
                 BinaryOperator::NotEqual => Ok((lhs != rhs).into()),
@@ -53,8 +32,7 @@ impl Value {
     /// Helper method to perform unary negation on a single Value.
     pub fn neg_value(&self) -> Result<Value, ValueError> {
         match self {
-            Value::Integer(n) => Ok(Value::Integer(-n)),
-            Value::Quantity(q) => Ok(Value::Quantity(-q.clone())),
+            Value::Number(n) => Ok(Value::Number(-n.clone())),
             Value::List(a) => {
                 let mut mutated = a.clone();
                 std::rc::Rc::make_mut(&mut mutated).neg_in_place()?;
@@ -75,8 +53,7 @@ impl std::ops::Neg for Value {
 
     fn neg(self) -> Self::Output {
         match self {
-            Value::Integer(n) => Ok(Value::Integer(-n)),
-            Value::Quantity(q) => Ok(Value::Quantity(q.neg())),
+            Value::Number(n) => Ok(Value::Number(-n)),
             Value::List(mut a) => {
                 // Mutates in-place if refcount == 1; clones container only if shared.
                 std::rc::Rc::make_mut(&mut a).neg_in_place()?;
@@ -112,14 +89,8 @@ impl std::ops::Add for Value {
 
     fn add(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            // Add two integers
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs + rhs)),
-            // Add a quantity to an integer
-            (Value::Integer(lhs), Value::Quantity(rhs)) => lhs + rhs,
-            // Add an integer to a quantity
-            (Value::Quantity(lhs), Value::Integer(rhs)) => lhs + rhs,
-            // Add two scalars
-            (Value::Quantity(lhs), Value::Quantity(rhs)) => lhs + rhs,
+            // Add two numbers
+            (Value::Number(lhs), Value::Number(rhs)) => lhs + rhs,
             // Concatenate two strings
             (Value::String(lhs), Value::String(rhs)) => Ok(Value::String(lhs + &rhs)),
             // Concatenate two lists
@@ -150,14 +121,8 @@ impl std::ops::Sub for Value {
 
     fn sub(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            // Subtract two integers
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs - rhs)),
-            // Subtract an scalar and an integer
-            (Value::Quantity(lhs), Value::Integer(rhs)) => lhs - rhs,
-            // Subtract an integer and a scalar
-            (Value::Integer(lhs), Value::Quantity(rhs)) => lhs - rhs,
             // Subtract two numbers
-            (Value::Quantity(lhs), Value::Quantity(rhs)) => lhs - rhs,
+            (Value::Number(lhs), Value::Number(rhs)) => lhs - rhs,
             // Subtract value to an list: `[1,2,3] - 1 = [0,1,2]`.
             (Value::List(lhs), rhs) => lhs.as_ref().clone() - rhs,
             // Subtract two tuples of the same type: (x = 1., y = 2.) - (x = 3., y = 4.)
@@ -180,14 +145,8 @@ impl std::ops::Mul for Value {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            // Multiply two integers
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs * rhs)),
-            // Multiply an integer and a scalar, result is scalar
-            (Value::Integer(lhs), Value::Quantity(rhs)) => lhs * rhs,
-            // Multiply a scalar and an integer, result is scalar
-            (Value::Quantity(lhs), Value::Integer(rhs)) => lhs * rhs,
-            // Multiply two scalars
-            (Value::Quantity(lhs), Value::Quantity(rhs)) => lhs * rhs,
+            // Multiply two numbers
+            (Value::Number(lhs), Value::Number(rhs)) => lhs * rhs,
             (Value::List(list), value) | (value, Value::List(list)) => {
                 Ok((list.as_ref().clone() * value)?)
             }
@@ -209,14 +168,14 @@ impl std::ops::Mul<Unit> for Value {
     fn mul(self, unit: Unit) -> Self::Output {
         match (self, unit.ty()) {
             (value, Type::Quantity(QuantityType::Scalar)) | (value, Type::Integer) => Ok(value),
-            (Value::Integer(i), Type::Quantity(quantity_type)) => Ok(Value::Quantity(
-                Quantity::new(unit.normalize(Scalar::from(i)), quantity_type),
-            )),
-            (Value::Quantity(quantity), Type::Quantity(quantity_type)) => {
+            (Value::Number(Number::Integer(i)), Type::Quantity(quantity_type)) => {
+                Ok(Quantity::new(unit.normalize(Scalar::from(i)), quantity_type).into())
+            }
+            (Value::Number(Number::Quantity(quantity)), Type::Quantity(quantity_type)) => {
                 quantity * Quantity::new(unit.normalize(Scalar::ONE), quantity_type)
             }
             (Value::List(list), Type::Quantity(quantity_type)) => Ok((list.as_ref().clone()
-                * Value::Quantity(Quantity::new(unit.normalize(Scalar::ONE), quantity_type)))?),
+                * Value::from(Quantity::new(unit.normalize(Scalar::ONE), quantity_type)))?),
             (value, _) => Err(ValueError::CannotAddUnitToValueWithUnit(value.to_string())),
         }
     }
@@ -228,13 +187,8 @@ impl std::ops::Div for Value {
 
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            // Division with scalar result
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Quantity(
-                (Scalar::from(lhs) / Scalar::from(rhs)).into(),
-            )),
-            (Value::Quantity(lhs), Value::Integer(rhs)) => lhs / rhs,
-            (Value::Integer(lhs), Value::Quantity(rhs)) => lhs / rhs,
-            (Value::Quantity(lhs), Value::Quantity(rhs)) => lhs / rhs,
+            // Divide two numbers, the result of two integers is a scalar
+            (Value::Number(lhs), Value::Number(rhs)) => lhs / rhs,
             (Value::List(list), value) => Ok((list.as_ref().clone() / value)?),
             (Value::Tuple(tuple), value) => Ok((tuple.as_ref().clone() / value)?.into()),
             (lhs, rhs) => Err(ValueError::InvalidOperator(format!("{lhs} / {rhs}"))),

@@ -628,6 +628,9 @@ fn compile_positional_list_expansion() {
 #[test_case::test_case("fn f(a: [Integer]) { a }\nassert_eq(f([1, 2]), [1, 2]);"; "function list parameter")]
 #[test_case::test_case("assert_eq(__mu::math::cos([0°, 180°]), [1.0, -1.0]);"; "builtin function")]
 #[test_case::test_case("print([1, 2]);"; "variadic builtin function")]
+#[test_case::test_case("assert_eq(std::math::abs([-1, 2]), [1, 2]);"; "number parameter")]
+#[test_case::test_case("assert_eq(std::math::abs([-1mm, 2mm]), [1mm, 2mm]);"; "number parameter with quantities")]
+#[test_case::test_case("fn f(x: Number) { x * 2 }\nassert_eq(f([1, 2.5, 3mm]), [2, 5.0, 6mm]);"; "own number parameter")]
 #[test_case::test_case("sketch S(x: Integer) { Circle(radius = 1mm) }\nS([]);"; "workbench empty list")]
 fn compile_list_expansion(source: &str) {
     let mut compiler = std_compiler();

@@ -23,6 +23,9 @@ pub enum Type {
     Integer,
     /// A quantity type: `Scalar: 1.0`, `Length: 1.0mm`
     Quantity(QuantityType),
+    /// A number, which is an integer or a quantity of any type, e.g. of the parameter of
+    /// `abs(x: Number)`.
+    Number,
     /// A string.
     String,
     /// A boolean: `true`, `false`.
@@ -119,6 +122,8 @@ impl Type {
             // Lists match by their element types, e.g. `[Integer]` matches `[Any]`.
             (Type::List(ty_s), Type::List(ty_p)) => ty_s.matches(ty_p),
             (Type::Invalid, _) | (_, Type::Invalid) => false,
+            // An integer and a quantity are numbers.
+            (Type::Integer | Type::Quantity(_), Type::Number) => true,
             (Type::Any, _) | (_, Type::Any) => true,
             // A model of any or undetermined geometry matches every model, e.g. the result of an
             // operation, which depends on its input.
@@ -160,6 +165,7 @@ impl std::str::FromStr for Type {
             "Size2" => Type::Tuple(Box::new(TupleType::size2())),
             "Any" => Type::Any,
             "Integer" => Type::Integer,
+            "Number" => Type::Number,
             "Bool" => Type::Bool,
             "String" => Type::String,
             "Scalar" => Type::Quantity(QuantityType::Scalar),

@@ -10,7 +10,7 @@ expression: "ir.to_ron().expect(\"No error\")"
     ),
     payload: (
         input_hash: "0xa18f78da53e23991",
-        output_hash: "0x744378bfd0983c44",
+        output_hash: "0xa35cdff85d5ffadf",
         tree: (
             root: (
                 index1: 1,
@@ -116,11 +116,11 @@ expression: "ir.to_ron().expect(\"No error\")"
                                                             (((
                                                                 value: "x",
                                                                 src_ref: "6:45 @ 0xa5eb23e1ba0633ef (192..193)",
-                                                            )), Quantity("0mm")),
+                                                            )), Number(Quantity("0mm"))),
                                                             (((
                                                                 value: "y",
                                                                 src_ref: "6:56 @ 0xa5eb23e1ba0633ef (203..204)",
-                                                            )), Quantity("0mm")),
+                                                            )), Number(Quantity("0mm"))),
                                                         ],
                                                     )),
                                                     src_ref: "None",
@@ -171,11 +171,11 @@ expression: "ir.to_ron().expect(\"No error\")"
                                                                     (((
                                                                         value: "x",
                                                                         src_ref: "6:45 @ 0xa5eb23e1ba0633ef (192..193)",
-                                                                    )), Quantity("0mm")),
+                                                                    )), Number(Quantity("0mm"))),
                                                                     (((
                                                                         value: "y",
                                                                         src_ref: "6:56 @ 0xa5eb23e1ba0633ef (203..204)",
-                                                                    )), Quantity("0mm")),
+                                                                    )), Number(Quantity("0mm"))),
                                                                 ],
                                                             )),
                                                             src_ref: "None",
@@ -262,11 +262,11 @@ expression: "ir.to_ron().expect(\"No error\")"
                                                                     (((
                                                                         value: "x",
                                                                         src_ref: "7:38 @ 0xa5eb23e1ba0633ef (254..255)",
-                                                                    )), Quantity("0mm")),
+                                                                    )), Number(Quantity("0mm"))),
                                                                     (((
                                                                         value: "y",
                                                                         src_ref: "7:49 @ 0xa5eb23e1ba0633ef (265..266)",
-                                                                    )), Quantity("0mm")),
+                                                                    )), Number(Quantity("0mm"))),
                                                                 ],
                                                             )),
                                                             src_ref: "None",
@@ -313,7 +313,7 @@ expression: "ir.to_ron().expect(\"No error\")"
                                                                         src_ref: "None",
                                                                     )),
                                                                     expr: Value((
-                                                                        value: Quantity("2"),
+                                                                        value: Number(Quantity("2")),
                                                                         src_ref: "8:29 @ 0xa5eb23e1ba0633ef (307..310)",
                                                                     )),
                                                                     src_ref: "8:29 @ 0xa5eb23e1ba0633ef (307..310)",
@@ -504,7 +504,7 @@ expression: "ir.to_ron().expect(\"No error\")"
                                                             src_ref: "12:59 @ 0xa5eb23e1ba0633ef (409..410)",
                                                         )),
                                                         expr: Value((
-                                                            value: Quantity("0mm"),
+                                                            value: Number(Quantity("0mm")),
                                                             src_ref: "12:63 @ 0xa5eb23e1ba0633ef (413..418)",
                                                         )),
                                                         src_ref: "12:59 @ 0xa5eb23e1ba0633ef (409..418)",

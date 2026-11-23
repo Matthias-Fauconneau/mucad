@@ -3,7 +3,7 @@
 
 //! Resolution attribute.
 
-use crate::{Length, Quantity, QuantityType, Scalar, Value, ValueError};
+use crate::{Length, Number, Quantity, QuantityType, Scalar, Value, ValueError};
 use serde::{Deserialize, Serialize};
 
 /// Render resolution when rendering things e.g. to polygons or meshes.
@@ -24,7 +24,7 @@ impl Default for ResolutionAttribute {
 
 impl From<ResolutionAttribute> for Value {
     fn from(resolution_attribute: ResolutionAttribute) -> Self {
-        Self::Quantity(match resolution_attribute {
+        Self::from(match resolution_attribute {
             ResolutionAttribute::Absolute(linear) => Quantity::from(linear),
             ResolutionAttribute::Relative(relative) => {
                 Quantity::new(relative, QuantityType::Scalar)
@@ -40,16 +40,16 @@ impl TryFrom<Value> for ResolutionAttribute {
     /// or a relative resolution from a scalar, e.g. `200%`.
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Quantity(Quantity {
+            Value::Number(Number::Quantity(Quantity {
                 value,
                 quantity_type: QuantityType::Length,
                 ..
-            }) => Ok(Self::Absolute(Length(value))),
-            Value::Quantity(Quantity {
+            })) => Ok(Self::Absolute(Length(value))),
+            Value::Number(Number::Quantity(Quantity {
                 value,
                 quantity_type: QuantityType::Scalar,
                 ..
-            }) => Ok(Self::Relative(value)),
+            })) => Ok(Self::Relative(value)),
             value => Err(ValueError::CannotConvert(
                 value.to_string(),
                 "Length or Scalar".into(),

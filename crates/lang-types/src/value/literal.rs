@@ -3,7 +3,7 @@
 
 //! Values as literals in code, e.g. to change them in an editor.
 
-use crate::{Integer, Quantity, Scalar, Value};
+use crate::{Integer, Number, Quantity, Scalar, Value};
 
 impl Value {
     /// The value increased by `step` in its unit, e.g. `11mm` for `10mm` and a step of `1`,
@@ -13,16 +13,19 @@ impl Value {
     pub fn step(&self, step: Scalar) -> Option<Value> {
         match self {
             Value::Bool(value) => Some(Value::Bool(!value)),
-            Value::Integer(value) if step.frac() == Scalar::ZERO => Some(Value::Integer(
-                value.checked_add(step.checked_to_num::<Integer>()?)?,
-            )),
-            Value::Quantity(quantity) => {
+            Value::Number(Number::Integer(value)) if step.frac() == Scalar::ZERO => {
+                Some(value.checked_add(step.checked_to_num::<Integer>()?)?.into())
+            }
+            Value::Number(Number::Quantity(quantity)) => {
                 let unit = quantity.unit;
                 let shown = unit.denormalize(quantity.value).checked_add(step)?;
-                Some(Value::Quantity(Quantity {
-                    value: unit.normalize(shown),
-                    ..quantity.clone()
-                }))
+                Some(
+                    Quantity {
+                        value: unit.normalize(shown),
+                        ..quantity.clone()
+                    }
+                    .into(),
+                )
             }
             _ => None,
         }
@@ -31,11 +34,7 @@ impl Value {
     /// The value as literal in code, e.g. `10mm`, `-3` or `true`, see [`Literal`], `None` for
     /// other values than quantities, integers and bools.
     pub fn literal(&self) -> Option<Literal<'_>> {
-        matches!(
-            self,
-            Value::Quantity(_) | Value::Integer(_) | Value::Bool(_)
-        )
-        .then_some(Literal(self))
+        matches!(self, Value::Number(_) | Value::Bool(_)).then_some(Literal(self))
     }
 }
 
@@ -50,7 +49,7 @@ pub struct Literal<'a>(&'a Value);
 impl std::fmt::Display for Literal<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
-            Value::Quantity(quantity) => {
+            Value::Number(Number::Quantity(quantity)) => {
                 let literal = match f.precision() {
                     Some(precision) => format!("{quantity:.precision$}"),
                     None => quantity.to_string(),
@@ -72,7 +71,7 @@ mod tests {
 
     /// A quantity of `value` in `unit`, e.g. `10mm`.
     fn quantity(value: f64, unit: Unit) -> Value {
-        Value::Quantity(Quantity {
+        Value::from(Quantity {
             value: unit.normalize(Scalar::from_num(value)),
             quantity_type: unit.quantity_type(),
             unit,
@@ -96,8 +95,8 @@ mod tests {
             (quantity(50.0, Unit::Percent), 10.0, Some("60%")),
             (quantity(10.0, Unit::None), 1.0, Some("11.0")),
             (quantity(-10.5, Unit::None), 0.5, Some("-10.0")),
-            (Value::Integer(Integer::from_num(3)), -10.0, Some("-7")),
-            (Value::Integer(Integer::from_num(3)), 0.1, None),
+            (Value::from(Integer::from_num(3)), -10.0, Some("-7")),
+            (Value::from(Integer::from_num(3)), 0.1, None),
             (Value::Bool(true), 0.1, Some("false")),
             (Value::String("a".into()), 1.0, None),
             (Value::None, 1.0, None),
@@ -137,7 +136,7 @@ mod tests {
         );
         assert_eq!(literal(&quantity(1.5, Unit::None)).as_deref(), Some("1.5"));
         assert_eq!(
-            literal(&Value::Integer(Integer::from_num(-3))).as_deref(),
+            literal(&Value::from(Integer::from_num(-3))).as_deref(),
             Some("-3")
         );
         assert_eq!(literal(&Value::Bool(false)).as_deref(), Some("false"));
