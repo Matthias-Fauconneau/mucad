@@ -27,47 +27,60 @@ struct MeshData {
     name: String,
 }
 
-fn mesh_data(output: &GeometryOutput, name: String) -> Option<MeshData> {
-    let Geometry::Geometry3D(geometry) = &output.geometry else {
-        return None;
-    };
-    let mesh = TriangleMesh::from(geometry);
-    if mesh.is_empty() {
-        return None;
-    }
+impl MeshData {
+    fn from_geometry_output(output: &GeometryOutput, name: String) -> Option<MeshData> {
+        let Geometry::Geometry3D(geometry) = &output.geometry else {
+            return None;
+        };
+        let mesh = TriangleMesh::from(geometry);
+        if mesh.is_empty() {
+            return None;
+        }
 
-    // glTF uses meters and a right-handed, Y-up coordinate system. µcad uses mm and Z-up.
-    let positions: Vec<_> = mesh
-        .positions
-        .iter()
-        .map(|p| [p.x * 0.001, p.z * 0.001, -p.y * 0.001])
-        .collect();
-    let indices = mesh
-        .triangle_indices
-        .iter()
-        .flat_map(|triangle| [triangle.0, triangle.1, triangle.2])
-        .collect();
+        // glTF uses meters and a right-handed, Y-up coordinate system. µcad uses mm and Z-up.
+        let positions: Vec<_> = mesh
+            .positions
+            .iter()
+            .map(|p| [p.x * 0.001, p.z * 0.001, -p.y * 0.001])
+            .collect();
+        let indices = mesh
+            .triangle_indices
+            .iter()
+            .flat_map(|triangle| [triangle.0, triangle.1, triangle.2])
+            .collect();
 
-    Some(MeshData {
-        positions,
-        indices,
-        color: output.attr.fill_color.map(Into::into),
-        name,
-    })
-}
-
-fn append_f32(buffer: &mut Vec<u8>, value: f32) {
-    buffer.extend_from_slice(&value.to_le_bytes());
-}
-
-fn pad(buffer: &mut Vec<u8>, alignment: usize, byte: u8) {
-    while !buffer.len().is_multiple_of(alignment) {
-        buffer.push(byte);
+        Some(MeshData {
+            positions,
+            indices,
+            color: output.attr.fill_color.map(Into::into),
+            name,
+        })
     }
 }
 
 impl Export for GlbExporter {
     fn export(&self, model: &ModelTree, writer: &mut dyn Write) -> Result<Value, ExportError> {
+        fn pad(buffer: &mut Vec<u8>, byte: u8) {
+            while !buffer.len().is_multiple_of(4) {
+                buffer.push(byte);
+            }
+        }
+
+        // TODO:
+        // I would like to a distinct type, like `Bounds3D` (which is f64 however)
+        // in `mucad_core` here. But we can keep for now.
+        fn bounds(positions: &[[f32; 3]]) -> ([f32; 3], [f32; 3]) {
+            let mut min = [f32::INFINITY; 3];
+            let mut max = [f32::NEG_INFINITY; 3];
+            for position in positions {
+                for axis in 0..3 {
+                    min[axis] = min[axis].min(position[axis]);
+                    max[axis] = max[axis].max(position[axis]);
+                }
+            }
+            (min, max)
+        }
+
         let renderer = Renderer::new().with_resolution(self.resolution.clone());
         let tree = crate::render(renderer, model)?;
         let outputs = &tree.root().get().outputs;
@@ -79,7 +92,7 @@ impl Export for GlbExporter {
                     .id
                     .clone()
                     .unwrap_or_else(|| format!("Part {}", index + 1));
-                mesh_data(&output, name)
+                MeshData::from_geometry_output(&output, name)
             })
             .collect();
 
@@ -91,13 +104,14 @@ impl Export for GlbExporter {
         let mut materials = Vec::new();
 
         for (mesh_index, mesh) in meshes.iter().enumerate() {
-            pad(&mut binary, 4, 0);
+            pad(&mut binary, 0);
             let position_offset = binary.len();
-            for position in &mesh.positions {
-                for coordinate in position {
-                    append_f32(&mut binary, *coordinate);
-                }
-            }
+            binary.extend(
+                mesh.positions
+                    .iter()
+                    .flatten()
+                    .flat_map(|c| c.to_le_bytes()),
+            );
             let position_length = binary.len() - position_offset;
             buffer_views.push(json!({
                 "buffer": 0, "byteOffset": position_offset, "byteLength": position_length,
@@ -110,11 +124,9 @@ impl Export for GlbExporter {
                 "count": mesh.positions.len(), "type": "VEC3", "min": min, "max": max
             }));
 
-            pad(&mut binary, 4, 0);
+            pad(&mut binary, 0);
             let index_offset = binary.len();
-            for index in &mesh.indices {
-                binary.extend_from_slice(&index.to_le_bytes());
-            }
+            binary.extend(mesh.indices.iter().flat_map(|index| index.to_le_bytes()));
             let index_length = binary.len() - index_offset;
             buffer_views.push(json!({
                 "buffer": 0, "byteOffset": index_offset, "byteLength": index_length,
@@ -166,8 +178,8 @@ impl Export for GlbExporter {
 
         let mut json_bytes = serde_json::to_vec(&document)
             .map_err(|error| ExportError::Custom(format!("Could not encode GLB JSON: {error}")))?;
-        pad(&mut json_bytes, 4, b' ');
-        pad(&mut binary, 4, 0);
+        pad(&mut json_bytes, b' ');
+        pad(&mut binary, 0);
 
         let binary_chunk_length = if binary.is_empty() {
             0
@@ -195,16 +207,4 @@ impl Export for GlbExporter {
     fn model_type(&self) -> ModelType {
         ModelType::Geometry3D
     }
-}
-
-fn bounds(positions: &[[f32; 3]]) -> ([f32; 3], [f32; 3]) {
-    let mut min = [f32::INFINITY; 3];
-    let mut max = [f32::NEG_INFINITY; 3];
-    for position in positions {
-        for axis in 0..3 {
-            min[axis] = min[axis].min(position[axis]);
-            max[axis] = max[axis].max(position[axis]);
-        }
-    }
-    (min, max)
 }
