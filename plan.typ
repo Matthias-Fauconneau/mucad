@@ -15,36 +15,37 @@
 #show raw.where(block: true): set text(5pt)
 //#raw(read("examples/mangrove.mu"), block: true, lang: "mu")
 ```mu
-part Segment(
-    p0: (x: Length, y: Length, z: Length), r0: Length,
-    p1: (x: Length, y: Length, z: Length), r1: Length
-) {
-    a = Sphere(radius = r0).translate(x = p0.x, y = p0.y, z = p0.z);
-    b = Sphere(radius = r1).translate(x = p1.x, y = p1.y, z = p1.z);
-    { a; b; }.hull();
+...
+part MangroveCanopy(scale: Scalar, lean_x: Scalar, lean_y: Scalar, seed: Scalar) {
+    CanopyConeCluster(branch_tip([0..5], scale, lean_x, lean_y, seed), [0..5], scale, seed);
+
+    // Central crown canopy cones
+    ct = crown_tip(scale, lean_x, lean_y, seed);
+    c_low = ct + vec3(0cm, 0cm, - 10cm * scale);
+    c_up = ct + vec3(lean_x * 4cm * scale, lean_y * 4cm * scale, 18cm * scale);
+
+    #[color = "#245E3B"]
+    Cylinder(height = 56cm * scale, radius_top = 0cm, radius_bottom = 42cm * scale)
+        .translate(x = c_low.x, y = c_low.y, z = c_low.z);
+
+    #[color = "#347D4B"]
+    Cylinder(height = 48cm * scale, radius_top = 0cm, radius_bottom = 31cm * scale)
+        .translate(x = c_up.x, y = c_up.y, z = c_up.z);
 }
 
-fn bezier_point(
-    p0: (x: Length, y: Length, z: Length),
-    p1: (x: Length, y: Length, z: Length),
-    p2: (x: Length, y: Length, z: Length),
-    t: Scalar
-) -> (Length, Length, Length) {
-    mt = 1 - t;
-    w0 = mt * mt;
-    w1 = 2 * mt * t;
-    w2 = t * t;
-    w0 * p0 + w1 * p1 + w2 * p2
-}
+// Complete Mangrove Tree & Coastal Mangrove Forest Cluster
+part MangroveTree(scale: Scalar, lean_x: Scalar, lean_y: Scalar, yaw: Angle, seed: Scalar) {
+    {
+        #[color = "#4B321E"]
+        {
+            MangroveTrunk(scale, lean_x, lean_y, seed);
+            MangroveRoots(scale, lean_x, lean_y, seed);
+            MangroveBranches(scale, lean_x, lean_y, seed);
+        }.group();
 
-part BezierLimb(
-    p0: (x: Length, y: Length, z: Length),
-    p1: (x: Length, y: Length, z: Length),
-    p2: (x: Length, y: Length, z: Length),
-    r0: Length, r1: Length
-) {
-    q = bezier_point(p0, p1, p2, [0..6] * (1/6));
-    ...
+        MangroveCanopy(scale, lean_x, lean_y, seed);
+    }.group().rotate(z = yaw);
+}
 ```
 #colbreak()
 #image("mangrove.png", height: 100%)
@@ -127,9 +128,9 @@ Here is the self-improving loop:
 
 == Proposed Ph.D. Research Directions
 
-- *IR Formalization*: Defining the formal properties of an optimal declarative intermediate representation (IR) for LLM-driven 3D synthesis.
-- *Hybrid B-Rep & Organic Proceduralism*: Mathematically and structurally unifying deterministic CAD-style B-Rep operations with organic, stochastic proceduralism in a single differentiable or verifiable graph.
-- *Automated DSL Abstraction*: Automatically abstracting recurring low-level geometric operations into reusable DSL primitives while preventing semantic drift or DSL bloat.
+- *IR Formalization*: Formal properties of an optimal declarative intermediate representation (IR) for LLM-driven 3D synthesis.
+- *Hybrid B-Rep & Organic Proceduralism*: Mathematical and structural unification of deterministic CAD-style B-Rep operations with organic, stochastic proceduralism in a single differentiable or verifiable graph.
+- *Automated DSL Abstraction*: Automatic abstraction of recurring low-level geometric operations into reusable DSL primitives while preventing semantic drift or DSL bloat.
 
 == Preliminary Prototype & Tooling
 - #link("https://github.com/mucad-lang/mucad/compare/main...Matthias-Fauconneau:mucad:main")[μcad]

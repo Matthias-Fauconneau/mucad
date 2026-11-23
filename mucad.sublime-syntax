@@ -1,7 +1,7 @@
 %YAML 1.2
 ---
 # See http://sublimetext.com
-name: µcad
+name: mucad
 file_extensions:
   - mu
 scope: source.mucad

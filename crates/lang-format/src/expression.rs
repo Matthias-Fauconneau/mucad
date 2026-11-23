@@ -141,7 +141,7 @@ impl Format for ast::TupleItem {
 impl Format for ast::TupleExpression {
     fn format(&self, f: &FormatConfig) -> Node {
         let nodes: Vec<Node> = self.values.iter().map(|item| item.format(f)).collect();
-        let break_mode = BreakMode::from_layout(&nodes, 4, f);
+        let break_mode = BreakMode::from_layout(&nodes, 5, f);
         node!(f, leading_extras_without_newline(&self.extras) =>
             '(' Node::list(nodes, ',', break_mode) ')'
         )

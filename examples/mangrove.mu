@@ -5,9 +5,7 @@ use std::geo3d::*;
 op group() { @input }
 fn vec3(x: Length, y: Length, z: Length) -> (Length, Length, Length) { (x, y, z) }
 
-// ============================================================================
 // Parametric Forest & Tree Controls
-// ============================================================================
 const TRUNK_BASE_Z = 24cm;
 const TRUNK_RISE = 158cm;
 const TRUNK_BASE_R = 7.8cm;
@@ -17,9 +15,7 @@ const CANOPY_RADIUS_BASE = 32cm;
 const CANOPY_HEIGHT_BASE = 44cm;
 const FOREST_SPREAD = 1;
 
-// ============================================================================
 // Standard Organic Curve Helpers
-// ============================================================================
 part Segment(
     p0: (x: Length, y: Length, z: Length), r0: Length,
     p1: (x: Length, y: Length, z: Length), r1: Length
@@ -58,9 +54,7 @@ part BezierLimb(
     Segment(q[5], r0 * 0.16 + r1 * 0.84, q[6], r0 * 0.00 + r1 * 1.00);
 }
 
-// ============================================================================
 // Shared Spine & Limb Geometry Functions
-// ============================================================================
 fn trunk_pt(
     t: Scalar,
     scale: Scalar,
@@ -317,12 +311,7 @@ part CanopyConeCluster(
         .translate(x = p_up.x, y = p_up.y, z = p_up.z);
 }
 
-part MangroveCanopy(
-    scale: Scalar,
-    lean_x: Scalar,
-    lean_y: Scalar,
-    seed: Scalar
-) {
+part MangroveCanopy(scale: Scalar, lean_x: Scalar, lean_y: Scalar, seed: Scalar) {
     CanopyConeCluster(branch_tip(0, scale, lean_x, lean_y, seed), 0, scale, seed);
     CanopyConeCluster(branch_tip(1, scale, lean_x, lean_y, seed), 1, scale, seed);
     CanopyConeCluster(branch_tip(2, scale, lean_x, lean_y, seed), 2, scale, seed);
@@ -344,16 +333,8 @@ part MangroveCanopy(
         .translate(x = c_up.x, y = c_up.y, z = c_up.z);
 }
 
-// ============================================================================
 // Complete Mangrove Tree & Coastal Mangrove Forest Cluster
-// ============================================================================
-part MangroveTree(
-    scale: Scalar,
-    lean_x: Scalar,
-    lean_y: Scalar,
-    yaw: Angle,
-    seed: Scalar
-) {
+part MangroveTree(scale: Scalar, lean_x: Scalar, lean_y: Scalar, yaw: Angle, seed: Scalar) {
     {
         #[color = "#4B321E"]
         {
