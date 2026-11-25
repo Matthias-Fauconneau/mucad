@@ -82,9 +82,11 @@ pub enum BinaryOperator {
     GreaterThan,
     #[strum(serialize = "<")]
     LessThan,
-    #[strum(serialize = ">=", serialize = "≥")]
+    /// Written `>=`, which is also parsed from `≥`.
+    #[strum(to_string = ">=", serialize = "≥")]
     GreaterEqual,
-    #[strum(serialize = "<=", serialize = "≤")]
+    /// Written `<=`, which is also parsed from `≤`.
+    #[strum(to_string = "<=", serialize = "≤")]
     LessEqual,
     #[strum(serialize = "==")]
     Equal,

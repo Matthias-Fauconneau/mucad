@@ -15,6 +15,7 @@ mucad-core = { workspace = true }
 mucad-render = { workspace = true }
 mucad-lang-types = { workspace = true }
 wkt = "0.14"
+serde_json = "1.0"
 
 derive_more = { version = "2", features = ["deref", "deref_mut"] }
 geo = "0.33"

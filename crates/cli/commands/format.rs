@@ -14,9 +14,9 @@ pub struct Format {
 }
 
 impl RunCommand<()> for Format {
-    fn run(&self, _cli: &Cli) -> miette::Result<()> {
+    fn run(&self, cli: &Cli) -> miette::Result<()> {
         use mucad_driver::prelude as mu;
-        let formatter = mu::Formatter::new();
+        let formatter = mu::Formatter::new().with_config((&cli.config.format).into());
 
         let source = match &self.input {
             Some(input) => mu::Source::load(input).into_diagnostic()?,

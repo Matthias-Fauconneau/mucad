@@ -7,7 +7,7 @@ f(/* c */ 1);
 l = [1 /* c */, 2];
 
 l = [
-    1 /* a long comment, which makes the list break into multiple lines, really */,
+    1 /* a long comment, which makes the list break into multiple lines, really, even with a width of 100 */,
     2,
 ];
 

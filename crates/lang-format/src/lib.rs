@@ -6,127 +6,123 @@ use mucad_lang_parse::{Ast, ParseIssue, ast, parse};
 
 mod expression;
 mod extras;
+mod layout;
 mod literal;
 mod node;
 mod statement;
 mod ty;
+mod wrap;
 
-pub(crate) use crate::node::{BreakMode, Node};
+pub(crate) use crate::{
+    layout::Column,
+    node::{Break, Node},
+};
 
+/// The settings of the formatter.
 #[derive(Debug, Clone)]
 pub struct FormatConfig {
+    /// The maximal width of a line, which is exceeded only by code without a possible line
+    /// break, e.g. a long string.
     pub max_width: usize,
+    /// The width of an indentation.
     pub indent_width: usize,
 }
 
 impl Default for FormatConfig {
     fn default() -> Self {
         Self {
-            max_width: 60,
+            max_width: 100,
             indent_width: 4,
         }
     }
 }
 
+/// The nodes of formatted code, which have the structure of the code, independent of the
+/// [`FormatConfig`], which only lays them out, see [`Node::render`].
 pub(crate) trait Format {
-    fn format(&self, f: &FormatConfig) -> Node;
+    fn format(&self) -> Node;
 }
 
 impl<T> Format for T
 where
     T: Into<Node> + Clone,
 {
-    fn format(&self, _f: &FormatConfig) -> Node {
+    fn format(&self) -> Node {
         self.clone().into()
     }
 }
 
-// Blanket impl for Option
 impl<T: Format> Format for Option<T> {
-    fn format(&self, f: &FormatConfig) -> Node {
+    fn format(&self) -> Node {
         match self {
-            Some(inner) => inner.format(f),
-            None => Node::Nil, // Or whatever your "null" node is
+            Some(inner) => inner.format(),
+            None => Node::Nil,
         }
     }
 }
 
 impl Format for ast::Identifier {
-    fn format(&self, _: &FormatConfig) -> Node {
+    fn format(&self) -> Node {
         self.name.clone().into()
     }
 }
 
 impl Format for ast::Comment {
-    fn format(&self, _: &FormatConfig) -> Node {
+    fn format(&self) -> Node {
         match &self.inner {
-            ast::CommentInner::SingleLine(line) => {
-                node!(Node::Softline Node::SingleLineComment(line.into()))
-            }
+            ast::CommentInner::SingleLine(line) => node!(
+                Node::Column(Column::Comment)
+                Break::Space
+                Node::comment(line.as_str(), None)
+                Break::Hard
+            ),
             ast::CommentInner::MultiLine(line) => {
-                node!(Node::Softline "/* " Node::from(line.clone()) " */" Node::Softline)
+                node!(Node::Column(Column::Comment) Break::Space "/* " line.clone() " */" Break::Space)
             }
         }
     }
 }
 
 impl Format for ast::DocBlock {
-    fn format(&self, _: &FormatConfig) -> Node {
-        Node::vlist(
-            self.lines.iter().cloned().map(|line| node!(line)),
-            Node::Nil,
-            0,
-        )
+    fn format(&self) -> Node {
+        self.lines
+            .iter()
+            .map(|line| node!(Node::comment(line.as_str(), None) Break::Hard))
+            .collect::<Vec<_>>()
+            .into()
     }
 }
 
 impl Format for ast::Source {
-    fn format(&self, f: &FormatConfig) -> Node {
-        self.statements.format(f)
+    fn format(&self) -> Node {
+        node!(self.statements.extras => self.statements)
     }
 }
 
 impl Format for Ast {
-    fn format(&self, f: &FormatConfig) -> Node {
-        self.tree().format(f)
+    fn format(&self) -> Node {
+        self.tree().format()
     }
 }
 
-/// node! macro for syntactic suger.
+/// The formatted nodes one after another, e.g. `node!(self.id " = " self.expr)`, between the
+/// leading and the trailing extras of an item with `node!(self.extras => …)`.
 #[macro_export]
 macro_rules! node {
-    // Single element: node!(x)
-    ($node:expr) => {
-        $crate::Node::from($node)
+    ($extras:expr => $($node:expr)*) => {
+        $crate::extras::with_extras(&$extras, node!($($node)*))
     };
-    // Multiple elements: node!(begin, body, end)
-    ($($node:expr)*) => {
-        $crate::Node::from(vec![
-            $( $crate::Node::from($node) ),*
-        ])
-    };
-    // Multiple formatted elements with extras: node!(f, extras => begin, body, end)
-    ($f:ident, $extras:expr => $($node:expr)*) => {
-        $crate::extras::with_extras(
-            &$extras,
-            $f,
-            $crate::Node::from(vec![
-                $( $node.format($f) ),*
-            ])
-
-        )
-    };
-    // Multiple formatted elements: node!(f => begin, body, end)
-    ($f:ident => $($node:expr)*) => {
-        $crate::Node::from(vec![
-            $( $node.format($f) ),*
-        ])
-    };
+    ($($node:expr)*) => {{
+        // The method call dereferences, e.g. a `Box` of an expression.
+        #[allow(unused_imports)]
+        use $crate::Format as _;
+        $crate::Node::from(vec![$( ($node).format() ),*])
+    }};
 }
 
 /// Format µcad a parsed abstract syntax tree into a string
 pub fn format_ast(ast: &Ast, config: &FormatConfig) -> String {
-    ast.format(config).to_string()
+    ast.format().render(config)
 }
 
 /// A formatted source and AST.

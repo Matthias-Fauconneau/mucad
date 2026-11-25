@@ -3,94 +3,64 @@
 
 use mucad_lang_parse::ast;
 
-use crate::{Format, FormatConfig, Node, node};
+use crate::{Column, Format, Node, node, node::Break};
 
-pub(crate) fn leading_extras_without_newline(extras: &ast::ItemExtras) -> ast::ItemExtras {
-    let mut leading = extras.leading.clone();
-    if let Some(ast::ItemExtra::Whitespace(ast::Whitespace(ws))) = leading.0.first_mut() {
-        // Find the index of the first newline
-        if let Some(pos) = ws.find('\n') {
-            // Remove only that specific character
-            ws.remove(pos);
-        }
-    }
-
-    ast::ItemExtras {
-        leading,
-        trailing: extras.trailing.clone(),
-    }
+/// The comments and line breaks of extras.
+///
+/// A line break of the source is dropped, because the formatter decides about line breaks and
+/// spaces, but it is a [`Break::Hard`] in front of a comment, which stays on its own line. Blank
+/// lines are a [`Break::Paragraph`].
+fn format_extras(extras: &[ast::ItemExtra]) -> Node {
+    extras
+        .iter()
+        .enumerate()
+        .map(|(i, extra)| match extra {
+            // A comment on its own line has the column behind the line break in the source.
+            ast::ItemExtra::Comment(ast::Comment {
+                inner: ast::CommentInner::SingleLine(line),
+                ..
+            }) => {
+                let source_column = match i.checked_sub(1).and_then(|i| extras.get(i)) {
+                    Some(ast::ItemExtra::Whitespace(ast::Whitespace(ws))) => ws
+                        .rfind('\n')
+                        .map(|newline| ws[newline + 1..].chars().count()),
+                    _ => None,
+                };
+                node!(
+                    Node::Column(Column::Comment)
+                    Break::Space
+                    Node::comment(line.as_str(), source_column)
+                    Break::Hard
+                )
+            }
+            ast::ItemExtra::Comment(comment) => comment.format(),
+            ast::ItemExtra::Whitespace(ast::Whitespace(ws)) => {
+                let before_comment = matches!(extras.get(i + 1), Some(ast::ItemExtra::Comment(_)));
+                match ws.matches('\n').count() {
+                    1 if before_comment => Break::Hard.into(),
+                    0 | 1 => Node::Nil,
+                    _ => Break::Paragraph.into(),
+                }
+            }
+            _ => unimplemented!(),
+        })
+        .collect::<Vec<_>>()
+        .into()
 }
 
 impl Format for ast::LeadingExtras {
-    fn format(&self, f: &FormatConfig) -> Node {
-        let mut prev_newline = false;
-
-        let node: Node = self
-            .0
-            .iter()
-            .map(|extra| match &extra {
-                ast::ItemExtra::Comment(comment) => {
-                    let node = comment.format(f);
-                    prev_newline = node.ends_with_hardline();
-                    node
-                }
-                ast::ItemExtra::Whitespace(ast::Whitespace(ws)) => ws
-                    .chars()
-                    .filter(|&c| c == '\n')
-                    .map(|_| Node::Hardline)
-                    .skip(if prev_newline { 1 } else { 0 })
-                    .take(2)
-                    .collect::<Vec<Node>>()
-                    .into(),
-                _ => unimplemented!(),
-            })
-            .collect::<Vec<_>>()
-            .into();
-
-        node!(f => node)
+    fn format(&self) -> Node {
+        format_extras(&self.0)
     }
 }
 
 impl Format for ast::TrailingExtras {
-    fn format(&self, f: &FormatConfig) -> Node {
-        let mut prev_newline = false;
-        node!(
-            self.0
-                .iter()
-                .map(|extra| match &extra {
-                    ast::ItemExtra::Comment(comment) => {
-                        let node = comment.format(f);
-                        prev_newline = node.ends_with_hardline();
-                        node
-                    }
-                    ast::ItemExtra::Whitespace(ast::Whitespace(ws)) => ws
-                        .chars()
-                        .filter_map(|c| {
-                            if c == '\n' {
-                                Some(Node::Hardline)
-                            } else {
-                                None
-                            }
-                        })
-                        .skip(if prev_newline { 1 } else { 0 })
-                        .take(2) // Two white spaces maximum
-                        .collect::<Vec<_>>()
-                        .into(),
-                    _ => unimplemented!(),
-                })
-                .collect::<Vec<_>>()
-        )
+    fn format(&self) -> Node {
+        format_extras(&self.0)
     }
 }
 
-pub(crate) fn with_extras(
-    extras: &ast::ItemExtras,
-    f: &FormatConfig,
-    node: impl Into<Node>,
-) -> Node {
-    node!(f =>
-        extras.leading
-        node.into()
-        extras.trailing
-    )
+/// A node between the leading and the trailing extras of its item.
+pub(crate) fn with_extras(extras: &ast::ItemExtras, node: Node) -> Node {
+    node!(extras.leading node extras.trailing)
 }
