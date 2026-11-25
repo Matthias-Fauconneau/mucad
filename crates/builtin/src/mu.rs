@@ -503,6 +503,27 @@ pub mod math {
         let z: Angle = args.try_get("z")?;
         Ok(mucad_lang_types::math::rotate_zyx(x, y, z).into())
     }
+    
+    /// Deterministic hash of (seed, x, y, z) returning a Scalar in [0.0, 1.0)
+    #[builtin_fn(math::rand(seed: Integer, x: Integer, y: Integer, z: Integer) -> Scalar)]
+    pub fn rand(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
+        let seed: Integer = args.try_get("seed")?;
+        let x: Integer = args.try_get("x")?;
+        let y: Integer = args.try_get("y")?;
+        let z: Integer = args.try_get("z")?;
+        #[inline]
+        const fn mix64(mut x: u64) -> u64 {
+            x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+            x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
+            x ^ (x >> 31)
+        }
+        let mut h = mix64(seed.to_num::<u64>());
+        h = mix64(h ^ x.to_num::<u64>());
+        h = mix64(h ^ y.to_num::<u64>());
+        h = mix64(h ^ z.to_num::<u64>());
+        let bits = h >> 11;
+        Ok(Scalar::from_num((bits as f64) * (1.0 / ((1u64 << 53) as f64))).into())
+    }
 }
 
 /// Built-in string functions
