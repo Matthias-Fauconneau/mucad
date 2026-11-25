@@ -7,7 +7,9 @@ use miette::IntoDiagnostic;
 use mucad_render::RenderResolution;
 use serde::Deserialize;
 
+/// The settings of the driver, all of which are optional in a TOML file.
 #[derive(Deserialize, Debug)]
+#[serde(default)]
 pub struct DriverConfig {
     pub no_std: bool,
 
@@ -24,7 +26,8 @@ pub struct DriverConfig {
     /// Export settings.
     pub export: ExporterConfig,
 
-    /// Format config
+    /// Format config, e.g. `[format]` with `max_width = 100`.
+    #[serde(default)]
     pub format: FormatConfig,
 
     /// Diagnostics config
@@ -75,6 +78,7 @@ impl DriverConfig {
 
 /// Export settings.
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct ExporterConfig {
     /// Default sketch exporter.
     pub sketch: String,
@@ -97,17 +101,37 @@ impl ExporterConfig {
     }
 }
 
-#[derive(Deserialize, Clone, Default, Debug)]
-pub struct FormatConfig;
+/// Format settings.
+#[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
+pub struct FormatConfig {
+    /// The maximal width of a line (default: `100`).
+    pub max_width: usize,
+    /// The width of an indentation (default: `4`).
+    pub indent_width: usize,
+}
+
+impl Default for FormatConfig {
+    fn default() -> Self {
+        let config = mucad_lang_format::FormatConfig::default();
+        Self {
+            max_width: config.max_width,
+            indent_width: config.indent_width,
+        }
+    }
+}
 
 impl From<&FormatConfig> for mucad_lang_format::FormatConfig {
-    fn from(_: &FormatConfig) -> Self {
-        mucad_lang_format::FormatConfig::default()
+    fn from(config: &FormatConfig) -> Self {
+        Self {
+            max_width: config.max_width,
+            indent_width: config.indent_width,
+        }
     }
 }
 
 #[derive(Deserialize, Clone, Default, Debug)]
-pub struct DiagnosticsConfig;
+pub struct DiagnosticsConfig {}
 
 impl From<&DiagnosticsConfig> for mucad_lang_base::DiagRenderOptions {
     fn from(_: &DiagnosticsConfig) -> Self {

@@ -1345,7 +1345,7 @@ fn parser<'tokens>()
             .then(list_item.clone())
             .with_extras()
             .delimited_by(
-                just(Token::SigilOpenSquareBracket).then_maybe_whitespace(),
+                just(Token::SigilOpenSquareBracket),
                 just(Token::SigilCloseSquareBracket),
             )
             .then(unit.clone().or_not())
@@ -1368,7 +1368,7 @@ fn parser<'tokens>()
             .collect::<Vec<_>>()
             .with_extras()
             .delimited_by(
-                just(Token::SigilOpenSquareBracket).then_maybe_whitespace(),
+                just(Token::SigilOpenSquareBracket),
                 just(Token::SigilCloseSquareBracket),
             )
             .then(unit.clone().or_not())
