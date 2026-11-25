@@ -5539,6 +5539,7 @@ name = "mucad-std"
 version = "0.6.3"
 dependencies = [
  "dirs",
+ "mucad-driver",
  "mucad-lang-base",
  "rust-embed",
  "semver",
