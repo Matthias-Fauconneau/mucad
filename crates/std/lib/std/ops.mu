@@ -224,8 +224,8 @@ pub op spiralize(
 pub op translate(x = 0.0mm, y = 0.0mm, z = 0.0mm) {
     /// Polar-style translate with distance and angle.
     init(distance: Length, angle: Angle) {
-        x = distance * __mu::math::cos(angle);
-        y = distance * __mu::math::sin(angle);
+        x = distance * math::cos(angle);
+        y = distance * math::sin(angle);
         z = 0.0mm;
     }
 
