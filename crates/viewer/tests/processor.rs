@@ -3,6 +3,7 @@
 
 //! Tests for the geometry processor, which runs without a window.
 
+use bevy::mesh::{Mesh, VertexAttributeValues};
 use mucad_viewer::{
     Config,
     processor::{ProcessorInterface, ProcessorRequest, ProcessorResponse},
@@ -101,4 +102,69 @@ fn process_errors() {
             .iter()
             .any(|response| matches!(response, ProcessorResponse::NewModelInfo(..)))
     );
+}
+
+/// A part's color attribute is copied to every vertex of its generated mesh.
+#[test]
+fn part_color_is_written_to_mesh_vertices() {
+    let responses = responses("#[color = \"red\"]\nCircle(radius = 1mm);");
+
+    let mesh = responses
+        .iter()
+        .find_map(|response| match response {
+            ProcessorResponse::NewMeshAsset(_, mesh, _) => Some(mesh),
+            _ => None,
+        })
+        .expect("colored part should generate a mesh");
+
+    let vertex_count = mesh.count_vertices();
+    match mesh
+        .attribute(Mesh::ATTRIBUTE_COLOR)
+        .expect("colored mesh should have a vertex color attribute")
+    {
+        VertexAttributeValues::Float32x4(colors) => {
+            assert_eq!(colors.len(), vertex_count);
+            assert!(!colors.is_empty());
+            assert!(colors.iter().all(|color| *color == [1.0, 0.0, 0.0, 1.0]));
+        }
+        other => panic!("unexpected vertex color format: {other:?}"),
+    }
+}
+
+/// A union keeps different part colors on separate meshes.
+#[test]
+fn union_preserves_part_colors_on_split_meshes() {
+    let responses = responses(
+        r#"{
+            #[color = "red"] Circle(radius = 2mm);
+            #[color = "blue"] Circle(radius = 1mm);
+        }.__mu::ops::union();"#,
+    );
+
+    let meshes: Vec<_> = responses
+        .iter()
+        .filter_map(|response| match response {
+            ProcessorResponse::NewMeshAsset(_, mesh, _) => Some(mesh),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(meshes.len(), 2);
+
+    let colors: Vec<_> = meshes
+        .iter()
+        .map(|mesh| {
+            match mesh
+                .attribute(Mesh::ATTRIBUTE_COLOR)
+                .expect("vertex colors")
+            {
+                VertexAttributeValues::Float32x4(colors) => {
+                    assert_eq!(colors.len(), mesh.count_vertices());
+                    colors[0]
+                }
+                other => panic!("unexpected vertex color format: {other:?}"),
+            }
+        })
+        .collect();
+    assert!(colors.contains(&[1.0, 0.0, 0.0, 1.0]));
+    assert!(colors.contains(&[0.0, 0.0, 1.0, 1.0]));
 }

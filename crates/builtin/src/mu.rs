@@ -503,6 +503,157 @@ pub mod math {
         let z: Angle = args.try_get("z")?;
         Ok(mucad_lang_types::math::rotate_zyx(x, y, z).into())
     }
+
+    /// Deterministic hash of `seed` and the `(x, y, z)` coordinates as a scalar in `[0.0, 1.0)`.
+    ///
+    /// The same inputs always produce the same result.
+    ///
+    /// ## Parameters
+    /// - `seed`: Integer seed for the hash.
+    /// - `x`: Integer X coordinate.
+    /// - `y`: Integer Y coordinate.
+    /// - `z`: Integer Z coordinate.
+    ///
+    /// ## Examples
+    /// ```text
+    /// math::rand(0, 0, 0, 0)  // -> 0
+    /// math::rand(1, 2, 3, 4) == math::rand(1, 2, 3, 4)  // -> true
+    /// ```
+    #[builtin_fn(math::rand(seed: Integer, x: Integer, y: Integer, z: Integer) -> Scalar)]
+    pub fn rand(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
+        let seed: Integer = args.try_get("seed")?;
+        let x: Integer = args.try_get("x")?;
+        let y: Integer = args.try_get("y")?;
+        let z: Integer = args.try_get("z")?;
+        #[inline]
+        const fn mix64(mut x: u64) -> u64 {
+            x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+            x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
+            x ^ (x >> 31)
+        }
+        let mut h = mix64(seed.to_num::<u64>());
+        h = mix64(h ^ x.to_num::<u64>());
+        h = mix64(h ^ y.to_num::<u64>());
+        h = mix64(h ^ z.to_num::<u64>());
+        let bits = h >> 11;
+        Ok(Scalar::from_num((bits as f64) * (1.0 / ((1u64 << 53) as f64))).into())
+    }
+
+    /// Return the smaller of two values.
+    ///
+    /// Both values must have the same type (both integers, both unitless scalars,
+    /// or both quantities with matching units). The return type matches the input type.
+    ///
+    /// ## Parameters
+    /// - `a`: First value.
+    /// - `b`: Second value.
+    ///
+    /// ## Examples
+    /// ```mu,min_int?mode=compile
+    /// std::assert_eq(min(3, 7), 3);
+    /// std::assert_eq(min(-5, 2), -5);
+    /// ```
+    ///
+    /// ```mu,min_scalar?mode=compile
+    /// std::assert_eq(min(1.5, 0.5), 0.5);
+    /// ```
+    ///
+    /// ```mu,min_length?mode=compile
+    /// std::assert_eq(min(2mm, 5mm), 2mm);
+    /// ```
+    #[builtin_fn(math::min(a: Any, b: Any) -> Any)]
+    pub fn min(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
+        use mucad_lang_base::element::BinaryOperator;
+        let a = args.get("a");
+        let b = args.get("b");
+        // Returns `a` when `a <= b`, else `b`.
+        match a.cmp(BinaryOperator::LessEqual, &b)? {
+            Value::Bool(true) => Ok(a),
+            _ => Ok(b),
+        }
+    }
+
+    /// Return the larger of two values.
+    ///
+    /// Both values must have the same type (both integers, both unitless scalars,
+    /// or both quantities with matching units). The return type matches the input type.
+    ///
+    /// ## Parameters
+    /// - `a`: First value.
+    /// - `b`: Second value.
+    ///
+    /// ## Examples
+    /// ```mu,max_int?mode=compile
+    /// std::assert_eq(max(3, 7), 7);
+    /// std::assert_eq(max(-5, 2), 2);
+    /// ```
+    ///
+    /// ```mu,max_scalar?mode=compile
+    /// std::assert_eq(max(1.5, 0.5), 1.5);
+    /// ```
+    ///
+    /// ```mu,max_length?mode=compile
+    /// std::assert_eq(max(2mm, 5mm), 5mm);
+    /// ```
+    #[builtin_fn(math::max(a: Any, b: Any) -> Any)]
+    pub fn max(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
+        use mucad_lang_base::element::BinaryOperator;
+        let a = args.get("a");
+        let b = args.get("b");
+        // Returns `a` when `a >= b`, else `b`.
+        match a.cmp(BinaryOperator::GreaterEqual, &b)? {
+            Value::Bool(true) => Ok(a),
+            _ => Ok(b),
+        }
+    }
+
+    /// Clamp a value to the range `[lo, hi]`.
+    ///
+    /// Returns `lo` if `x < lo`, `hi` if `x > hi`, and `x` otherwise.
+    /// All three arguments must have the same type (integers, unitless scalars,
+    /// or quantities with matching units).
+    ///
+    /// ## Parameters
+    /// - `x`: The value to clamp.
+    /// - `lo`: The inclusive lower bound.
+    /// - `hi`: The inclusive upper bound.
+    ///
+    /// ## Examples
+    /// ```mu,clamp_below?mode=compile
+    /// std::assert_eq(clamp(-1.0, 0.0, 1.0), 0.0);
+    /// ```
+    ///
+    /// ```mu,clamp_above?mode=compile
+    /// std::assert_eq(clamp(2.0, 0.0, 1.0), 1.0);
+    /// ```
+    ///
+    /// ```mu,clamp_inside?mode=compile
+    /// std::assert_eq(clamp(0.5, 0.0, 1.0), 0.5);
+    /// ```
+    ///
+    /// ```mu,clamp_int?mode=compile
+    /// std::assert_eq(clamp(5, 1, 3), 3);
+    /// ```
+    ///
+    /// ```mu,clamp_length?mode=compile
+    /// std::assert_eq(clamp(0mm, 1mm, 5mm), 1mm);
+    /// ```
+    #[builtin_fn(math::clamp(x: Any, lo: Any, hi: Any) -> Any)]
+    pub fn clamp(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
+        use mucad_lang_base::element::BinaryOperator;
+        let x = args.get("x");
+        let lo = args.get("lo");
+        let hi = args.get("hi");
+        // clamp(x, lo, hi) = max(lo, min(x, hi))
+        let below_hi = match x.cmp(BinaryOperator::LessEqual, &hi)? {
+            Value::Bool(true) => x,
+            _ => hi,
+        };
+        match below_hi.cmp(BinaryOperator::GreaterEqual, &lo)? {
+            Value::Bool(true) => Ok(below_hi),
+            _ => Ok(lo),
+        }
+    }
 }
 
 /// Built-in string functions

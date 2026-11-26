@@ -4,7 +4,10 @@
 //! Tests for rendering model trees.
 
 use mucad_builtin::{BuiltinEvalContext, BuiltinPrimitiveCall, mu};
-use mucad_lang_types::{Model, ModelTree, Value, arguments, model::Element};
+use mucad_lang_types::{
+    Model, ModelTree, Value, arguments,
+    model::{Attribute, Attributes, Element},
+};
 use mucad_render::Renderer;
 
 fn circle(r: f64) -> Model {
@@ -71,4 +74,66 @@ fn render_extrude() {
         .0;
 
     insta::assert_snapshot!("render_extrude", geometry);
+}
+
+/// Union keeps outputs from differently colored parts in separate groups.
+#[test]
+fn render_union_preserves_part_colors() {
+    let mut group = ModelTree::new(Element::Group);
+    for (radius, color) in [
+        (3.0, mucad_lang_types::Color::rgb(1.0, 0.0, 0.0)),
+        (2.0, mucad_lang_types::Color::rgb(0.0, 0.0, 1.0)),
+    ] {
+        let model = circle(radius).with_attr(Attributes(vec![Attribute::Color(color)]));
+        group.append(model);
+    }
+
+    let mut ctx = BuiltinEvalContext::default();
+    let mut union = mu::ops::union(arguments!(self = group), &mut ctx).expect("No error");
+    union.compute_hashes();
+    let geometry = Renderer::new().render(&union).expect("No render errors").0;
+    let root = geometry.root();
+    let outputs: Vec<_> = root.outputs.iter().collect();
+
+    assert_eq!(outputs.len(), 2);
+    assert!(
+        outputs
+            .iter()
+            .any(|output| output.attr.fill_color == Some(mucad_core::Color::RED))
+    );
+    assert!(
+        outputs
+            .iter()
+            .any(|output| output.attr.fill_color == Some(mucad_core::Color::BLUE))
+    );
+}
+
+/// Parts with the same color still produce one union output.
+#[test]
+fn render_union_merges_same_color_parts() {
+    let mut group = ModelTree::new(Element::Group);
+    for radius in [3.0, 2.0] {
+        let model = circle(radius).with_attr(Attributes(vec![Attribute::Color(
+            mucad_lang_types::Color::rgb(1.0, 0.0, 0.0),
+        )]));
+        group.append(model);
+    }
+
+    let mut ctx = BuiltinEvalContext::default();
+    let mut union = mu::ops::union(arguments!(self = group), &mut ctx).expect("No error");
+    union.compute_hashes();
+    let geometry = Renderer::new().render(&union).expect("No render errors").0;
+
+    assert_eq!(geometry.root().outputs.len(), 1);
+    assert_eq!(
+        geometry
+            .root()
+            .outputs
+            .iter()
+            .next()
+            .unwrap()
+            .attr
+            .fill_color,
+        Some(mucad_core::Color::RED)
+    );
 }

@@ -53,7 +53,7 @@ pub sketch InvoluteGearProfile(
     /// The angle between two teeth.
     prop tooth_angle = 360° / teeth;
     /// The distance between two teeth at the pitch circle, the circular pitch.
-    prop tooth_distance = (outer_radius - pitch_radius) * __mu::math::PI;
+    prop tooth_distance = (outer_radius - pitch_radius) * math::PI;
 
     __mu::geo2d::InvoluteGearProfile(module, teeth, pressure_angle, backlash, clearance);
 }
