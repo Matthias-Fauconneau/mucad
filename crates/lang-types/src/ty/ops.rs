@@ -42,6 +42,7 @@ impl Operators for Type {
             Subtract => lhs - rhs,
             Multiply => lhs * rhs,
             Divide => lhs / rhs,
+            Remainder => lhs % rhs,
             Union | Or => lhs | rhs,
             Intersect | And => lhs & rhs,
             GreaterThan | LessThan | LessEqual | GreaterEqual => lhs.compare(op, rhs),
@@ -181,6 +182,25 @@ impl std::ops::Div for Type {
             (List(list_type), ty) => *list_type / ty,
             (lhs, rhs) => Err(TypeError::UnsupportedBinaryOperator {
                 op: BinaryOperator::Divide,
+                lhs,
+                rhs,
+            }),
+        }
+    }
+}
+
+impl std::ops::Rem for Type {
+    type Output = TypeResult;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        use Type::*;
+        let lhs = self;
+
+        match (lhs, rhs) {
+            (Integer, Integer) => Ok(Integer),
+            (List(list_type), ty) => *list_type % ty,
+            (lhs, rhs) => Err(TypeError::UnsupportedBinaryOperator {
+                op: BinaryOperator::Remainder,
                 lhs,
                 rhs,
             }),

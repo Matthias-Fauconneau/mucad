@@ -54,8 +54,16 @@ impl Quantity {
     }
 
     /// Calculate the power of quantity.
-    pub fn pow(&self, _rhs: &Quantity) -> Self {
-        todo!()
+    pub fn pow(&self, rhs: &Quantity) -> Self {
+    	use fixed_exp::FixedPowF;
+    	match (&self.quantity_type, &rhs.quantity_type) {
+     		(QuantityType::Scalar, QuantityType::Scalar) => {
+       			if self.value == 0 { return Quantity::new(Scalar::from_num(1), QuantityType::Scalar); }
+       			assert!(self.value > 0., "powf base needs to be positive: {}", self.value);
+       			Quantity::new(self.value.powf(rhs.value), QuantityType::Scalar)
+       		},
+     		_ => unreachable!()
+     	}
     }
 
     /// Calculate the power of quantity and an integer.

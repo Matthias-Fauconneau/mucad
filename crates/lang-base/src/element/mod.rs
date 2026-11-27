@@ -72,6 +72,8 @@ pub enum BinaryOperator {
     Multiply,
     #[strum(serialize = "/")]
     Divide,
+    #[strum(serialize = "rem")]
+    Remainder,
     #[strum(serialize = "|")]
     Union,
     #[strum(serialize = "&")]

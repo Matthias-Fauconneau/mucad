@@ -116,6 +116,8 @@ pub enum Token<'a> {
     OperatorMultiply,
     /// Divide operator: `/`
     OperatorDivide,
+    /// Remainder operator: `rem`
+    OperatorRemainder,
     /// Union operator: `|`
     OperatorUnion,
     /// Intersect operator: `&`
@@ -195,6 +197,7 @@ impl Token<'_> {
             Token::OperatorSubtract => Token::OperatorSubtract,
             Token::OperatorMultiply => Token::OperatorMultiply,
             Token::OperatorDivide => Token::OperatorDivide,
+            Token::OperatorRemainder => Token::OperatorRemainder,
             Token::OperatorUnion => Token::OperatorUnion,
             Token::OperatorIntersect => Token::OperatorIntersect,
             Token::OperatorPowerXor => Token::OperatorPowerXor,
@@ -264,6 +267,7 @@ impl Token<'_> {
             Token::OperatorSubtract => "-",
             Token::OperatorMultiply => "*",
             Token::OperatorDivide => "/",
+            Token::OperatorRemainder => "rem",
             Token::OperatorUnion => "|",
             Token::OperatorIntersect => "&",
             Token::OperatorPowerXor => "^",

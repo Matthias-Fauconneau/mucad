@@ -192,13 +192,12 @@ pub trait ArgumentMatch {
         }
     }
 
-    /// The priority of the match of `arguments`, or `None` if they don't match.
-    fn match_priority(&self, arguments: &ArgumentValueList) -> Option<MatchPriority> {
+    /// The priority of the match of `arguments`, or `Err` if they don't match.
+    fn match_priority(&self, arguments: &ArgumentValueList) -> Result<MatchPriority, ArgumentMatchError> {
         match self.call_signature().parameters {
             Some(parameters) => Matcher::new(&parameters, &self.default_values())
-                .match_priority(arguments)
-                .ok(),
-            None => Some(MatchPriority::default()),
+                .match_priority(arguments),
+            None => Ok(MatchPriority::default()),
         }
     }
 }

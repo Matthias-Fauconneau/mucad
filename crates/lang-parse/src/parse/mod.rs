@@ -1542,7 +1542,7 @@ fn parser<'tokens>()
         let union_intersect = binop(xor, &[Token::OperatorUnion, Token::OperatorIntersect]);
         let mul_div = binop(
             union_intersect,
-            &[Token::OperatorMultiply, Token::OperatorDivide],
+            &[Token::OperatorMultiply, Token::OperatorDivide, Token::OperatorRemainder],
         );
         let add_sub = binop(mul_div, &[Token::OperatorAdd, Token::OperatorSubtract]);
         let less_greater_eq = binop(

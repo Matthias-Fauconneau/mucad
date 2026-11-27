@@ -277,7 +277,7 @@ impl Callable for symbol::Workbench {
             .inits
             .iter()
             .enumerate()
-            .filter_map(|(index, init)| Some((init, init.match_priority(args)?, Reverse(index))))
+            .filter_map(|(index, init)| Some((init, init.match_priority(args).ok()?, Reverse(index))))
             .max_by_key(|(_, priority, index)| (*priority, *index))
             .map(|(init, ..)| init)
         else {
@@ -289,7 +289,7 @@ impl Callable for symbol::Workbench {
                     .signature
                     .inits
                     .iter()
-                    .map(|init| init.to_string())
+                    .map(|init| format!("{}:\n{}", init, init.match_priority(args).unwrap_err()))
                     .collect(),
             }
             .into());

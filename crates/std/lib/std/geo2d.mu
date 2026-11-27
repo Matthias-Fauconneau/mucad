@@ -15,6 +15,15 @@ pub sketch Circle(radius: Length, center = (x = 0.0mm, y = 0.0mm)) {
         .__mu::ops::translate(x = center.x, y = center.y, z = 0mm);
 }
 
+//pub use __mu::geo2d::PolyBezier;
+pub sketch PolyBezier(
+    path: [CubicSegment2D],
+    /// Whether the path is closed into polygons, otherwise it is rendered as lines.
+    closed: Bool,
+) {
+    __mu::geo2d::PolyBezier(path, closed);
+}
+
 /// A frame with a thickness.
 pub sketch Frame(width: Length, height: Length, thickness: Length) {
     std::assert(thickness > 0.0mm, "Thickness must be a positive number (thickness = {thickness})");

@@ -196,6 +196,21 @@ impl std::ops::Div for Value {
     }
 }
 
+/// Rules for operator `mod`.
+impl std::ops::Rem for Value {
+    type Output = ValueResult;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            // Remainder with integer result
+            (Value::Number(Number::Integer(lhs)), Value::Number(Number::Integer(rhs))) => Ok(Value::Number(Number::Integer(lhs % rhs))),
+            (Value::List(list), value) => Ok((list.as_ref().clone() % value)?),
+            (Value::Tuple(tuple), value) => Ok((tuple.as_ref().clone() % value)?.into()),
+            (lhs, rhs) => Err(ValueError::InvalidOperator(format!("{lhs} % {rhs}"))),
+        }
+    }
+}
+
 /// Rules for operator `|`` (union).
 impl std::ops::BitOr for Value {
     type Output = ValueResult;

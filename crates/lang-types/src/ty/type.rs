@@ -165,6 +165,17 @@ impl std::str::FromStr for Type {
             "Vec3" => Type::Tuple(Box::new(TupleType::vec3())),
             "Mat3" => Type::matrix(3, 3),
             "Size2" => Type::Tuple(Box::new(TupleType::size2())),
+            "CubicSegment2D" => { // WIP: here until there is a mechanism to register a builtin type externally (from the builtin spline module)
+                let vec2 = Type::Tuple(Box::new(TupleType::vec2()));
+                Type::Tuple(Box::new([
+                    ("p0", vec2.clone()),
+                    ("c1", vec2.clone()),
+                    ("c2", vec2.clone()),
+                    ("p1", vec2.clone()),
+                ]
+                .into_iter()
+                .collect()))
+            },
             "Any" => Type::Any,
             "Integer" => Type::Integer,
             "Number" => Type::Number,

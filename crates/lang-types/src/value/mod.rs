@@ -172,6 +172,8 @@ impl TryFrom<Value> for i64 {
     }
 }
 
+impl_try_from!(List => List);
+
 impl TryFrom<Value> for Scalar {
     type Error = ValueError;
 
@@ -262,6 +264,22 @@ impl TryFrom<Value> for Mat3 {
         }
     }
 }
+
+impl TryFrom<Value> for Vec2 {
+    type Error = ValueError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Tuple(tuple) = &value {
+            Ok(Vec2::new(
+            	Length::try_from(tuple.get_field(&"x".into()).unwrap().clone()).unwrap().0,
+             	Length::try_from(tuple.get_field(&"y".into()).unwrap().clone()).unwrap().0,
+            ))
+        } else {
+            Err(ValueError::CannotConvert(value.to_string(), "Vec2".into()))
+        }
+    }
+}
+
 
 impl From<Quantity> for Value {
     fn from(quantity: Quantity) -> Self {

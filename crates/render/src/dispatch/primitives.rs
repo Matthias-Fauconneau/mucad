@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use mucad_builtin::mu as __mu;
-use mucad_lang_types::math::IntoFloat;
+use mucad_lang_types::{Value, Vec2, math::IntoFloat};
 
 use crate::{
     GeometryOutputs, GeometryTree, Render, RenderContext, RenderError, RenderPrimitive,
@@ -42,6 +42,31 @@ impl RenderPolygon for __mu::geo2d::Rect {
             self.height.as_mm(),
         );
         mucad_core::Rect::new((x, y), (x + w, y + h)).to_polygon()
+    }
+}
+
+impl Render for __mu::geo2d::PolyBezier {
+    fn render(&self, tree: &GeometryTree, context: &mut RenderContext) -> crate::RenderResult {
+    	use mucad_core::geo2d::bezier::{Bezier, BezierHandles};
+        let resolution = context.current_resolution(tree);
+        let to_bezier = |v:&Value| match v {
+        	Value::Tuple(tuple) => {
+         		let get = |field:&str| {
+           			Vec2::try_from(tuple.get_field(&field.into()).unwrap().clone()).unwrap().to_array().map(|f| f.into_float()).into()
+           		};
+	         	Bezier{
+	         		start: get("p0"),
+	           		end: get("p1"),
+	             	handles: BezierHandles::Cubic {
+	              		handle_start: get("c1"),
+	                	handle_end: get("c2"),
+	              	},
+	         	}
+         	},
+          	_ => unreachable!(),
+        };
+        let geometry = bezier::render_curves(&[self.path.iter().map(to_bezier).collect()], self.closed, &resolution);
+        Ok(mucad_core::Geometry::geo2d(geometry).into())
     }
 }
 

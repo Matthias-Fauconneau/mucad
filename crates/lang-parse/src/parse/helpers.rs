@@ -90,6 +90,7 @@ where
                         Token::OperatorSubtract => Subtract,
                         Token::OperatorMultiply => Multiply,
                         Token::OperatorDivide => Divide,
+                        Token::OperatorRemainder => Remainder,
                         Token::OperatorUnion => Union,
                         Token::OperatorIntersect => Intersect,
                         Token::OperatorPowerXor => PowerXor,
