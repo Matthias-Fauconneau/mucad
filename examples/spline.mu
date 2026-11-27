@@ -1,12 +1,9 @@
-//use std::geo2d::PolyBezier;
-//use std::geo3d::*;
-//use std::ops::*;
 use std::spline::Spline; // FIXME: use std::spline::Spline; fails
 
 // 1. Closed smooth loop (4 points -> rounded pillow shape, extruded to verify watertightness)
 sketch SmoothSquare() {
     std::spline::Spline(
-        points = [(0mm, 0mm), (10mm, 0mm), (10mm, 10mm), (0mm, 10mm)],
+        points = [(x= 0mm, y= 0mm), (x= 10mm, y= 0mm), (x= 10mm, y= 10mm), (x= 0mm, y= 10mm)],
         closed = true,
         tension = 0.0
     );
@@ -15,7 +12,7 @@ sketch SmoothSquare() {
 // 2. Tension = 1.0 should match a straight-edged 10x10 square
 sketch TenseSquare() {
     Spline(
-        points = [(0mm, 0mm), (10mm, 0mm), (10mm, 10mm), (0mm, 10mm)],
+        points = [(x= 0mm, y= 0mm), (x= 10mm, y= 0mm), (x= 10mm, y= 10mm), (x= 0mm, y= 10mm)],
         closed = true,
         tension = 1.0
     );
@@ -25,11 +22,11 @@ sketch TenseSquare() {
 sketch TeardropWithCorner() {
     Spline(
         points = [
-            (0mm, 0mm),
-            (10mm, 10mm),
-            (10mm, 10mm), // repeated point -> sharp tip
-            (0mm, 20mm),
-            (-10mm, 10mm)
+            (x= 0mm, y= 0mm),
+            (x= 10mm, y= 10mm),
+            (x= 10mm, y= 10mm), // repeated point -> sharp tip
+            (x= 0mm, y= 20mm),
+            (x= -10mm, y= 10mm)
         ],
         closed = true
     );
@@ -38,7 +35,7 @@ sketch TeardropWithCorner() {
 // 4. Open spline stroked into a ribbon/wire (tests reflected open endpoints)
 sketch OpenWave() {
     Spline(
-        points = [(0mm, 0mm), (10mm, 8mm), (20mm, -8mm), (30mm, 0mm)],
+        points = [(x= 0mm, y= 0mm), (x= 10mm, y= 8mm), (x= 20mm, y= -8mm), (x= 30mm, y= 0mm)],
         closed = false
     )
     ;//.stroke(width = 1.5mm);
@@ -46,6 +43,6 @@ sketch OpenWave() {
 
 // Lay them out side-by-side and extrude to verify valid closed 2D regions
 SmoothSquare().extrude(2mm);
-//TenseSquare().extrude(2mm).translate(x = 18mm);
-//TeardropWithCorner().extrude(2mm).translate(x = 36mm); 
-//OpenWave().extrude(2mm).translate(y = -18mm);
+TenseSquare().extrude(2mm).translate(x = 18mm);
+TeardropWithCorner().extrude(2mm).translate(x = 36mm); 
+OpenWave().extrude(2mm).translate(y = -18mm);

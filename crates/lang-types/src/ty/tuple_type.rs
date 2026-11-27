@@ -21,7 +21,7 @@ pub struct TupleType {
 impl TupleType {
     /// Create new Vec2 type.
     pub fn vec2() -> Self {
-        [("x", Type::scalar()), ("y", Type::scalar())]
+        [("x", Type::length()), ("y", Type::length())]
             .into_iter()
             .collect()
     }
@@ -29,9 +29,9 @@ impl TupleType {
     /// Create new Vec3 type.
     pub fn vec3() -> Self {
         [
-            ("x", Type::scalar()),
-            ("y", Type::scalar()),
-            ("z", Type::scalar()),
+            ("x", Type::length()),
+            ("y", Type::length()),
+            ("z", Type::length()),
         ]
         .into_iter()
         .collect()

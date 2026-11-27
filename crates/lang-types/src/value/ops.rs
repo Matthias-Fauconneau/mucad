@@ -203,7 +203,7 @@ impl std::ops::Rem for Value {
     fn rem(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             // Remainder with integer result
-            (Value::Integer(lhs), Value::Integer(rhs)) => Ok(Value::Integer(lhs % rhs)),
+            (Value::Number(Number::Integer(lhs)), Value::Number(Number::Integer(rhs))) => Ok(Value::Number(Number::Integer(lhs % rhs))),
             (Value::List(list), value) => Ok((list.as_ref().clone() % value)?),
             (Value::Tuple(tuple), value) => Ok((tuple.as_ref().clone() % value)?.into()),
             (lhs, rhs) => Err(ValueError::InvalidOperator(format!("{lhs} % {rhs}"))),

@@ -25,7 +25,7 @@ fn catmull_rom_segment(
 
     // Outgoing handle c1 from p0 (guarding d1 == 0 avoids NaN & lets repeated points create sharp corners)
     m1 = (d2 * d2 * (p0 - p_prev) + d1 * d1 * (p1 - p0)) / (d1 * (d1 + d2));
-    c1 = if d1 < 1e-9 /*| d2 < 1e-9*/ {
+    c1 = if (d1 < 1e-9) | (d2 < 1e-9) {
         p0
     } else {
         p0 + m1 * scale
@@ -33,7 +33,7 @@ fn catmull_rom_segment(
 
     // Incoming handle c2 into p1
     m2 = (d2 * d2 * (p1 - p2) + d3 * d3 * (p0 - p1)) / (d3 * (d2 + d3));
-    c2 = if d3 < 1e-9 /*d2 < 1e-9*/ {
+    c2 = if (d3 < 1e-9) | (d2 < 1e-9) {
         p1
     } else {
         p1 + m2 * scale
@@ -79,6 +79,12 @@ pub sketch Spline(
 ) {
     n = count(points);
     //std::assert(if closed { n >= 3 } else { n >= 2 }, "Spline requires at least 2 points (3 if closed)");
-    seg_count = if closed { n } else { n - 1 };
-    PolyBezier(catmull_rom_segment_i(points, [0..seg_count - 1], closed, tension), closed);
+    //seg_count = if closed { n } else { n - 1 };
+    if closed { 
+        seg_count = n;
+        PolyBezier(catmull_rom_segment_i(points, [0..(seg_count-1)], closed, tension), closed)
+    } else { 
+        seg_count = n - 1; 
+        PolyBezier(catmull_rom_segment_i(points, [0..(seg_count-1)], closed, tension), closed)
+    };
 }

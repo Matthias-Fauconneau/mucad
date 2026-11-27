@@ -20,6 +20,7 @@ derive_more = { version = "2.0.1", features = [
 # The vectors and matrices of floating point scalars, which are the ones of mucad-core.
 glam = "0.30"
 fixed = { version = "1.31", features = ["serde"] }
+fixed-exp = { package = "fixed-exp2", version = "0.3" }
 libm = "0.2"
 log = "0.4"
 miette = { version = "7.6.0", features = ["derive", "fancy"] }

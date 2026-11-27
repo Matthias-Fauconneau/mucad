@@ -3,7 +3,7 @@
 
 //! Bezier implementation
 
-pub use bezier_rs::{Bezier, Identifier, TValue};
+pub use bezier_rs::{Bezier, Identifier, TValue, BezierHandles};
 
 /// An empty id type for use in tests
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
