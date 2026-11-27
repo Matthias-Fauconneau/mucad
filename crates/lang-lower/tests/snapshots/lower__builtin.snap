@@ -10,7 +10,7 @@ expression: "ir.to_ron().expect(\"No error\")"
     ),
     payload: (
         input_hash: "0xaaabf7f7afd157fc",
-        output_hash: "0xb2c65111a4d74562",
+        output_hash: "0xcb6c0843452499be",
         tree: (
             root: (
                 index1: 1,
@@ -61,7 +61,7 @@ expression: "ir.to_ron().expect(\"No error\")"
                                             src_ref: "None",
                                         ),
                                         expression: Value((
-                                            value: Quantity("3"),
+                                            value: Number(Quantity("3")),
                                             src_ref: "None",
                                         )),
                                     ),
@@ -83,7 +83,7 @@ expression: "ir.to_ron().expect(\"No error\")"
                                             src_ref: "None",
                                         ),
                                         expression: Value((
-                                            value: Quantity("3"),
+                                            value: Number(Quantity("3")),
                                             src_ref: "None",
                                         )),
                                     ),

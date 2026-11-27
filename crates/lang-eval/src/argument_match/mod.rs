@@ -4,30 +4,19 @@
 //! Match the arguments of a call to parameters.
 
 mod matcher;
-mod multi_match;
 
 use miette::Diagnostic;
 use mucad_lang_base::{Identifier, IdentifierList};
 use mucad_lang_resolve::library::symbol::{
     Function, ParameterList, function::FunctionSignature, workbench::Init,
 };
-use mucad_lang_types::{ArgumentValueList, Arguments, CallSignature, Tuple};
+use mucad_lang_types::{ArgumentValueList, Arguments, CallSignature, List, Tuple, Ty, Type, Value};
 use thiserror::Error;
 
 use matcher::Matcher;
 
 #[derive(Error, Debug, Diagnostic)]
 pub enum ArgumentMatchError {
-    /// Variadic list expansion is not supported for variadic call signatures.
-    #[error("List expansion `({arguments})` is not allowed for variadic call signatures")]
-    #[diagnostic(help(
-        "Pass arguments explicitly instead of using variadic expansion on multi-matches."
-    ))]
-    MultiMatchNotAllowedForVariadic {
-        /// Name of the symbol or call signature
-        arguments: String,
-    },
-
     /// Missing arguments
     #[error("Missing arguments: {0}")]
     MissingArguments(IdentifierList),
@@ -69,6 +58,34 @@ pub struct MatchPriority {
     pub short_names: usize,
 }
 
+/// The arguments of the calls of a match, one call per element of an expanded list.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Matches {
+    pub arguments: Vec<Arguments>,
+    /// Whether a list was expanded, even an empty one, which results in no call.
+    pub expanded: bool,
+}
+
+impl Matches {
+    /// The arguments of one call without expansion.
+    fn single(arguments: Arguments) -> Self {
+        Self {
+            arguments: vec![arguments],
+            expanded: false,
+        }
+    }
+
+    /// The value of the calls with the arguments, which is a list of their values, if a list
+    /// was expanded.
+    pub fn try_value<E>(self, call: impl FnMut(Arguments) -> Result<Value, E>) -> Result<Value, E> {
+        let mut values = self.arguments.into_iter().map(call);
+        match self.expanded {
+            true => Ok(Value::list(values.collect::<Result<Vec<_>, _>>()?)),
+            false => values.next().transpose().map(Option::unwrap_or_default),
+        }
+    }
+}
+
 pub trait ArgumentMatch {
     fn call_signature(&self) -> CallSignature;
 
@@ -76,8 +93,75 @@ pub trait ArgumentMatch {
         Tuple::default()
     }
 
-    fn is_matching(&self, arguments: &ArgumentValueList) -> bool {
-        self.argument_match(arguments).is_ok() // TODO Implement a custom and more performant algorithm here.
+    /// Match `arguments` to the parameters, and expand list arguments for parameters of their
+    /// element type into one call per combination of their elements, the cartesian product.
+    ///
+    /// An empty list for a parameter, which is no list, still counts as an expansion and
+    /// therefore produces no call. The arguments of a variadic call signature are not expanded.
+    fn match_arguments(
+        &self,
+        arguments: &ArgumentValueList,
+    ) -> Result<Matches, ArgumentMatchError> {
+        let arguments = self.argument_match(arguments)?;
+        let Some(parameters) = self.call_signature().parameters else {
+            return Ok(Matches::single(arguments));
+        };
+
+        // A list expands, if its elements have the type of the parameter, or if it is empty
+        // and the parameter is no list.
+        let expands = |list: &List, expected: &Type| {
+            list.ty().matches_list_type(expected)
+                || (list.is_empty() && !matches!(expected, Type::List(_) | Type::Any))
+        };
+
+        // The values of each argument, which are the elements of an expanded list.
+        let mut expanded = false;
+        let values: Vec<(Identifier, Vec<Value>)> = arguments
+            .0
+            .named
+            .into_iter()
+            .map(|(id, value)| {
+                let expected = parameters.iter().find(|(param, _)| param == &id);
+                match value {
+                    Value::List(list) if expected.is_some_and(|(_, ty)| expands(&list, ty)) => {
+                        expanded = true;
+                        (id, list.iter().cloned().collect())
+                    }
+                    value => (id, vec![value]),
+                }
+            })
+            .collect();
+
+        // The cartesian product of the values.
+        let mut combinations = vec![Vec::new()];
+        for (id, values) in values {
+            combinations = combinations
+                .iter()
+                .flat_map(|combination| {
+                    values.iter().map(|value| {
+                        let item = (id.clone(), value.clone());
+                        combination
+                            .iter()
+                            .cloned()
+                            .chain([item])
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+        }
+
+        Ok(Matches {
+            arguments: combinations
+                .into_iter()
+                .map(|named| {
+                    Arguments::from(Tuple {
+                        positional: vec![],
+                        named,
+                    })
+                })
+                .collect(),
+            expanded,
+        })
     }
 
     /// Match `arguments` to the parameters of the call signature.
@@ -116,15 +200,6 @@ pub trait ArgumentMatch {
                 .ok(),
             None => Some(MatchPriority::default()),
         }
-    }
-
-    /// Match `arguments`, a list argument for a non-list parameter results in one match
-    /// per element.
-    fn argument_multi_match(
-        &self,
-        arguments: &ArgumentValueList,
-    ) -> Result<Vec<Arguments>, ArgumentMatchError> {
-        multi_match::argument_multi_match(self, arguments)
     }
 }
 

@@ -2,7 +2,7 @@
 source: crates/render/tests/render.rs
 expression: geometry
 ---
-2D[1][0x8c620931780be28f] @0.25mm => 2D
-└── 2D[2][0xd041056e18e910b] @0.25mm => 2D
-    ├── 2D[1][0x6580eb0379afc0c4] @0.25mm => 2D
-    └── 2D[1][0x3c0acede3d245452] @0.25mm => 2D
+2D[1][0xbc5e12274b551197] @0.25mm => 2D
+└── 2D[2][0xea25d99bda9813ef] @0.25mm => 2D
+    ├── 2D[1][0xe03240ddfae9a0d5] @0.25mm => 2D
+    └── 2D[1][0xb6bc24b8be5e3463] @0.25mm => 2D

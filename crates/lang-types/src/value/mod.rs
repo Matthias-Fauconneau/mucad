@@ -10,6 +10,7 @@ mod list;
 mod literal;
 mod math;
 mod matrix;
+mod number;
 pub mod ops;
 mod quantity;
 mod tuple;
@@ -24,6 +25,7 @@ pub use list::*;
 pub use literal::Literal;
 pub use matrix::*;
 use mucad_lang_base::{CompactString, DisplayOneLine, ToCompactString};
+pub use number::*;
 pub use quantity::*;
 pub use tuple::*;
 pub use value_access::*;
@@ -46,12 +48,10 @@ pub enum Value {
     #[default]
     #[display("<NO VALUE>")]
     None,
-    /// A quantity value.
-    Quantity(Quantity),
+    /// A number.
+    Number(Number),
     /// A boolean value.
     Bool(bool),
-    /// An integer value.
-    Integer(Integer),
     /// A string value.
     String(CompactString),
     /// A list of values with a common type.
@@ -98,9 +98,7 @@ impl Value {
     /// Calculate the power of two values, if possible.
     pub fn pow(&self, rhs: &Value) -> ValueResult {
         match (&self, rhs) {
-            (Value::Quantity(lhs), Value::Quantity(rhs)) => Ok(Value::Quantity(lhs.pow(rhs))),
-            (Value::Quantity(lhs), Value::Integer(rhs)) => Ok(Value::Quantity(lhs.pow_int(rhs))),
-            (Value::Integer(_lhs), Value::Integer(_rhs)) => todo!(),
+            (Value::Number(lhs), Value::Number(rhs)) => lhs.pow(rhs),
             _ => Err(ValueError::InvalidOperator("^".to_string())),
         }
     }
@@ -108,23 +106,14 @@ impl Value {
 
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            // integer type
-            (Value::Integer(lhs), Value::Integer(rhs)) => lhs.partial_cmp(rhs),
-            (Value::Quantity(lhs), Value::Quantity(rhs)) => lhs.partial_cmp(rhs),
-            (
-                Value::Quantity(Quantity {
-                    value,
-                    quantity_type: QuantityType::Scalar,
-                    ..
-                }),
-                Value::Integer(rhs),
-            ) => value.partial_cmp(&Scalar::from(*rhs)),
-            _ => {
-                log::warn!("unhandled type mismatch between {self} and {other}");
-                None
-            }
+        let ordering = match (self, other) {
+            (Value::Number(lhs), Value::Number(rhs)) => lhs.partial_cmp(rhs),
+            _ => None,
+        };
+        if ordering.is_none() {
+            log::warn!("unhandled type mismatch between {self} and {other}");
         }
+        ordering
     }
 }
 
@@ -132,8 +121,7 @@ impl crate::ty::Ty for Value {
     fn ty(&self) -> Type {
         match self {
             Value::None => Type::Invalid,
-            Value::Integer(_) => Type::Integer,
-            Value::Quantity(q) => q.ty(),
+            Value::Number(number) => number.ty(),
             Value::Bool(_) => Type::Bool,
             Value::String(_) => Type::String,
             Value::List(list) => list.ty(),
@@ -161,20 +149,40 @@ macro_rules! impl_try_from {
 
 impl_try_from!(Bool => bool);
 impl_try_from!(String => String);
-impl_try_from!(Integer => Integer);
-impl_try_from!(Integer => i64);
+
+impl TryFrom<Value> for Integer {
+    type Error = ValueError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Number(Number::Integer(integer)) => Ok(integer),
+            value => Err(ValueError::CannotConvert(
+                value.to_string(),
+                "Integer".into(),
+            )),
+        }
+    }
+}
+
+impl TryFrom<Value> for i64 {
+    type Error = ValueError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Integer::try_from(value).map(Into::into)
+    }
+}
 
 impl TryFrom<Value> for Scalar {
     type Error = ValueError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Integer(i) => Ok(Scalar::from(i)),
-            Value::Quantity(Quantity {
+            Value::Number(Number::Integer(i)) => Ok(Scalar::from(i)),
+            Value::Number(Number::Quantity(Quantity {
                 value,
                 quantity_type: QuantityType::Scalar,
                 ..
-            }) => Ok(value),
+            })) => Ok(value),
             _ => Err(ValueError::CannotConvert(
                 value.to_string(),
                 "Scalar".into(),
@@ -188,11 +196,11 @@ impl TryFrom<Value> for Length {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Quantity(Quantity {
+            Value::Number(Number::Quantity(Quantity {
                 value,
                 quantity_type: QuantityType::Length,
                 ..
-            }) => Ok(Length(value)),
+            })) => Ok(Length(value)),
             _ => Err(ValueError::CannotConvert(
                 value.to_string(),
                 "Length".into(),
@@ -217,11 +225,11 @@ impl TryFrom<Value> for Angle {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Quantity(Quantity {
+            Value::Number(Number::Quantity(Quantity {
                 value,
                 quantity_type: QuantityType::Angle,
                 ..
-            }) => Ok(Angle(value)),
+            })) => Ok(Angle(value)),
             _ => Err(ValueError::CannotConvert(value.to_string(), "Angle".into())),
         }
     }
@@ -255,45 +263,57 @@ impl TryFrom<Value> for Mat3 {
     }
 }
 
+impl From<Quantity> for Value {
+    fn from(quantity: Quantity) -> Self {
+        Value::Number(Number::Quantity(quantity))
+    }
+}
+
+impl From<Integer> for Value {
+    fn from(integer: Integer) -> Self {
+        Value::Number(Number::Integer(integer))
+    }
+}
+
 impl From<usize> for Value {
     fn from(value: usize) -> Self {
-        Value::Integer(Integer::from_num(value))
+        Integer::from_num(value).into()
     }
 }
 
 impl From<f32> for Value {
     fn from(f: f32) -> Self {
-        Value::Quantity((Scalar::from_num(f)).into())
+        Quantity::from(Scalar::from_num(f)).into()
     }
 }
 
 impl From<f64> for Value {
     fn from(f: f64) -> Self {
-        Value::Quantity((Scalar::from_num(f)).into())
+        Quantity::from(Scalar::from_num(f)).into()
     }
 }
 
 impl From<i32> for Value {
     fn from(i: i32) -> Self {
-        Value::Integer(Integer::from_num(i))
+        Integer::from_num(i).into()
     }
 }
 
 impl From<i64> for Value {
     fn from(i: i64) -> Self {
-        Value::Integer(Integer::from_num(i))
+        Integer::from_num(i).into()
     }
 }
 
 impl From<Scalar> for Value {
     fn from(scalar: Scalar) -> Self {
-        Value::Quantity(scalar.into())
+        Quantity::from(scalar).into()
     }
 }
 
 impl From<Length> for Value {
     fn from(length: Length) -> Self {
-        Value::Quantity(length.into())
+        Quantity::from(length).into()
     }
 }
 

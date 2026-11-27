@@ -16,7 +16,7 @@ mod watcher;
 
 use mucad_lang_base::{DiagRenderOptions, IssueList, ToDiagnostics};
 use mucad_lang_parse::ParseIssue;
-use mucad_lang_types::Value;
+use mucad_lang_types::{Number, Value};
 
 pub use compiler::Compiler;
 pub use exporter::{ExportFile, Exporter};
@@ -49,7 +49,7 @@ pub fn resolution_from_str(s: &str) -> Result<prelude::RenderResolution> {
         )
     };
 
-    let Value::Quantity(q) = value_from_str(s)? else {
+    let Value::Number(Number::Quantity(q)) = value_from_str(s)? else {
         return Err(invalid());
     };
     let value: f64 = q.value.into_float();
@@ -68,19 +68,13 @@ pub fn resolution_from_str(s: &str) -> Result<prelude::RenderResolution> {
 /// A leading `-` negates a quantity or an integer, e.g. `-1.5mm` or `-3`, though the sign is no
 /// part of a literal in code, but a negation. Whitespace around the literal is ignored.
 pub fn value_from_str(s: &str) -> Result<Value> {
-    use mucad_lang_types::Quantity;
-
     let s = s.trim();
     // A number follows the sign, e.g. not `- 3` or `--3`.
     let positive = (s.strip_prefix('-'))
         .filter(|rest| rest.starts_with(|c: char| c.is_ascii_digit() || c == '.'));
     match positive {
         Some(positive) => match literal_from_str(positive)? {
-            Value::Quantity(quantity) => Ok(Value::Quantity(Quantity {
-                value: -quantity.value,
-                ..quantity
-            })),
-            Value::Integer(integer) => Ok(Value::Integer(-integer)),
+            Value::Number(number) => Ok(Value::Number(-number)),
             value => Err(miette::miette!("The literal `{value}` cannot be negated")),
         },
         None => literal_from_str(s),
@@ -176,7 +170,7 @@ pub fn step_literal_at(
     let stepped = value.step(step)?;
     let literal = stepped.literal()?;
     let text = match place {
-        Some((_, decimals)) if matches!(stepped, Value::Quantity(_)) => {
+        Some((_, decimals)) if matches!(stepped, Value::Number(Number::Quantity(_))) => {
             format!("{literal:.decimals$}")
         }
         _ => literal.to_string(),

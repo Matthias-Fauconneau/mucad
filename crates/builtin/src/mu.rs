@@ -423,13 +423,13 @@ pub mod math {
     #[builtin_constant(math::Z)]
     pub static Z: BuiltinItem = tuple!(x = 0.0, y = 0.0, z = 1.0);
 
-    #[builtin_fn(math::abs(x: Any) -> Any)]
+    #[builtin_fn(math::abs(x: Number) -> Number)]
     pub fn abs(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.abs()?)
     }
 
-    #[builtin_fn(math::sqrt(x: Any) -> Any)]
+    #[builtin_fn(math::sqrt(x: Number) -> Number)]
     pub fn sqrt(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.sqrt()?)
@@ -447,31 +447,31 @@ pub mod math {
         Ok(x.cos()?)
     }
 
-    #[builtin_fn(math::int(x: Any) -> Any)]
+    #[builtin_fn(math::int(x: Number) -> Number)]
     pub fn int(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.int()?)
     }
 
-    #[builtin_fn(math::floor(x: Any) -> Any)]
+    #[builtin_fn(math::floor(x: Number) -> Number)]
     pub fn floor(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.floor()?)
     }
 
-    #[builtin_fn(math::ceil(x: Any) -> Any)]
+    #[builtin_fn(math::ceil(x: Number) -> Number)]
     pub fn ceil(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.ceil()?)
     }
 
-    #[builtin_fn(math::round(x: Any) -> Any)]
+    #[builtin_fn(math::round(x: Number) -> Number)]
     pub fn round(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.round()?)
     }
 
-    #[builtin_fn(math::fract(x: Any) -> Any)]
+    #[builtin_fn(math::fract(x: Number) -> Number)]
     pub fn fract(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.fract()?)

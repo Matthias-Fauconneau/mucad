@@ -250,8 +250,9 @@ fn multi_match_cartesian_product() {
     .collect();
 
     let result = signature
-        .argument_multi_match(&args)
-        .expect("A multi match");
+        .match_arguments(&args)
+        .expect("A multi match")
+        .arguments;
 
     // 2 x 3 = 6 combinations expected
     assert_eq!(
@@ -274,8 +275,9 @@ fn multi_match_positional() {
 
     assert_eq!(
         x_y_default()
-            .argument_multi_match(&args)
-            .expect("A multi match"),
+            .match_arguments(&args)
+            .expect("A multi match")
+            .arguments,
         [
             arguments!(x = -1, y = 0),
             arguments!(x = 0, y = 0),
@@ -295,17 +297,20 @@ fn multi_match_list_parameter() {
 
     assert_eq!(
         signature
-            .argument_multi_match(&args)
-            .expect("A multi match"),
+            .match_arguments(&args)
+            .expect("A multi match")
+            .arguments,
         [arguments!(x = list![1, 2])]
     );
 }
 
-/// A multi match with a variadic signature is an error.
+/// The arguments of a variadic signature are not expanded.
 #[test]
 fn multi_match_variadic() {
-    let args: ArgumentValueList = [argument_value!(1.0)].into_iter().collect();
-    assert!(variadic().argument_multi_match(&args).is_err());
+    let args: ArgumentValueList = [argument_value!(list![1, 2])].into_iter().collect();
+    let matches = variadic().match_arguments(&args).expect("A match");
+    assert!(!matches.expanded);
+    assert_eq!(matches.arguments.len(), 1);
 }
 
 /// Inline identifiers matching a parameter by name have priority over matching by type,

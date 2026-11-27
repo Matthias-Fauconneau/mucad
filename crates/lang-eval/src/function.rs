@@ -101,17 +101,21 @@ impl Eval<FlowSignal> for symbol::function::FunctionCall {
     fn eval(&self, context: &mut EvalContext) -> EvalResult<FlowSignal> {
         use crate::argument_match::ArgumentMatch;
         match &self.path {
-            symbol::Path::Resolved { id: symbol::SymbolId::Builtin(builtin_id), .. } => {
+            symbol::Path::Resolved {
+                id: symbol::SymbolId::Builtin(builtin_id),
+                ..
+            } => {
                 let args = self.args.eval(context)?;
 
                 match context.builtins().get(*builtin_id) {
                     Some(BuiltinItem::Function(f)) => {
-                        let args = f.argument_match(&args).map_err(|err| {
+                        let matches = f.match_arguments(&args).map_err(|err| {
                             EvalError::argument_match(self, f.info.item_name(), err)
                         })?;
 
-                        let value =
-                            context.with_builtin_context(self.src_ref, |ctx| f.call(args, ctx))?;
+                        let value = matches.try_value(|args| {
+                            context.with_builtin_context(self.src_ref, |ctx| f.call(args, ctx))
+                        })?;
                         Ok(FlowSignal::Yield(value))
                     }
                     Some(_) => context.catch(EvalErrorKind::SymbolCannotBeCalled {
@@ -123,26 +127,29 @@ impl Eval<FlowSignal> for symbol::function::FunctionCall {
                         src_ref: self.src_ref,
                     }),
                 }
-            },
-            symbol::Path::Resolved { id: symbol::SymbolId::Item(id), .. } => {
+            }
+            symbol::Path::Resolved {
+                id: symbol::SymbolId::Item(id),
+                ..
+            } => {
                 let args = self.args.eval(context)?;
-        
+
                 match context.lib_id() {
                     Some(lib_id) => context.call_symbol(*lib_id, *id, &args),
                     None => context.catch(EvalErrorKind::NoLibraryToEvaluate),
                 }
                 .map(FlowSignal::Yield)
-            },
-            symbol::Path::Resolved { id: symbol::SymbolId::External(external_id), .. } => {
+            }
+            symbol::Path::Resolved {
+                id: symbol::SymbolId::External(external_id),
+                ..
+            } => {
                 let args = self.args.eval(context)?;
-        
-                context.call_symbol(
-                    external_id.lib_id,
-                    external_id.id,
-                    &args,
-                )
-                .map(FlowSignal::Yield)
-            },
+
+                context
+                    .call_symbol(external_id.lib_id, external_id.id, &args)
+                    .map(FlowSignal::Yield)
+            }
             _ => context.catch(EvalError::new(EvalErrorKind::SymbolCannotBeCalled {
                 path: context.current_symbol_name().unwrap_or_default(),
                 src_ref: self.src_ref,
@@ -154,26 +161,30 @@ impl Eval<FlowSignal> for symbol::function::FunctionCall {
 impl Eval<FlowSignal> for symbol::Path {
     fn eval(&self, context: &mut EvalContext) -> EvalResult<FlowSignal> {
         match self {
-            symbol::Path::Resolved { id: symbol::SymbolId::Local(identifier), .. } => {
+            symbol::Path::Resolved {
+                id: symbol::SymbolId::Local(identifier),
+                ..
+            } => {
                 use crate::context::StackRead;
                 match context.get_local(identifier) {
                     Some(local) => Ok(FlowSignal::Yield(local.clone())),
                     None => context.catch(EvalErrorKind::LocalNotFound(identifier.clone())),
                 }
             }
-            symbol::Path::Resolved { id: symbol::SymbolId::Builtin(builtin), .. } => {
-                match context.builtins().get(*builtin) {
-                    Some(BuiltinItem::Constant(c)) => Ok(FlowSignal::Yield(c.value())),
-                    Some(item) => context.catch(EvalErrorKind::BuiltinConstantExpected {
-                        name: item.name().to_string(),
-                        src_ref: self.src_ref(),
-                    }),
-                    None => context.catch(EvalErrorKind::BuiltinNotFound {
-                        name: builtin.to_string_with_ctx(context),
-                        src_ref: self.src_ref(),
-                    }),
-                }
-            }
+            symbol::Path::Resolved {
+                id: symbol::SymbolId::Builtin(builtin),
+                ..
+            } => match context.builtins().get(*builtin) {
+                Some(BuiltinItem::Constant(c)) => Ok(FlowSignal::Yield(c.value())),
+                Some(item) => context.catch(EvalErrorKind::BuiltinConstantExpected {
+                    name: item.name().to_string(),
+                    src_ref: self.src_ref(),
+                }),
+                None => context.catch(EvalErrorKind::BuiltinNotFound {
+                    name: builtin.to_string_with_ctx(context),
+                    src_ref: self.src_ref(),
+                }),
+            },
             symbol::Path::Resolved { id, .. } | symbol::Path::HumanReadable { id, .. } => {
                 Ok(FlowSignal::Yield(id.eval(context)?))
             }
@@ -268,15 +279,18 @@ impl Eval<FlowSignal> for Box<[symbol::FunctionStatement]> {
 impl Callable for symbol::Function {
     fn call(&self, args: &ArgumentValueList, context: &mut EvalContext) -> EvalResult {
         use crate::ArgumentMatch;
-        match self.argument_match(args) {
-            Ok(args) => context.scope(FunctionFrame::new(args), |context| {
-                Ok(self.statements.eval(context)?.into_value())
-            }),
-            Err(err) => Err(EvalError::argument_match(
+
+        let matches = self.match_arguments(args).map_err(|err| {
+            EvalError::argument_match(
                 context.current_symbol_src_ref(),
                 context.current_symbol_name().unwrap_or_default(),
                 err,
-            )),
-        }
+            )
+        })?;
+        matches.try_value(|args| {
+            context.scope(FunctionFrame::new(args), |context| -> EvalResult {
+                Ok(self.statements.eval(context)?.into_value())
+            })
+        })
     }
 }

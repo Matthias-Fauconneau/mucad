@@ -24,8 +24,8 @@ pub use ty::{
     TupleType, Ty, Type, TypeError, TypeResult, Unit,
 };
 pub use value::{
-    List, Mat2, Mat3, Mat4, Matrix, Quantity, Tuple, Value, ValueAccess, ValueError, ValueList,
-    ValueResult,
+    List, Mat2, Mat3, Mat4, Matrix, Number, Quantity, Tuple, Value, ValueAccess, ValueError,
+    ValueList, ValueResult,
 };
 
 pub use model::{Model, ModelTree, ModelType, NodeMut as ModelNodeMut, NodeRef as ModelNodeRef};

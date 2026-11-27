@@ -26,6 +26,7 @@ impl quote::ToTokens for BuiltinType {
 
         let expanded = match ty.to_string().as_str() {
             "Scalar" => quote! { mucad_lang_types::Type::scalar() },
+            "Number" => quote! { mucad_lang_types::Type::Number },
             "Angle" => quote! { mucad_lang_types::Type::angle() },
             "Length" => quote! { mucad_lang_types::Type::length() },
             "Color" => quote! { mucad_lang_types::Type::color() },

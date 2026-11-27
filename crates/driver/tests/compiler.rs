@@ -46,6 +46,11 @@ fn compile_source() {
 #[test_case::test_case("fn f() { 1mm; }" => vec!["lower::error"]; "lower")]
 #[test_case::test_case("mod a {\n    //! doc\n    const A = 1;\n    //! late\n}" => vec!["lower::inner_doc_after_inner_attr"]; "lower with own code")]
 #[test_case::test_case("Unknown();" => vec!["resolve::error"]; "resolve")]
+#[test_case::test_case("x: Length = __mu::math::cos(0°);" => vec!["resolve::error"]; "result type")]
+#[test_case::test_case("s: String = std::math::abs(-1);" => vec!["resolve::error"]; "number result type")]
+#[test_case::test_case("x: Scalar = __mu::math::cos([0°]);" => vec!["resolve::error"]; "list result type")]
+#[test_case::test_case("fn f(x: Integer) -> Integer { x }\nfn g() { l = [1, 2]; x: Integer = f(l); x }" => vec!["resolve::error"]; "list result type of local")]
+#[test_case::test_case("fn f(x: Length) -> Length { x }\nfn g(a: Length) { x: Scalar = f(a); x }" => vec!["resolve::error"]; "result type of parameter")]
 fn compile_error_codes(source: &str) -> Vec<String> {
     let diags = match compiler().compile(source) {
         Ok((_, diags)) | Err(diags) => diags,
@@ -619,6 +624,28 @@ fn compile_positional_list_expansion() {
         .expect("A model");
     assert!(!diags.has_errors(), "{diags:?}");
     insta::assert_snapshot!("compile_positional_list_expansion", display(&model));
+}
+
+/// List arguments for parameters of their element type call a function with each combination
+/// of their elements, and the results are a list, like the models of a workbench.
+#[test_case::test_case("fn f(a: Integer, b: Integer) { a * 10 + b }\nassert_eq(f([1, 2], [3, 4]), [13, 14, 23, 24]);"; "function product")]
+#[test_case::test_case("fn f(a: Integer) { a * 2 }\nassert_eq(f([]), []);"; "function empty list")]
+#[test_case::test_case("fn f(a: [Integer]) { a }\nassert_eq(f([1, 2]), [1, 2]);"; "function list parameter")]
+#[test_case::test_case("assert_eq(__mu::math::cos([0°, 180°]), [1.0, -1.0]);"; "builtin function")]
+#[test_case::test_case("print([1, 2]);"; "variadic builtin function")]
+#[test_case::test_case("c: [Scalar] = __mu::math::cos([0°, 180°]);"; "typed list result of builtin function")]
+#[test_case::test_case("fn f(x: Integer) -> Integer { x }\ny: [Integer] = f([1, 2]);"; "typed list result of function")]
+#[test_case::test_case("x: Length = std::math::round(2.4mm);\ny: Scalar = std::math::abs(-1);\nz: Integer = std::math::abs(-1);"; "number result")]
+#[test_case::test_case("l: [Length] = std::math::abs([-1mm, 2mm]);"; "list of numbers result")]
+#[test_case::test_case("fn f(x: Integer) -> Integer { x }\nfn g(l: [Integer]) -> [Integer] { f(l) }"; "result of unknown argument")]
+#[test_case::test_case("assert_eq(std::math::abs([-1, 2]), [1, 2]);"; "number parameter")]
+#[test_case::test_case("assert_eq(std::math::abs([-1mm, 2mm]), [1mm, 2mm]);"; "number parameter with quantities")]
+#[test_case::test_case("fn f(x: Number) { x * 2 }\nassert_eq(f([1, 2.5, 3mm]), [2, 5.0, 6mm]);"; "own number parameter")]
+#[test_case::test_case("sketch S(x: Integer) { Circle(radius = 1mm) }\nS([]);"; "workbench empty list")]
+fn compile_list_expansion(source: &str) {
+    let mut compiler = std_compiler();
+    let (_, diags) = compiler.compile(source).expect("A model");
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 /// An initialization error is reported at the call with the possible initializations.
