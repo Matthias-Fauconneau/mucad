@@ -17,7 +17,7 @@ impl MathOps for Quantity {
                 "Cannot compute sqrt of negative number".into(),
             ))
         } else {
-            Ok(self.clone().map(|v| v.sqrt()).into())
+            Ok(Quantity::new(self.value.sqrt(), self.quantity_type.sqrt()?).into())
         }
     }
 

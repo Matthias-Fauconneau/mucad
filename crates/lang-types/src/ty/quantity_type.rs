@@ -3,11 +3,11 @@
 
 //! µcad quantity type
 
-use mucad_lang_base::element::BinaryOperator;
+use mucad_lang_base::element::{UnaryOperator, BinaryOperator};
 use serde::{Deserialize, Serialize};
 use strum::IntoStaticStr;
 
-use crate::{TypeError, TypeResult, ty::Unit};
+use crate::{TypeError, ty::Unit};
 
 /// A quantity type with
 #[derive(
@@ -30,17 +30,27 @@ pub enum QuantityType {
     Weight,
 }
 
+pub type QuantityTypeResult = Result<QuantityType, TypeError>;
+
 impl QuantityType {
     /// Return base unit
     pub fn base_unit(&self) -> Unit {
+        use {QuantityType::*, Unit::*};
         match self {
-            QuantityType::Scalar => Unit::None,
-            QuantityType::Length => Unit::Millimeter,
-            QuantityType::Area => Unit::Millimeter2,
-            QuantityType::Volume => Unit::Millimeter3,
-            QuantityType::Density => Unit::GramPerMeter3,
-            QuantityType::Angle => Unit::Rad,
-            QuantityType::Weight => Unit::Gram,
+            Scalar => None,
+            Length => Millimeter,
+            Area => Millimeter2,
+            Volume => Millimeter3,
+            Density => GramPerMeter3,
+            Angle => Rad,
+            Weight => Gram,
+        }
+    }
+    pub fn sqrt(&self) -> QuantityTypeResult {
+        use QuantityType::*;
+        match self {
+            Area => Ok(Length),
+            ty => Err(TypeError::UnsupportedUnaryOperator{op: UnaryOperator::Sqrt, ty: ty.clone().into()})
         }
     }
 }
@@ -53,7 +63,7 @@ impl std::fmt::Display for QuantityType {
 }
 
 impl std::ops::Add for QuantityType {
-    type Output = TypeResult;
+    type Output = QuantityTypeResult;
 
     fn add(self, rhs: Self) -> Self::Output {
         let lhs = self;
@@ -66,13 +76,12 @@ impl std::ops::Add for QuantityType {
                     rhs: rhs.into(),
                 });
             }
-        }
-        .into())
+        })
     }
 }
 
 impl std::ops::Sub for QuantityType {
-    type Output = TypeResult;
+    type Output = QuantityTypeResult;
 
     fn sub(self, rhs: Self) -> Self::Output {
         let lhs = self;
@@ -85,13 +94,12 @@ impl std::ops::Sub for QuantityType {
                     rhs: rhs.into(),
                 });
             }
-        }
-        .into())
+        })
     }
 }
 
 impl std::ops::Mul for QuantityType {
-    type Output = TypeResult;
+    type Output = QuantityTypeResult;
 
     fn mul(self, rhs: Self) -> Self::Output {
         use QuantityType::*;
@@ -106,13 +114,12 @@ impl std::ops::Mul for QuantityType {
                     rhs: rhs.into(),
                 });
             }
-        }
-        .into())
+        })
     }
 }
 
 impl std::ops::Div for QuantityType {
-    type Output = TypeResult;
+    type Output = QuantityTypeResult;
 
     fn div(self, rhs: Self) -> Self::Output {
         use QuantityType::*;
@@ -127,7 +134,6 @@ impl std::ops::Div for QuantityType {
                     rhs: rhs.into(),
                 });
             }
-        }
-        .into())
+        })
     }
 }
