@@ -3,7 +3,7 @@
 
 //! Quantity binary operators module.
 
-use crate::{Integer, Quantity, Type, ValueResult};
+use crate::{Integer, Quantity, ValueResult};
 
 impl std::ops::Neg for Quantity {
     type Output = Quantity;
@@ -18,12 +18,9 @@ impl std::ops::Add for Quantity {
 
     fn add(self, rhs: Self) -> Self::Output {
         let lhs = self;
-        match (lhs.quantity_type + rhs.quantity_type)? {
-            Type::Quantity(ty) => Ok(Quantity::new(lhs.value + rhs.value, ty)
-                .with_unit(lhs.unit)
-                .into()),
-            _ => unreachable!(),
-        }
+        Ok(Quantity::new(lhs.value + rhs.value, (lhs.quantity_type + rhs.quantity_type)?)
+                .with_unit(lhs.unit) // FIXME: silently wrong results on mismatched units
+                .into())
     }
 }
 
@@ -48,12 +45,9 @@ impl std::ops::Sub for Quantity {
 
     fn sub(self, rhs: Self) -> Self::Output {
         let lhs = self;
-        match (lhs.quantity_type - rhs.quantity_type)? {
-            Type::Quantity(ty) => Ok(Quantity::new(lhs.value - rhs.value, ty)
-                .with_unit(lhs.unit)
-                .into()),
-            _ => unreachable!(),
-        }
+        Ok(Quantity::new(lhs.value - rhs.value, (lhs.quantity_type - rhs.quantity_type)?)
+        	.with_unit(lhs.unit) // FIXME: silently wrong results on mismatched units
+         	.into())
     }
 }
 
@@ -78,10 +72,7 @@ impl std::ops::Mul for Quantity {
 
     fn mul(self, rhs: Self) -> Self::Output {
         let lhs = self;
-        match (lhs.quantity_type * rhs.quantity_type)? {
-            Type::Quantity(ty) => Ok(Quantity::new(lhs.value * rhs.value, ty).into()),
-            _ => unreachable!(),
-        }
+        Ok(Quantity::new(lhs.value * rhs.value, (lhs.quantity_type * rhs.quantity_type)?).into())
     }
 }
 
@@ -106,10 +97,7 @@ impl std::ops::Div for Quantity {
 
     fn div(self, rhs: Self) -> Self::Output {
         let lhs = self;
-        match (lhs.quantity_type / rhs.quantity_type)? {
-            Type::Quantity(ty) => Ok(Quantity::new(lhs.value / rhs.value, ty).into()),
-            _ => unreachable!(),
-        }
+        Ok(Quantity::new(lhs.value / rhs.value, (lhs.quantity_type / rhs.quantity_type)?).into())
     }
 }
 
