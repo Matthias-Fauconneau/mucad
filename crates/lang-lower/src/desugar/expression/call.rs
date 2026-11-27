@@ -136,6 +136,7 @@ impl<Expr: DesugarExpr> Desugar<ast::BinaryOperation> for ir::Call<Expr> {
                 ast::BinaryOperator::Subtract => __mu!(core::sub),
                 ast::BinaryOperator::Multiply => __mu!(core::mul),
                 ast::BinaryOperator::Divide => __mu!(core::div),
+                ast::BinaryOperator::Remainder => __mu!(core::rem),
                 ast::BinaryOperator::Union => __mu!(core::union),
                 ast::BinaryOperator::Intersect => __mu!(core::intersect),
                 ast::BinaryOperator::GreaterThan => __mu!(core::gt),

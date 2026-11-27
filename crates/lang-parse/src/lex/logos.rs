@@ -85,6 +85,8 @@ pub enum LogosToken<'a> {
     OperatorMultiply,
     #[token("/")]
     OperatorDivide,
+    #[token("rem")]
+    OperatorRemainder,
     #[token("|")]
     OperatorUnion,
     #[token("&")]

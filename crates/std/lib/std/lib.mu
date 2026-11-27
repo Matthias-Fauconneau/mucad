@@ -7,6 +7,7 @@ pub mod list;
 pub mod math;
 pub mod ops;
 pub mod string;
+pub mod spline;
 
 // Check a condition and stop with an error message if it does not hold.
 pub use __mu::debug::assert;

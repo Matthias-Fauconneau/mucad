@@ -135,9 +135,9 @@ impl IntoIterator for List {
 
 impl TryFrom<ValueList> for List {
     type Error = ValueError;
-    fn try_from(items: ValueList) -> ValueResult<List> {
+    fn try_from(items: ValueList) -> ValueResult<Self> {
         match items.types().common_type() {
-            Some(ty) => Ok(List::new(items, ty)),
+            Some(ty) => Ok(Self::new(items, ty)),
             None => Err(ValueError::CommonTypeExpected),
         }
     }
@@ -148,6 +148,12 @@ impl FromIterator<Value> for List {
         let items: ValueList = iter.into_iter().collect();
         let ty = items.types().common_type().unwrap_or_default();
         Self { ty, items }
+    }
+}
+
+impl From<Rc<List>> for List {
+    fn from(rc: Rc<List>) -> Self {
+        Rc::unwrap_or_clone(rc)
     }
 }
 
@@ -250,6 +256,29 @@ impl std::ops::Div<Value> for List {
             (Type::Integer, Type::Integer) => Ok(List::new(values, Type::Integer).into()),
             (Type::Quantity(_), _) => Ok(List::from_values(values).into()),
             _ => Err(ValueError::InvalidOperator("/".into())),
+        }
+    }
+}
+
+/// Applies remainder operator on every list value by a common divisor, e.g.: `[2,4] rem 2 == [0,0]`.
+impl std::ops::Rem<Value> for List {
+    type Output = ValueResult;
+
+    fn rem(self, rhs: Value) -> Self::Output {
+        // 1. Evaluate element-wise division by cloning `rhs` per element (or referencing)
+        let mut values = Vec::with_capacity(self.len());
+        for value in self.iter() {
+            // Evaluates `value / rhs`
+            values.push((value.clone() % rhs.clone())?);
+        }
+
+        let values = ValueList::new(values);
+
+        // 2. Determine resulting List Type based on element type division
+        // An List divided by a Scalar preserves an List structure with transformed element types
+        match (&self.ty, rhs.ty()) {
+            (Type::Integer, Type::Integer) => Ok(List::new(values, Type::Integer).into()),
+            _ => Err(ValueError::InvalidOperator("%".into())),
         }
     }
 }

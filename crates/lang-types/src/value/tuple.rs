@@ -263,6 +263,14 @@ impl std::ops::Div<Value> for Tuple {
     }
 }
 
+impl std::ops::Rem<Value> for Tuple {
+    type Output = ValueResult<Tuple>;
+
+    fn rem(self, rhs: Value) -> Self::Output {
+        self.apply(rhs, |lhs, rhs| lhs % rhs)
+    }
+}
+
 impl std::ops::Neg for Tuple {
     type Output = ValueResult;
 

@@ -6,6 +6,7 @@ pub use __mu::math::X;
 pub use __mu::math::Y;
 pub use __mu::math::Z;
 pub use __mu::math::sqrt;
+pub use __mu::math::pow;
 pub use __mu::math::abs;
 pub use __mu::math::sin;
 pub use __mu::math::cos;

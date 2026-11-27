@@ -149,6 +149,9 @@ fn map_token(token: Spanned<LogosToken>) -> impl Iterator<Item = Spanned<Token>>
         LogosToken::OperatorDivide => {
             Either::Left(once(Spanned::new(token.span, Token::OperatorDivide)))
         }
+        LogosToken::OperatorRemainder => {
+            Either::Left(once(Spanned::new(token.span, Token::OperatorRemainder)))
+        }
         LogosToken::OperatorUnion => {
             Either::Left(once(Spanned::new(token.span, Token::OperatorUnion)))
         }

@@ -7,8 +7,10 @@
 //!
 //! The built-ins are grouped into several submodules.
 
+use std::rc::Rc;
 use mucad_lang_types::{
     Arguments, BinaryOperator, Identifier, Integer, List, Ty, TypeError, Value,
+    Vec2,
 };
 use mucad_macros::{builtin_constant, builtin_fn, builtin_mod, include_inner_docs};
 
@@ -47,6 +49,13 @@ pub mod core {
     pub fn div(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let (lhs, rhs) = args.get_binary();
         Ok((lhs / rhs)?)
+    }
+    
+    /// Leftover amount after dividing a dividend by a divisor
+    #[builtin_fn(core::rem(lhs: Any, rhs: Any) -> Any)]
+    pub fn rem(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
+        let (lhs, rhs) = args.get_binary();
+        Ok((lhs % rhs)?)
     }
 
     /// Union of two values.
@@ -156,7 +165,7 @@ pub mod core {
 
     #[builtin_fn(core::list_access(lhs: List, index: Integer) -> Any)]
     pub fn list_access(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
-        let lhs: std::rc::Rc<List> = args.try_get("lhs")?;
+        let lhs: Rc<List> = args.try_get("lhs")?;
         let index: Integer = args.try_get("index")?;
         let index = index.to_num::<usize>();
 
@@ -433,6 +442,13 @@ pub mod math {
     pub fn sqrt(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
         let x = args.get("x");
         Ok(x.sqrt()?)
+    }
+
+    #[builtin_fn(math::pow(x: Scalar, exp: Scalar) -> Scalar)]
+    pub fn pow(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
+        let x = args.get("x");
+        let ref exp = args.get("exp");
+        Ok(x.pow(exp)?)
     }
 
     #[builtin_fn(math::sin(x: Angle) -> Scalar)]
@@ -825,6 +841,27 @@ pub mod geo2d {
         pub x1: Scalar,
         /// Y coordinate of the end point (in mm).
         pub y1: Scalar,
+    }
+
+    /// A line between two points.
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct CubicSegment2D {
+        /// Start key point
+        pub p0: Vec2,
+        /// Control point #1
+        pub c1: Vec2,
+        /// Control point #2
+        pub c2: Vec2,
+        /// End key point
+        pub p1: Vec2,
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    #[builtin_primitive(Geometry2D)]
+    pub struct PolyBezier {
+        pub path: List, //[CubicSegment2D]
+        /// Whether the path is closed into polygons, otherwise it is rendered as lines.
+        pub closed: bool,
     }
 
     /// The profile of an involute gear.

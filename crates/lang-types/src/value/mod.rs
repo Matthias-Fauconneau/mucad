@@ -172,6 +172,8 @@ impl TryFrom<Value> for i64 {
     }
 }
 
+impl_try_from!(List => List);
+
 impl TryFrom<Value> for Scalar {
     type Error = ValueError;
 
