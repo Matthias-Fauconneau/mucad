@@ -21,6 +21,10 @@ pub use __mu::math::min;
 pub use __mu::math::max;
 pub use __mu::math::clamp;
 
+pub fn norm(v: Vec2) -> Length {
+    sqrt(v.x * v.x + v.y * v.y)
+}
+
 /// Perform smooth Hermite interpolation between 0 and 1.
 ///
 /// Returns 0 when `x <= edge0`, 1 when `x >= edge1`, and smoothly

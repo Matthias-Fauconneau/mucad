@@ -114,6 +114,7 @@ impl<Expr: DesugarExpr> Desugar<ast::UnaryOperation> for ir::Call<Expr> {
                 ast::UnaryOperator::Minus => __mu!(core::neg),
                 ast::UnaryOperator::Plus => __mu!(core::plus),
                 ast::UnaryOperator::Not => __mu!(core::not),
+                ast::UnaryOperator::Sqrt => __mu!(math::sqrt),
             }
             .into(),
             // Named like the operands of binary operations, the built-ins take `rhs`.

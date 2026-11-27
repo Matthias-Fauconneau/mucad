@@ -114,4 +114,6 @@ pub enum UnaryOperator {
     Plus,
     #[strum(serialize = "!")]
     Not,
+    #[strum(serialize = "sqrt")]
+    Sqrt,
 }
