@@ -8,7 +8,7 @@
 
 use glam::{DMat2, DMat3, DMat4, DVec2, DVec3, DVec4};
 
-use crate::{Angle, Mat2, Mat3, Mat4, Scalar, Vec2, Vec3, Vec4};
+use crate::{Angle, Mat2, Mat3, Mat4, Scalar, Vec2, Scalar3, Vec4};
 
 /// Floating point scalar
 pub type ScalarF = f64;
@@ -111,7 +111,7 @@ macro_rules! impl_vec_convert {
 }
 
 impl_vec_convert!(Vec2, DVec2);
-impl_vec_convert!(Vec3, DVec3);
+impl_vec_convert!(Scalar3, DVec3);
 impl_vec_convert!(Vec4, DVec4);
 
 /// The conversions of a fixed point matrix from and to its floating point one, through the

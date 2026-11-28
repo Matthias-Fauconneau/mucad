@@ -22,7 +22,7 @@ fn cup_z(v: Scalar) -> Length {
     CUP * sin(PIrad * v)
 }
 
-fn leaf(v: Scalar) -> [Vec3] {
+fn leaf(v: Scalar) -> [Coord3] {
     x = LEN * v;
     w = leaf_half_width(v);
     z = midrib_z(v);

@@ -50,7 +50,7 @@ pub mod core {
         let (lhs, rhs) = args.get_binary();
         Ok((lhs / rhs)?)
     }
-    
+
     /// Leftover amount after dividing a dividend by a divisor
     #[builtin_fn(core::rem(lhs: Any, rhs: Any) -> Any)]
     pub fn rem(args: Arguments, _ctx: &mut BuiltinEvalContext) -> BuiltinResult {
@@ -425,8 +425,8 @@ pub mod math {
 
     /// Pi as angle
     #[builtin_constant(math::PIrad)]
-    pub static PIrad: BuiltinItem = Angle(Scalar::from_num(std::f64::consts::PI));
-    
+    #[allow(non_upper_case_globals)] pub static PIrad: BuiltinItem = Angle(Scalar::from_num(std::f64::consts::PI));
+
     #[builtin_constant(math::X)]
     pub static X: BuiltinItem = tuple!(x = 1.0, y = 0.0, z = 0.0);
 
@@ -784,7 +784,7 @@ pub mod color {
 /// Built-in 2D primitives
 #[builtin_mod]
 pub mod geo2d {
-    use mucad_lang_types::{Angle, Integer, Length, Scalar};
+    use mucad_lang_types::{Angle, Integer, Length, Scalar, ValueError};
     use mucad_macros::builtin_primitive;
 
     use super::*;
@@ -847,7 +847,7 @@ pub mod geo2d {
         pub y1: Scalar,
     }
 
-    /// A line between two points.
+    /// A cubic Bézier segment
     #[derive(Serialize, Deserialize, Debug)]
     pub struct CubicSegment2D {
         /// Start key point
@@ -858,6 +858,24 @@ pub mod geo2d {
         pub c2: Vec2,
         /// End key point
         pub p1: Vec2,
+    }
+
+    // FIXME: macro
+    impl TryFrom<&Value> for CubicSegment2D {
+        type Error = ValueError;
+
+        fn try_from(value: &Value) -> Result<Self, Self::Error> {
+            if let Value::Tuple(tuple) = &value {
+                Ok(CubicSegment2D{
+                	p0: Vec2::try_from(tuple.get_field(&"p0".into()).unwrap()).unwrap(),
+                	c1: Vec2::try_from(tuple.get_field(&"c1".into()).unwrap()).unwrap(),
+                 	c2: Vec2::try_from(tuple.get_field(&"c2".into()).unwrap()).unwrap(),
+                  	p1: Vec2::try_from(tuple.get_field(&"p1".into()).unwrap()).unwrap(),
+                })
+            } else {
+                Err(ValueError::CannotConvert(value.to_string(), "CubicSegment2D".into()))
+            }
+        }
     }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -939,7 +957,7 @@ pub mod surface3d {
     #[builtin_primitive(Surface3D)]
     pub struct GridMesh {
         /// Grid vertices
-        pub vertices: List, //[[Vec3]]
+        pub vertices: List, //[[Coord3]]
     }
 }
 
@@ -964,8 +982,7 @@ pub mod geo3d {
 #[builtin_mod]
 pub mod ops {
     use mucad_lang_types::{
-        Angle, Integer, Length, Mat3, ModelTree, Scalar, Vec3, math::AffineTransform,
-        model::BooleanOp,
+        Angle, Integer, Length, Mat3, ModelTree, Scalar, ValueError, Coord3, Scalar3, math::AffineTransform, model::BooleanOp,
     };
     use mucad_macros::{builtin_boolean_op, builtin_op, builtin_transform};
 
@@ -1013,6 +1030,47 @@ pub mod ops {
     pub fn rotate(args: Arguments, ctx: &mut BuiltinEvalContext)
     -> Result<ModelTree, BuiltinError>;
 
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct Placement {
+        pub position: Coord3,
+        pub tangent:  Scalar3,
+        pub normal:   Scalar3,
+        pub scale:    Scalar,
+        pub seed:     Integer,
+    }
+
+    // FIXME: macro
+    impl TryFrom<&Value> for Placement {
+        type Error = ValueError;
+
+        fn try_from(value: &Value) -> Result<Self, Self::Error> {
+            if let Value::Tuple(tuple) = &value {
+                Ok(Placement{
+                	position: Coord3::try_from(tuple.get_field(&"position".into()).unwrap()).unwrap(),
+                	tangent: Scalar3::try_from(tuple.get_field(&"tangent".into()).unwrap()).unwrap(),
+                 	normal: Scalar3::try_from(tuple.get_field(&"normal".into()).unwrap()).unwrap(),
+                  	scale: Scalar::try_from(tuple.get_field(&"scale".into()).unwrap()).unwrap(),
+                   	seed: Integer::try_from(tuple.get_field(&"seed".into()).unwrap()).unwrap(),
+                })
+            } else {
+                Err(ValueError::CannotConvert(value.to_string(), "Placement".into()))
+            }
+        }
+    }
+
+    #[builtin_op(Any -> Any)]
+    //pub type Instantiate = List; //[Placement]
+    pub struct Instantiate {
+    	pub inner: List,
+    }
+
+    /// Instantiate @input at placements
+    #[builtin_op]
+    pub fn instantiate(
+        args: Arguments,
+        ctx: &mut BuiltinEvalContext,
+    ) -> Result<ModelTree, BuiltinError>;
+
     /// Linear extrusion of a 2D model.
     #[builtin_op(Geometry2D -> Geometry3D)]
     pub struct Extrude {
@@ -1046,7 +1104,7 @@ pub mod ops {
 
     impl From<Scale> for AffineTransform {
         fn from(Scale { x, y, z }: Scale) -> Self {
-            AffineTransform::Scale(Vec3::new(x, y, z))
+            AffineTransform::Scale(Scalar3::new(x, y, z))
         }
     }
 
@@ -1068,7 +1126,7 @@ pub mod ops {
     impl From<Orient> for AffineTransform {
         fn from(Orient { x, y, z }: Orient) -> Self {
             AffineTransform::RotateMatrix {
-                m: mucad_lang_types::math::orient_to_z(Vec3::new(x, y, z)),
+                m: mucad_lang_types::math::orient_to_z(Scalar3::new(x, y, z)),
             }
         }
     }

@@ -11,6 +11,32 @@ use crate::{
     *,
 };
 
+pub fn boolean_op<'t>(geo: impl IntoIterator<Item=&'t Geometry3D>, op: BooleanOp) -> Manifold {
+    let manifold_list: Vec<_> = geo
+    	.into_iter()
+        // Render each geometry into a multipolygon and filter out empty ones
+        .filter_map(|geo| {
+            let manifold: Manifold = geo.clone().into();
+            if manifold.is_empty() {
+                None
+            } else {
+                Some(manifold)
+            }
+        })
+        .collect();
+
+    if manifold_list.is_empty() {
+        return Manifold::empty();
+    }
+
+    let op = op.into();
+    manifold_list[1..]
+        .iter()
+        .fold(manifold_list[0].clone(), |acc, other| {
+            acc.boolean(other, op)
+        })
+}
+
 /// 3D geometry collection.
 #[derive(Debug, Clone, Default, Deref, DerefMut)]
 pub struct Geometries3D(Vec<Geometry3D>);
@@ -29,33 +55,7 @@ impl Geometries3D {
 
 impl UnaryBooleanOp for Geometries3D {
     type Output = Manifold;
-
-    fn boolean_op(&self, op: BooleanOp) -> Self::Output {
-        let manifold_list: Vec<_> = self
-            .0
-            .iter()
-            // Render each geometry into a multipolygon and filter out empty ones
-            .filter_map(|geo| {
-                let manifold: Manifold = geo.clone().into();
-                if manifold.is_empty() {
-                    None
-                } else {
-                    Some(manifold)
-                }
-            })
-            .collect();
-
-        if manifold_list.is_empty() {
-            return Manifold::empty();
-        }
-
-        let op = op.into();
-        manifold_list[1..]
-            .iter()
-            .fold(manifold_list[0].clone(), |acc, other| {
-                acc.boolean(other, op)
-            })
-    }
+    fn boolean_op(&self, op: BooleanOp) -> Self::Output { self::boolean_op(&self.0, op) }
 }
 
 impl FromIterator<Geometry3D> for Geometries3D {

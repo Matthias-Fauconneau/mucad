@@ -1,9 +1,9 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use mucad_builtin::mu;
-use mucad_core::{self as core, CalcBounds2D, Extrude, Geometry, GeometryType, UnaryBooleanOp};
-use mucad_lang_types::{math::IntoFloat, model::ModelType};
+use mucad_builtin::mu::{self, ops::Placement};
+use mucad_core::{self as core, CalcBounds2D, DMat4, DVec3, Extrude, Geometry, GeometryType, Transformed2D, Transformed3D, UnaryBooleanOp};
+use mucad_lang_types::{List, math::IntoFloat, model::ModelType};
 
 use crate::{
     GeometryOutput, GeometryOutputs, GeometryTree, Render, RenderContext, RenderError, RenderResult,
@@ -196,7 +196,7 @@ impl Render for mu::ops::Center {
 /// Apply `geo2d` or `geo3d` to the geometries of the children, depending on their type.
 fn map_geometries(
     tree: &GeometryTree,
-    context: &mut RenderContext,
+    context: &RenderContext,
     geo2d: impl FnOnce(core::Geometries2D) -> core::Geometries2D,
     geo3d: impl FnOnce(core::Geometries3D) -> core::Geometries3D,
 ) -> RenderResult<GeometryOutputs> {
@@ -355,5 +355,47 @@ impl Render for mu::ops::Multiply {
         Ok(GeometryOutputs::from_iter(
             (0..n).flat_map(|_| outputs.iter().cloned()),
         ))
+    }
+}
+
+//impl From<&Placement> for DMat4 {
+    /// Converts this Placement into a right-handed column-major 4x4 transform matrix:
+    ///   local +X -> tangent
+    ///   local +Y -> cross(normal, tangent)  (right-handed binormal)
+    ///   local +Z -> normal
+    fn from(&Placement{position, tangent, normal, scale, ..}: &Placement) -> DMat4 {
+    	use mucad_lang_types::math::FromFixed;
+        let x = DVec3::from_fixed(tangent).normalize_or(DVec3::X);
+        // Orthogonalize `normal` against `x`, with safe fallback if colinear/zero
+        let z = DVec3::from_fixed(normal)
+            .reject_from(x)
+            .try_normalize()
+            .unwrap_or_else(|| x.any_orthonormal_vector());
+        let y = z.cross(x);
+        let scale = f64::from_fixed(scale);
+        DMat4::from_cols(
+            (x * scale).extend(0.),
+            (y * scale).extend(0.),
+            (z * scale).extend(0.),
+            DVec3::from_fixed(position).extend(1.),
+        )
+    }
+//}
+
+impl Render for mu::ops::Instantiate {
+    fn render(
+        &self,
+        tree: &GeometryTree,
+        context: &mut RenderContext,
+    ) -> RenderResult<GeometryOutputs> {
+        Ok(
+            self.inner.iter()
+            	.map(|value| Placement::try_from(value).unwrap())
+             	.flat_map(|ref p| map_geometries(tree, context,
+	                |g| core::Geometries2D::from_iter(g.iter().map(|geometry| geometry.transformed_2d(todo!()))),
+	                |g| core::Geometries3D::from_iter(g.iter().map(|geometry| geometry.transformed_3d(&from(p)))),
+	            ).unwrap())
+              	.collect()
+        )
     }
 }

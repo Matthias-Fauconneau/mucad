@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Angle, Length, Mat3, Mat4, Scalar, Vec3, math};
+use crate::{Angle, Coord3, Length, Mat3, Mat4, Scalar, Scalar3, math};
 
 /// Transformation matrix
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -22,7 +22,7 @@ pub enum AffineTransform {
     },
     RotateAroundAxis {
         angle: Angle,
-        vec: Vec3,
+        vec: Scalar3,
     },
     EulerRotateXYZ {
         x: Angle,
@@ -35,7 +35,7 @@ pub enum AffineTransform {
         z: Angle,
     },
     /// Scale.
-    Scale(Vec3), // Impl display
+    Scale(Scalar3), // Impl display
     /// Uniform scale.
     UniformScale(Scalar),
     /// An arbitrary transform.
@@ -49,7 +49,7 @@ impl AffineTransform {
 
         match self {
             AffineTransform::Translation { x, y, z } => {
-                let v = Vec3::new(x.0, y.0, z.0).into_float();
+                let v = Coord3::new(*x, *y, *z).into_float();
                 let mat_f = DMat4::from_translation(v);
                 Mat4::from_float(mat_f)
             }

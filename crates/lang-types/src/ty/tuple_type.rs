@@ -26,8 +26,19 @@ impl TupleType {
             .collect()
     }
 
-    /// Create new Vec3 type.
-    pub fn vec3() -> Self {
+    /// Create new Scalar3 type.
+    pub fn scalar3() -> Self {
+        [
+            ("x", Type::scalar()),
+            ("y", Type::scalar()),
+            ("z", Type::scalar()),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    /// Create new Coord3 type.
+    pub fn coord3() -> Self {
         [
             ("x", Type::length()),
             ("y", Type::length()),
@@ -124,8 +135,8 @@ impl TupleType {
         self.is_scalar_only() && self.matches_keys(&["x", "y"])
     }
 
-    /// Check if the named tuple is a [`Vec3`].
-    pub(crate) fn is_vec3(&self) -> bool {
+    /// Check if the named tuple is a [`Scalar3`].
+    pub(crate) fn is_scalar3(&self) -> bool {
         self.is_scalar_only() && self.matches_keys(&["x", "y", "z"])
     }
 
@@ -177,8 +188,8 @@ impl std::fmt::Display for TupleType {
         if self.is_vec2() {
             return write!(f, "Vec2");
         }
-        if self.is_vec3() {
-            return write!(f, "Vec3");
+        if self.is_scalar3() {
+            return write!(f, "Scalar3");
         }
         if self.is_size2() {
             return write!(f, "Size2");

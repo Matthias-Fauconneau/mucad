@@ -3,7 +3,7 @@
 
 //! Matrix value type
 
-use crate::{MatrixType, Scalar, Ty, Type, Vec2, Vec3, Vec4};
+use crate::{MatrixType, Scalar, Ty, Type, Vec2, Scalar3, Vec4};
 
 use serde::{Deserialize, Serialize};
 
@@ -23,9 +23,9 @@ pub struct Mat2 {
 /// [`crate::math::float`].
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Mat3 {
-    pub x: Vec3,
-    pub y: Vec3,
-    pub z: Vec3,
+    pub x: Scalar3,
+    pub y: Scalar3,
+    pub z: Scalar3,
 }
 
 /// 4D matrix type of its columns.
@@ -54,7 +54,7 @@ impl Mat2 {
 
 impl Mat3 {
     /// A matrix of its columns.
-    pub const fn from_cols(x: Vec3, y: Vec3, z: Vec3) -> Self {
+    pub const fn from_cols(x: Scalar3, y: Scalar3, z: Scalar3) -> Self {
         Self { x, y, z }
     }
 

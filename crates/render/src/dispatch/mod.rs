@@ -37,6 +37,7 @@ impl RenderHooks {
         hooks.insert::<mu::geo3d::Sphere>();
 
         // Operations
+        hooks.insert::<mu::ops::Instantiate>();
         hooks.insert::<mu::ops::Extrude>();
         hooks.insert::<mu::ops::Buffer>();
         hooks.insert::<mu::ops::Center>();

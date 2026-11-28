@@ -364,7 +364,15 @@ impl From<&Geometry3D> for TriangleMesh {
 
 impl From<&Geometries3D> for TriangleMesh {
     fn from(geo: &Geometries3D) -> Self {
-        geo.boolean_op(BooleanOp::Union).get_mesh_gl(0).into()
+        let (mesh, manifold) : (Vec<_>, Vec<_>) = geo.iter().partition(|g| match g {
+         	Geometry3D::Mesh(_) => true,
+         	Geometry3D::Manifold(_) => false,
+          	Geometry3D::Collection(_) => todo!("recurse"),
+        });
+        let mut geo = TriangleMesh::default();
+        for mesh in mesh { geo.append(&mesh.into()) }
+        geo.append(&boolean_op(manifold, BooleanOp::Union).into());
+        geo
     }
 }
 

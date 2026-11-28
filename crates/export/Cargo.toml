@@ -11,6 +11,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+log = "0.4"
 mucad-core = { workspace = true }
 mucad-render = { workspace = true }
 mucad-lang-types = { workspace = true }

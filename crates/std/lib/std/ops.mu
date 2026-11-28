@@ -1,6 +1,7 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: MIT
 
+pub use __mu::ops::instantiate;
 pub use __mu::ops::center;
 pub use __mu::ops::hull;
 pub use __mu::ops::intersect;
@@ -9,7 +10,7 @@ pub use __mu::ops::multiply;
 pub use __mu::ops::union;
 
 /// Align a geometry collection along an axis with a certain spacing.
-pub op align(direction: Vec3, spacing = 0mm) {
+pub op align(direction: Scalar3, spacing = 0mm) {
     @input.__mu::ops::align(
         x = direction.x,
         y = direction.y,
@@ -82,19 +83,19 @@ pub op extrude(
 }
 
 /// Mirror along an axis, keeping existing geometry.
-pub op mirror(x = 0.0mm, y = 0.0mm, z = 0.0mm, n: Vec3) {
+pub op mirror(x = 0.0mm, y = 0.0mm, z = 0.0mm, n: Scalar3) {
     @input.__mu::ops::mirror(
         x, y, z, nx = n.x, ny = n.y, nz = n.z
     );
 }
 
 /// Orient an object towards a vector.
-pub op orient(v: Vec3) {
+pub op orient(v: Scalar3) {
     @input.__mu::ops::orient(x = v.x, y = v.y, z = v.z);
 }
 
 /// Reflect a geometry along an axis.
-pub op reflect(x = 0.0mm, y = 0.0mm, z = 0.0mm, n: Vec3) {
+pub op reflect(x = 0.0mm, y = 0.0mm, z = 0.0mm, n: Scalar3) {
     @input.__mu::ops::reflect(
         x, y, z, nx = n.x, ny = n.y, nz = n.z
     );
@@ -182,7 +183,7 @@ pub op rotate(matrix: Matrix3) {
 /// An operation that scales a part.
 ///
 /// See the `init`s for examples on how to use this operation.
-pub op scale(v: Vec3) {
+pub op scale(v: Scalar3) {
     /// Uniform scale.
     ///
     /// * `s` - Scale factor.

@@ -204,8 +204,8 @@ impl From<Vec2> for Tuple {
     }
 }
 
-impl From<Vec3> for Tuple {
-    fn from(v: Vec3) -> Self {
+impl From<Scalar3> for Tuple {
+    fn from(v: Scalar3) -> Self {
         tuple!(x = v.x, y = v.y, z = v.z)
     }
 }

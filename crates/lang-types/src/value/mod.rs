@@ -33,7 +33,7 @@ pub use value_error::*;
 pub use value_list::*;
 
 use crate::{
-    Angle, Color, Integer, Length, Model, ModelTree, QuantityType, Scalar, Type, Unit, Vec2, Vec3,
+    Angle, Color, Coord3, Integer, Length, Model, ModelTree, QuantityType, Scalar, Scalar3, Type, Unit, Vec2,
 };
 
 use derive_more::{Display, From};
@@ -150,18 +150,23 @@ macro_rules! impl_try_from {
 impl_try_from!(Bool => bool);
 impl_try_from!(String => String);
 
-impl TryFrom<Value> for Integer {
+impl TryFrom<&Value> for Integer {
     type Error = ValueError;
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Number(Number::Integer(integer)) => Ok(integer),
+            Value::Number(Number::Integer(integer)) => Ok(*integer),
             value => Err(ValueError::CannotConvert(
                 value.to_string(),
                 "Integer".into(),
             )),
         }
     }
+}
+
+impl TryFrom<Value> for Integer {
+    type Error = ValueError;
+    fn try_from(value: Value) -> Result<Self, Self::Error> { Self::try_from(&value) }
 }
 
 impl TryFrom<Value> for i64 {
@@ -184,17 +189,17 @@ impl<'t> TryFrom<&'t Value> for &'t List {
     }
 }
 
-impl TryFrom<Value> for Scalar {
+impl TryFrom<&Value> for Scalar {
     type Error = ValueError;
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Number(Number::Integer(i)) => Ok(Scalar::from(i)),
+            Value::Number(Number::Integer(i)) => Ok(Scalar::from(*i)),
             Value::Number(Number::Quantity(Quantity {
                 value,
                 quantity_type: QuantityType::Scalar,
                 ..
-            })) => Ok(value),
+            })) => Ok(*value),
             _ => Err(ValueError::CannotConvert(
                 value.to_string(),
                 "Scalar".into(),
@@ -203,22 +208,32 @@ impl TryFrom<Value> for Scalar {
     }
 }
 
-impl TryFrom<Value> for Length {
+impl TryFrom<Value> for Scalar {
+    type Error = ValueError;
+    fn try_from(value: Value) -> Result<Self, Self::Error> { Self::try_from(&value) }
+}
+
+impl TryFrom<&Value> for Length {
     type Error = ValueError;
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
             Value::Number(Number::Quantity(Quantity {
                 value,
                 quantity_type: QuantityType::Length,
                 ..
-            })) => Ok(Length(value)),
+            })) => Ok(Length(*value)),
             _ => Err(ValueError::CannotConvert(
                 value.to_string(),
                 "Length".into(),
             )),
         }
     }
+}
+
+impl TryFrom<Value> for Length {
+    type Error = ValueError;
+    fn try_from(value: Value) -> Result<Self, Self::Error> { Self::try_from(&value) }
 }
 
 impl TryFrom<Value> for Rc<List> {
@@ -275,14 +290,14 @@ impl TryFrom<Value> for Mat3 {
     }
 }
 
-impl TryFrom<Value> for Vec2 {
+impl TryFrom<&Value> for Vec2 {
     type Error = ValueError;
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
         if let Value::Tuple(tuple) = &value {
             Ok(Vec2::new(
-            	Length::try_from(tuple.get_field(&"x".into()).unwrap().clone()).unwrap().0,
-             	Length::try_from(tuple.get_field(&"y".into()).unwrap().clone()).unwrap().0,
+            	Length::try_from(tuple.get_field(&"x".into()).unwrap()).unwrap().0,
+             	Length::try_from(tuple.get_field(&"y".into()).unwrap()).unwrap().0,
             ))
         } else {
             Err(ValueError::CannotConvert(value.to_string(), "Vec2".into()))
@@ -290,18 +305,34 @@ impl TryFrom<Value> for Vec2 {
     }
 }
 
-impl TryFrom<Value> for Vec3 {
+impl TryFrom<&Value> for Scalar3 {
     type Error = ValueError;
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
         if let Value::Tuple(tuple) = &value {
-            Ok(Vec3::new(
-            	Length::try_from(tuple.get_field(&"x".into()).unwrap().clone()).unwrap().0,
-             	Length::try_from(tuple.get_field(&"y".into()).unwrap().clone()).unwrap().0,
-              	Length::try_from(tuple.get_field(&"z".into()).unwrap().clone()).unwrap().0,
-            ))
+            Ok(Scalar3{
+            	x: Scalar::try_from(tuple.get_field(&"x".into()).expect("x")).expect("Scalar"),
+             	y: Scalar::try_from(tuple.get_field(&"y".into()).expect("y")).expect("Scalar"),
+              	z: Scalar::try_from(tuple.get_field(&"z".into()).expect("z")).expect("Scalar"),
+            })
         } else {
-            Err(ValueError::CannotConvert(value.to_string(), "Vec3".into()))
+            Err(ValueError::CannotConvert(value.to_string(), "Scalar3".into()))
+        }
+    }
+}
+
+impl TryFrom<&Value> for Coord3 {
+    type Error = ValueError;
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        if let Value::Tuple(tuple) = &value {
+            Ok(Coord3{
+            	x: Length::try_from(tuple.get_field(&"x".into()).expect("x")).expect("Length"),
+             	y: Length::try_from(tuple.get_field(&"y".into()).expect("y")).expect("Length"),
+              	z: Length::try_from(tuple.get_field(&"z".into()).expect("z")).expect("Length"),
+            })
+        } else {
+            Err(ValueError::CannotConvert(value.to_string(), "Coord3".into()))
         }
     }
 }
@@ -372,8 +403,8 @@ impl From<Color> for Value {
     }
 }
 
-impl From<Vec3> for Value {
-    fn from(v: Vec3) -> Self {
+impl From<Scalar3> for Value {
+    fn from(v: Scalar3) -> Self {
         Self::Tuple(Rc::new(v.into()))
     }
 }

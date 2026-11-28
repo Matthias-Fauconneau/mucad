@@ -12,7 +12,7 @@ pub use affine_transform::AffineTransform;
 pub use float::*;
 pub use ops::MathOps;
 
-use crate::{Angle, Mat3, Mat4, Scalar, Vec3, Vec4};
+use crate::{Angle, Mat3, Mat4, Scalar, Scalar3, Vec4};
 
 use glam::{DMat3, DVec3};
 
@@ -26,7 +26,7 @@ fn rotation_matrices_xyz(x: Angle, y: Angle, z: Angle) -> (DMat3, DMat3, DMat3) 
 }
 
 pub fn rotate_around_axis(angle: Angle, x: Scalar, y: Scalar, z: Scalar) -> Mat3 {
-    let axis = Vec3::new(x, y, z);
+    let axis = Scalar3::new(x, y, z);
     let angle: ScalarF = angle.into_float();
     trig::rotation_axis(axis.into_float(), angle).into_fixed()
 }
@@ -49,7 +49,7 @@ pub fn rotate_zyx(x: Angle, y: Angle, z: Angle) -> Mat3 {
 }
 
 /// Rotation matrix to orient a vector
-pub fn orient_to_z(target: Vec3) -> Mat3 {
+pub fn orient_to_z(target: Scalar3) -> Mat3 {
     let z_axis = DVec3::Z;
     let target = DVec3::from_fixed(target).normalize();
 
@@ -78,7 +78,7 @@ pub fn orient_to_z(target: Vec3) -> Mat3 {
     trig::rotation_axis(rotation_axis, angle).into_fixed()
 }
 
-pub fn align_vectors_rodrigues(from: Vec3, to: Vec3) -> Mat3 {
+pub fn align_vectors_rodrigues(from: Scalar3, to: Scalar3) -> Mat3 {
     let from = DVec3::from_fixed(from).normalize();
     let to = DVec3::from_fixed(to).normalize();
 
@@ -108,7 +108,7 @@ pub fn align_vectors_rodrigues(from: Vec3, to: Vec3) -> Mat3 {
 }
 
 pub fn mat3_to_mat4(mat3: Mat3) -> Mat4 {
-    let column = |c: crate::Vec3| Vec4::new(c.x, c.y, c.z, Scalar::ZERO);
+    let column = |c: crate::Scalar3| Vec4::new(c.x, c.y, c.z, Scalar::ZERO);
     Mat4::from_cols(
         column(mat3.x),
         column(mat3.y),

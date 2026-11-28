@@ -159,7 +159,7 @@ impl From<Rc<List>> for List {
 
 impl<'t> From<&'t Rc<List>> for &'t List {
     fn from(rc: &'t Rc<List>) -> Self {
-        &rc
+    	&rc
     }
 }
 

@@ -29,11 +29,13 @@ struct MeshData {
 
 impl MeshData {
     fn from_geometry_output(output: &GeometryOutput, name: String) -> Option<MeshData> {
+    	log::trace!("{name}: {}", output);
         let Geometry::Geometry3D(geometry) = &output.geometry else {
             return None;
         };
         let mesh = TriangleMesh::from(geometry);
         if mesh.is_empty() {
+        	log::trace!("Empty mesh {name}: {}", output);
             return None;
         }
 

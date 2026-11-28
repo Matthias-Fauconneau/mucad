@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use mucad_builtin::mu as __mu;
 use mucad_core::{DVec2, DVec3, Triangle};
-use mucad_lang_types::{List, Value, Vec2, Vec3, math::{FromFixed, IntoFloat}};
+use mucad_lang_types::{List, Value, Vec2, Coord3, math::{FromFixed, IntoFloat}};
 
 use crate::{
     GeometryOutputs, GeometryTree, Render, RenderContext, RenderError, RenderPrimitive,
@@ -51,21 +51,17 @@ impl RenderPolygon for __mu::geo2d::Rect {
 impl RenderPrimitive for __mu::geo2d::PolyBezier {
     fn render_primitive(&self, resolution: &RenderResolution) -> mucad_core::Geometry {
     	use mucad_core::geo2d::bezier::{Bezier, BezierHandles};
-        let to_bezier = |v:&Value| match v {
-        	Value::Tuple(tuple) => {
-         		let get = |field:&str|
-           			DVec2::from_fixed(Vec2::try_from(tuple.get_field(&field.into()).unwrap().clone()).unwrap())
-              		.to_array().into(); // mucad glam 0.30 -> bezier-rs glam 0.29
-	         	Bezier{
-	         		start: get("p0"),
-	           		end: get("p1"),
-	             	handles: BezierHandles::Cubic {
-	              		handle_start: get("c1"),
-	                	handle_end: get("c2"),
-	              	},
-	         	}
-         	},
-          	_ => unreachable!(),
+        let to_bezier = |v:&Value| {
+        	let segment : __mu::geo2d::CubicSegment2D = v.try_into().unwrap();
+         	let glam = |v| DVec2::from_fixed(v).to_array().into(); // from_fixed -> mucad glam 0.30 -> bezier-rs glam 0.29
+         	Bezier{
+         		start: glam(segment.p0),
+           		end: glam(segment.p1),
+             	handles: BezierHandles::Cubic {
+              		handle_start: glam(segment.c1),
+                	handle_end: glam(segment.c2),
+              	},
+         	}
         };
         let geometry = bezier::render_curves(&[self.path.iter().map(to_bezier).collect()], self.closed, &resolution);
         mucad_core::Geometry::geo2d(geometry)
@@ -76,7 +72,7 @@ impl RenderPrimitive for __mu::surface3d::GridMesh {
     fn render_primitive(&self, resolution: &RenderResolution) -> mucad_core::Geometry {
 	    let positions : Vec<mucad_core::Vec3> =
 			self.vertices.iter().flat_map(|row| <&List>::try_from(row).unwrap().iter())
-			.map(|v:&Value| DVec3::from_fixed(Vec3::try_from(v.clone()).unwrap()).to_array().map(|f64| f64 as f32).into())
+			.map(|v:&Value| DVec3::from_fixed(Coord3::try_from(v).unwrap()).to_array().map(|f64| f64 as f32).into())
 			.collect();
 		let rows = self.vertices.len();
 		let columns = Rc::<List>::try_from(self.vertices[0].clone()).unwrap().len();

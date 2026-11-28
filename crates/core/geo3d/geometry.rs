@@ -25,7 +25,10 @@ pub enum Geometry3D {
 impl std::fmt::Debug for Geometry3D {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name: &'static str = self.into();
-        write!(f, "{name}")
+        match self {
+        	Geometry3D::Mesh(mesh) => write!(f, "{name} {}", mesh.positions.len()),
+        	_ => write!(f, "{name}"),
+        }
     }
 }
 

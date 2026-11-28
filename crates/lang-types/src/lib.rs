@@ -13,7 +13,7 @@ pub use color::Color;
 
 mod arguments;
 mod vector;
-pub use vector::{Vec2, Vec3, Vec4};
+pub use vector::{Vec2, Scalar3, Coord3, Vec4};
 
 pub use arguments::{ArgumentName, ArgumentValue, ArgumentValueList, Arguments};
 
@@ -37,7 +37,7 @@ pub use mucad_lang_base::{
     element::{BinaryOperator, UnaryOperator},
 };
 
-use crate::math::ScalarF;
+use crate::math::{FromFixed, FromFloat, ScalarF};
 
 pub type Integer = fixed::FixedI64<fixed::types::extra::U0>;
 
@@ -93,4 +93,18 @@ pub trait Operators: Sized {
 
     /// Perform a unary operation.
     fn unary_op(self, op: UnaryOperator) -> Result<Self, Self::Err>;
+}
+
+impl FromFixed<Length> for ScalarF {
+    #[inline]
+    fn from_fixed(val: Length) -> Self {
+        val.as_mm()
+    }
+}
+
+impl FromFloat<ScalarF> for Length {
+    #[inline]
+    fn from_float(val: ScalarF) -> Self {
+        Length::mm(val)
+    }
 }

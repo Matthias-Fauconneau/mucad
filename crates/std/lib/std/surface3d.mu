@@ -2,4 +2,4 @@
 // SPDX-License-Identifier: MIT
 
 //pub use __mu::surface3d::GridMesh;
-pub surface GridMesh(vertices: [[Vec3]]) { __mu::surface3d::GridMesh(vertices); }
+pub surface GridMesh(vertices: [[Coord3]]) { __mu::surface3d::GridMesh(vertices); }

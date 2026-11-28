@@ -162,7 +162,8 @@ impl std::str::FromStr for Type {
         Ok(match ty {
             "Color" => Type::color(),
             "Vec2" => Type::Tuple(Box::new(TupleType::vec2())),
-            "Vec3" => Type::Tuple(Box::new(TupleType::vec3())),
+            "Scalar3" => Type::Tuple(Box::new(TupleType::scalar3())),
+            "Coord3" => Type::Tuple(Box::new(TupleType::coord3())),
             "Mat3" => Type::matrix(3, 3),
             "Size2" => Type::Tuple(Box::new(TupleType::size2())),
             "CubicSegment2D" => { // WIP: here until there is a mechanism to register a builtin type externally (from the builtin spline module)
@@ -172,6 +173,17 @@ impl std::str::FromStr for Type {
                     ("c1", vec2.clone()),
                     ("c2", vec2.clone()),
                     ("p1", vec2.clone()),
+                ]
+                .into_iter()
+                .collect()))
+            },
+            "Placement" => { // WIP: here until there is a mechanism to register a builtin type externally (from the builtin ops module)
+                Type::Tuple(Box::new([
+                    ("position", Type::Tuple(Box::new(TupleType::coord3()))),
+                    ("tangent", Type::Tuple(Box::new(TupleType::scalar3()))),
+                    ("normal", Type::Tuple(Box::new(TupleType::scalar3()))),
+                    ("scale", Type::Quantity(QuantityType::Scalar)),
+                    ("seed", Type::Integer),
                 ]
                 .into_iter()
                 .collect()))
