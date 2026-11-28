@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 pub use __mu::math::PI;
+pub use __mu::math::PIrad;
 pub use __mu::math::X;
 pub use __mu::math::Y;
 pub use __mu::math::Z;

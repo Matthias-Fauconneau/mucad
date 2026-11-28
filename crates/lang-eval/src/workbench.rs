@@ -264,7 +264,7 @@ impl Callable for symbol::Workbench {
                     .into());
                 }
             },
-            WorkbenchKind::Sketch | WorkbenchKind::Part => None,
+            WorkbenchKind::Sketch | WorkbenchKind::Surface | WorkbenchKind::Part => None,
         };
         let args = &args;
 

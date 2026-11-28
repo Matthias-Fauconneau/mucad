@@ -21,6 +21,7 @@ impl std::fmt::Display for GeometryNodeData {
             "{geo}[{hash}] {resolution} => {output_type}",
             output_type = match self.output_type {
                 ModelType::Geometry2D => "2D",
+                ModelType::Surface3D => "Surface3D",
                 ModelType::Geometry3D => "3D",
                 ModelType::Any => "Any",
                 ModelType::NotDetermined => "?",

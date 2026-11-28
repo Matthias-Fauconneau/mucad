@@ -157,6 +157,12 @@ impl From<Rc<List>> for List {
     }
 }
 
+impl<'t> From<&'t Rc<List>> for &'t List {
+    fn from(rc: &'t Rc<List>) -> Self {
+        &rc
+    }
+}
+
 impl std::fmt::Display for List {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(

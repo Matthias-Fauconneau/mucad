@@ -173,6 +173,16 @@ impl TryFrom<Value> for i64 {
 }
 
 impl_try_from!(List => List);
+impl<'t> TryFrom<&'t Value> for &'t List {
+    type Error = ValueError;
+
+    fn try_from(value: &'t Value) -> std::result::Result<Self, Self::Error> {
+        match value {
+            Value::List(v) => Ok(v.into()),
+            value => Err(ValueError::CannotConvert(value.to_string(), stringify!($ty).into())),
+        }
+    }
+}
 
 impl TryFrom<Value> for Scalar {
     type Error = ValueError;
@@ -280,6 +290,21 @@ impl TryFrom<Value> for Vec2 {
     }
 }
 
+impl TryFrom<Value> for Vec3 {
+    type Error = ValueError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Tuple(tuple) = &value {
+            Ok(Vec3::new(
+            	Length::try_from(tuple.get_field(&"x".into()).unwrap().clone()).unwrap().0,
+             	Length::try_from(tuple.get_field(&"y".into()).unwrap().clone()).unwrap().0,
+              	Length::try_from(tuple.get_field(&"z".into()).unwrap().clone()).unwrap().0,
+            ))
+        } else {
+            Err(ValueError::CannotConvert(value.to_string(), "Vec3".into()))
+        }
+    }
+}
 
 impl From<Quantity> for Value {
     fn from(quantity: Quantity) -> Self {
@@ -326,6 +351,12 @@ impl From<i64> for Value {
 impl From<Scalar> for Value {
     fn from(scalar: Scalar) -> Self {
         Quantity::from(scalar).into()
+    }
+}
+
+impl From<Angle> for Value {
+    fn from(angle: Angle) -> Self {
+        Quantity::from(angle).into()
     }
 }
 

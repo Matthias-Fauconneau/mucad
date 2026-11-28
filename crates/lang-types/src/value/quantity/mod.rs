@@ -11,7 +11,7 @@ use crate::{ValueResult, ty::*};
 use mucad_lang_base::element::BinaryOperator;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::{Integer, Length, Scalar};
+use crate::{Integer, Angle, Length, Scalar};
 
 const DISPLAY_DECIMALS: usize = 5;
 
@@ -55,11 +55,11 @@ impl Quantity {
 
     /// Calculate the power of quantity.
     pub fn pow(&self, rhs: &Quantity) -> Self {
-    	use fixed_exp::FixedPowF;
     	match (&self.quantity_type, &rhs.quantity_type) {
      		(QuantityType::Scalar, QuantityType::Scalar) => {
        			if self.value == 0 { return Quantity::new(Scalar::from_num(1), QuantityType::Scalar); }
        			assert!(self.value > 0., "powf base needs to be positive: {}", self.value);
+              	use fixed_exp::FixedPowF;
        			Quantity::new(self.value.powf(rhs.value), QuantityType::Scalar)
        		},
      		_ => unreachable!()
@@ -67,8 +67,14 @@ impl Quantity {
     }
 
     /// Calculate the power of quantity and an integer.
-    pub fn pow_int(&self, _rhs: &Integer) -> Self {
-        todo!()
+    pub fn pow_int(&self, rhs: &Integer) -> Self {
+    	match &self.quantity_type {
+    		QuantityType::Scalar => {
+          		use fixed_exp::FixedPowI;
+      			Quantity::new(self.value.powi(i64::from(*rhs).try_into().unwrap()), QuantityType::Scalar)
+      		},
+    		_ => unreachable!()
+    	}
     }
 
     /// Compare with `rhs`, values within the rounding errors are equal, see [`approx_eq`].
@@ -179,6 +185,12 @@ impl From<Scalar> for Quantity {
 impl From<Integer> for Quantity {
     fn from(value: Integer) -> Self {
         Self::new(Scalar::from(value), QuantityType::Scalar)
+    }
+}
+
+impl From<Angle> for Quantity {
+    fn from(angle: Angle) -> Self {
+        Self::new(angle.0, QuantityType::Angle)
     }
 }
 

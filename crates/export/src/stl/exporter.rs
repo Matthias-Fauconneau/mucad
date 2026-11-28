@@ -44,7 +44,8 @@ impl Export for StlExporter {
         Ok(Value::None)
     }
 
-    fn model_type(&self) -> ModelType {
-        ModelType::Geometry3D
+    fn model_types(&self) -> &'static [ModelType] {
+    	const geometry_3d : [ModelType; 1] = [ModelType::Geometry3D];
+        &geometry_3d
     }
 }

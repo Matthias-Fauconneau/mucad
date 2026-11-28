@@ -1,8 +1,11 @@
 // Copyright © 2026 The µcad authors <info@mucad.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::rc::Rc;
+
 use mucad_builtin::mu as __mu;
-use mucad_lang_types::{Value, Vec2, math::IntoFloat};
+use mucad_core::{DVec2, DVec3, Triangle};
+use mucad_lang_types::{List, Value, Vec2, Vec3, math::{FromFixed, IntoFloat}};
 
 use crate::{
     GeometryOutputs, GeometryTree, Render, RenderContext, RenderError, RenderPrimitive,
@@ -45,15 +48,14 @@ impl RenderPolygon for __mu::geo2d::Rect {
     }
 }
 
-impl Render for __mu::geo2d::PolyBezier {
-    fn render(&self, tree: &GeometryTree, context: &mut RenderContext) -> crate::RenderResult {
+impl RenderPrimitive for __mu::geo2d::PolyBezier {
+    fn render_primitive(&self, resolution: &RenderResolution) -> mucad_core::Geometry {
     	use mucad_core::geo2d::bezier::{Bezier, BezierHandles};
-        let resolution = context.current_resolution(tree);
         let to_bezier = |v:&Value| match v {
         	Value::Tuple(tuple) => {
-         		let get = |field:&str| {
-           			Vec2::try_from(tuple.get_field(&field.into()).unwrap().clone()).unwrap().to_array().map(|f| f.into_float()).into()
-           		};
+         		let get = |field:&str|
+           			DVec2::from_fixed(Vec2::try_from(tuple.get_field(&field.into()).unwrap().clone()).unwrap())
+              		.to_array().into(); // mucad glam 0.30 -> bezier-rs glam 0.29
 	         	Bezier{
 	         		start: get("p0"),
 	           		end: get("p1"),
@@ -66,7 +68,55 @@ impl Render for __mu::geo2d::PolyBezier {
           	_ => unreachable!(),
         };
         let geometry = bezier::render_curves(&[self.path.iter().map(to_bezier).collect()], self.closed, &resolution);
-        Ok(mucad_core::Geometry::geo2d(geometry).into())
+        mucad_core::Geometry::geo2d(geometry)
+    }
+}
+
+impl RenderPrimitive for __mu::surface3d::GridMesh {
+    fn render_primitive(&self, resolution: &RenderResolution) -> mucad_core::Geometry {
+	    let positions : Vec<mucad_core::Vec3> =
+			self.vertices.iter().flat_map(|row| <&List>::try_from(row).unwrap().iter())
+			.map(|v:&Value| DVec3::from_fixed(Vec3::try_from(v.clone()).unwrap()).to_array().map(|f64| f64 as f32).into())
+			.collect();
+		let rows = self.vertices.len();
+		let columns = Rc::<List>::try_from(self.vertices[0].clone()).unwrap().len();
+		let mut indices: Vec<Triangle<u32>> = Vec::with_capacity((rows-1) * (columns-1) * 2);
+		// Given quad corners a=(i,j), b=(i+1,j), c=(i+1,j+1), d=(i,j+1)
+		let emit_if_valid = |i0: usize, i1: usize, i2: usize, out: &mut Vec<Triangle<u32>>| {
+		    let p0 = positions[i0];
+		    let p1 = positions[i1];
+		    let p2 = positions[i2];
+		    // Twice the triangle area squared: |(p1 - p0) x (p2 - p0)|^2
+		    let cross = (p1 - p0).cross(p2 - p0);
+		    if cross.length_squared() > 1e-12 {
+		        out.push(Triangle(i0 as u32, i1 as u32, i2 as u32));
+		    }
+		};
+
+		for j in 0..(columns-1) {
+	    	for i in 0..(rows-1) {
+	            // CCW cell corners in (u, v):
+	            //   d --- c
+	            //   |     |
+	            //   a --- b
+	            let a = j * columns + i;
+	            let b = j * columns + (i + 1);
+	            let c = (j + 1) * columns + (i + 1);
+	            let d = (j + 1) * columns + i;
+
+				let diag_ac = (positions[c] - positions[a]).length_squared();
+				let diag_bd = (positions[d] - positions[b]).length_squared();
+
+				if diag_ac <= diag_bd {
+				    emit_if_valid(a, b, c, &mut indices);
+				    emit_if_valid(a, c, d, &mut indices);
+				} else {
+				    emit_if_valid(a, b, d, &mut indices);
+				    emit_if_valid(b, c, d, &mut indices);
+				}
+			}
+		}
+	    mucad_core::Geometry::geo3d(mucad_core::TriangleMesh{positions, normals: None, triangle_indices: indices})
     }
 }
 

@@ -82,6 +82,8 @@ impl DriverConfig {
 pub struct ExporterConfig {
     /// Default sketch exporter.
     pub sketch: String,
+    /// Default surface exporter.
+    pub surface: String,
     /// Default part exporter.
     pub part: String,
 }
@@ -90,6 +92,7 @@ impl Default for ExporterConfig {
     fn default() -> Self {
         Self {
             sketch: "svg".into(),
+            surface: "glb".into(),
             part: "stl".into(),
         }
     }

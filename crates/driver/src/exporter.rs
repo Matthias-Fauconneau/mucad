@@ -149,6 +149,7 @@ impl Exporter {
     fn extension(&self, model_type: ModelType) -> mu::Result<&str> {
         match model_type {
             ModelType::Geometry2D => Ok(&self.config.sketch),
+            ModelType::Surface3D => Ok(&self.config.surface),
             ModelType::Geometry3D => Ok(&self.config.part),
             model_type => Err(miette::miette!("Cannot export a {model_type} model")),
         }
@@ -164,7 +165,7 @@ impl Exporter {
         let exporter = self.exporter(path, resolution)?;
 
         let model_type = model.root().deduce_output_type();
-        if model_type != exporter.model_type() {
+        if !exporter.model_types().contains(&model_type) {
             return Err(miette::miette!(
                 "Cannot export a {model_type} model into {path:?}"
             ));

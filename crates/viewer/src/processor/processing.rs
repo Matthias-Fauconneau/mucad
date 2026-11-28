@@ -172,7 +172,7 @@ impl Processor {
 
         if !matches!(
             node.output_type,
-            ModelType::Geometry2D | ModelType::Geometry3D
+            ModelType::Geometry2D | ModelType::Surface3D | ModelType::Geometry3D
         ) {
             return;
         }

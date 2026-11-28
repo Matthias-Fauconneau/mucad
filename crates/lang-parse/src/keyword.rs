@@ -60,6 +60,7 @@ keywords! {
         Return = "return",
         Sketch = "sketch",
         Super = "super",
+        Surface = "surface",
         Use = "use",
         #[reserved] Assembly = "assembly",
         #[reserved] Asset = "asset",

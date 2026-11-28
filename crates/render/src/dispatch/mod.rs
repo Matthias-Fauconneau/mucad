@@ -30,6 +30,9 @@ impl RenderHooks {
         hooks.insert::<mu::geo2d::Sector>();
         hooks.insert::<mu::geo2d::SvgPath>();
 
+        // 3D Surface Primitives
+        hooks.insert::<mu::surface3d::GridMesh>();
+        
         // 3D Primitives
         hooks.insert::<mu::geo3d::Sphere>();
 

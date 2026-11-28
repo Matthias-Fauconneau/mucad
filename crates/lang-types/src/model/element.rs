@@ -53,6 +53,7 @@ impl Ty for WorkbenchKind {
     fn ty(&self) -> crate::Type {
         match self {
             WorkbenchKind::Sketch => Type::Model(ModelType::Geometry2D),
+            WorkbenchKind::Surface => Type::Model(ModelType::Surface3D),
             WorkbenchKind::Part => Type::Model(ModelType::Geometry3D),
             WorkbenchKind::Op => Type::Model(ModelType::Any),
         }

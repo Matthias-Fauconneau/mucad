@@ -103,8 +103,9 @@ pub trait Export {
         Ok(value)
     }
 
-    /// The model type this export is supposed to use.
-    fn model_type(&self) -> ModelType {
-        ModelType::default()
+    /// The model types this export supports.
+    fn model_types(&self) -> &'static [ModelType] {
+        const not_determined : [ModelType; 1] = [ModelType::NotDetermined];
+        &not_determined
     }
 }

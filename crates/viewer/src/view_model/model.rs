@@ -50,7 +50,8 @@ impl ModelViewState {
         use crate::material::*;
         let mut material = match self.info.output_type {
             mu::types::ModelType::Geometry2D => create_2d_material(self.base_color),
-            mu::types::ModelType::Geometry3D => create_3d_material(self.base_color),
+            mu::types::ModelType::Surface3D => create_3d_material(self.base_color),
+             mu::types::ModelType::Geometry3D => create_3d_material_two_sided(self.base_color),
             _ => unreachable!(),
         };
         // Alpha is stored in the vertex color when a part has an explicit color.

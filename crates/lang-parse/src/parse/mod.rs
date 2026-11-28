@@ -943,6 +943,7 @@ fn parser<'tokens>()
 
         let workbench_kind = select_ref! {
             Token::Keyword(Keyword::Sketch) => ast::def::WorkbenchKind::Sketch,
+            Token::Keyword(Keyword::Surface) => ast::def::WorkbenchKind::Surface,
             Token::Keyword(Keyword::Part) => ast::def::WorkbenchKind::Part,
             Token::Keyword(Keyword::Op) => ast::def::WorkbenchKind::Op,
         }

@@ -12,6 +12,8 @@ use strum::{Display, EnumString};
 pub enum WorkbenchKind {
     /// `sketch`
     Sketch,
+    /// `surface`
+    Surface,
     /// `part`
     Part,
     /// `op`
@@ -25,6 +27,7 @@ impl std::fmt::Display for WorkbenchKind {
             "{}",
             match &self {
                 WorkbenchKind::Sketch => "sketch",
+                WorkbenchKind::Surface => "surface",
                 WorkbenchKind::Part => "part",
                 WorkbenchKind::Op => "op",
             }

@@ -204,7 +204,8 @@ impl Export for GlbExporter {
         Ok(Value::None)
     }
 
-    fn model_type(&self) -> ModelType {
-        ModelType::Geometry3D
+    fn model_types(&self) -> &'static [ModelType] {
+    	const geometry_2d_surface_3d : [ModelType; 2] = [ModelType::Geometry3D, ModelType::Surface3D];
+        &geometry_2d_surface_3d
     }
 }

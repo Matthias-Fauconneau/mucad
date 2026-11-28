@@ -177,7 +177,8 @@ impl Export for SvgExporter {
         Ok(Value::None)
     }
 
-    fn model_type(&self) -> ModelType {
-        ModelType::Geometry2D
+    fn model_types(&self) -> &'static [ModelType] {
+    	const geometry_2d : [ModelType; 1] = [ModelType::Geometry2D];
+        &geometry_2d
     }
 }

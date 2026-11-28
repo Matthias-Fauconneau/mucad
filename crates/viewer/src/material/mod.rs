@@ -87,6 +87,21 @@ pub fn create_3d_material(base_color: bevy::prelude::Color) -> bevy_types::Stand
     }
 }
 
+/// Create a 3D material (lit) from a color for two-sided open non-manifold 3D surfaces.
+pub fn create_3d_material_two_sided(base_color: bevy::prelude::Color) -> bevy_types::StandardMaterial {
+    bevy_types::StandardMaterial {
+        alpha_mode: alpha_mode_for_color(&base_color),
+        base_color,
+        metallic: 0.1,
+        unlit: false,
+        double_sided: true,
+        cull_mode: None,
+        perceptual_roughness: 0.1,
+        reflectance: 0.4,
+        ..Default::default()
+    }
+}
+
 /// The uuid of the material of the edge lines of 3D models, which all models share.
 pub const EDGE_MATERIAL_UUID: Uuid = Uuid::from_u64_pair(BUILTIN_MATERIAL_ASSET_ID, 0xED6E);
 

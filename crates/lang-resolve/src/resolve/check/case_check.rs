@@ -36,7 +36,7 @@ fn expected_case(def: &SymbolDef) -> Option<Case> {
     match def {
         InlineModule(_) | SourceFile(_) | Function(_) => Some(Case::LowerSnake),
         Workbench(workbench) => match workbench.signature.kind {
-            WorkbenchKind::Sketch | WorkbenchKind::Part => Some(Case::Pascal),
+            WorkbenchKind::Sketch | WorkbenchKind::Surface | WorkbenchKind::Part => Some(Case::Pascal),
             WorkbenchKind::Op => Some(Case::LowerSnake),
         },
         Constant(_) => Some(Case::UpperSnake),

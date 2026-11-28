@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod geo2d;
+pub mod surface3d;
 pub mod geo3d;
 pub mod list;
 pub mod math;

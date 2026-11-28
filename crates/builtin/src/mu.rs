@@ -423,6 +423,10 @@ pub mod math {
     #[builtin_constant(math::PI)]
     pub static PI: BuiltinItem = std::f64::consts::PI;
 
+    /// Pi as angle
+    #[builtin_constant(math::PIrad)]
+    pub static PIrad: BuiltinItem = Angle(Scalar::from_num(std::f64::consts::PI));
+    
     #[builtin_constant(math::X)]
     pub static X: BuiltinItem = tuple!(x = 1.0, y = 0.0, z = 0.0);
 
@@ -919,6 +923,23 @@ pub mod geo2d {
         pub closed: bool,
         /// Whether the y axis is flipped, because it points down in SVG and up in µcad.
         pub flip: bool,
+    }
+}
+
+/// Built-in 3D surfaces
+#[builtin_mod]
+pub mod surface3d {
+    use mucad_lang_types::Length;
+    use mucad_macros::builtin_primitive;
+
+    use super::*;
+
+    /// A grid of vertices.
+    #[derive(Serialize, Deserialize, Debug)]
+    #[builtin_primitive(Surface3D)]
+    pub struct GridMesh {
+        /// Grid vertices
+        pub vertices: List, //[[Vec3]]
     }
 }
 

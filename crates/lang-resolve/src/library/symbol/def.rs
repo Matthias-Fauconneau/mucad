@@ -102,6 +102,7 @@ impl SymbolDef {
             SymbolDef::Workbench(workbench) => match &workbench.signature.kind {
                 WorkbenchKind::Sketch => "sketch",
                 WorkbenchKind::Part => "part",
+                WorkbenchKind::Surface => "surface",
                 WorkbenchKind::Op => "op",
             },
             SymbolDef::Function(_) => "fn",
@@ -116,7 +117,7 @@ impl SymbolDef {
         match &self {
             InlineModule(_) | SourceFile(_) | Function(_) => Some(Case::LowerSnake),
             Workbench(workbench) => match workbench.signature.kind {
-                WorkbenchKind::Sketch | WorkbenchKind::Part => Some(Case::Pascal),
+                WorkbenchKind::Sketch | WorkbenchKind::Surface | WorkbenchKind::Part => Some(Case::Pascal),
                 WorkbenchKind::Op => Some(Case::LowerSnake),
             },
             Constant(_) => Some(Case::UpperSnake),
